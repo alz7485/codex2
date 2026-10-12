@@ -1,0 +1,1 @@
+"""Catalog Studio desktop mockup."""
