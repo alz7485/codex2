@@ -1,0 +1,175 @@
+{
+  "format": "catalog-studio-integrated",
+  "version": 2,
+  "name": "配管カタログ管理",
+  "parameters": [
+    {
+      "id": "P1",
+      "role": "大径側外径",
+      "unit": "mm"
+    },
+    {
+      "id": "P2",
+      "role": "小径側外径",
+      "unit": "mm"
+    },
+    {
+      "id": "P3",
+      "role": "全長",
+      "unit": "mm"
+    },
+    {
+      "id": "P4",
+      "role": "大径側呼び径",
+      "unit": "mm"
+    },
+    {
+      "id": "P5",
+      "role": "小径側呼び径",
+      "unit": "mm"
+    }
+  ],
+  "cates": [
+    {
+      "id": "cate-reducer",
+      "name": "/REDUCER-CATE",
+      "description": "同心レデューサー（モックアップ参考値）",
+      "revision": "01"
+    }
+  ],
+  "definitions": [
+    {
+      "id": "gm-reducer",
+      "name": "/REDUCER-GEOM",
+      "kind": "GMSET",
+      "revision": "01",
+      "elements": [
+        {
+          "id": "cone-body",
+          "type": "cone",
+          "name": "円錐台 本体",
+          "attrs": {
+            "大径": "大径側外径",
+            "小径": "小径側外径",
+            "長さ": "全長",
+            "位置": "全長 / 2",
+            "方向": "Z"
+          }
+        }
+      ]
+    },
+    {
+      "id": "pt-reducer",
+      "name": "/REDUCER-POINTS",
+      "kind": "PTSET",
+      "revision": "01",
+      "elements": [
+        {
+          "id": "point-large",
+          "type": "point",
+          "name": "接続点 1",
+          "attrs": {
+            "位置": "0",
+            "方向": "-Z",
+            "接続口径": "大径側呼び径"
+          }
+        },
+        {
+          "id": "point-small",
+          "type": "point",
+          "name": "接続点 2",
+          "attrs": {
+            "位置": "全長",
+            "方向": "Z",
+            "接続口径": "小径側呼び径"
+          }
+        }
+      ]
+    }
+  ],
+  "scoms": [
+    {
+      "id": "scom-65-40",
+      "name": "/REDUCER-65X40",
+      "cate_id": "cate-reducer",
+      "size": "65 × 40",
+      "revision": "01",
+      "gmset_id": "gm-reducer",
+      "ptset_id": "pt-reducer",
+      "values": {
+        "P1": 76.3,
+        "P2": 48.6,
+        "P3": 89,
+        "P4": 65,
+        "P5": 40
+      }
+    },
+    {
+      "id": "scom-80-50",
+      "name": "/REDUCER-80X50",
+      "cate_id": "cate-reducer",
+      "size": "80 × 50",
+      "revision": "01",
+      "gmset_id": "gm-reducer",
+      "ptset_id": "pt-reducer",
+      "values": {
+        "P1": 89.1,
+        "P2": 60.5,
+        "P3": 89,
+        "P4": 80,
+        "P5": 50
+      }
+    },
+    {
+      "id": "scom-100-65",
+      "name": "/REDUCER-100X65",
+      "cate_id": "cate-reducer",
+      "size": "100 × 65",
+      "revision": "01",
+      "gmset_id": "gm-reducer",
+      "ptset_id": "pt-reducer",
+      "values": {
+        "P1": 114.3,
+        "P2": 76.3,
+        "P3": 102,
+        "P4": 100,
+        "P5": 65
+      }
+    }
+  ],
+  "specs": [
+    {
+      "id": "spec-cs150",
+      "name": "/CS-150-SPEC",
+      "description": "炭素鋼クラスの選択表（仮データ・E3D選択構文は未検証）",
+      "revision": "01",
+      "entries": [
+        {
+          "id": "entry-65-40",
+          "type": "REDU",
+          "bore1": "65",
+          "bore2": "40",
+          "scom_id": "scom-65-40",
+          "description": "同心レデューサー"
+        },
+        {
+          "id": "entry-80-50",
+          "type": "REDU",
+          "bore1": "80",
+          "bore2": "50",
+          "scom_id": "scom-80-50",
+          "description": "同心レデューサー"
+        },
+        {
+          "id": "entry-100-65",
+          "type": "REDU",
+          "bore1": "100",
+          "bore2": "65",
+          "scom_id": "scom-100-65",
+          "description": "同心レデューサー"
+        }
+      ]
+    }
+  ],
+  "books": []
+}

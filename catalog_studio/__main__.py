@@ -1,2 +1,2 @@
-from .app import main
+from .integrated import main
 raise SystemExit(main())

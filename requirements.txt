@@ -1,0 +1,2 @@
+# Optional for PDF catalogue export; the desktop editor itself uses Tkinter.
+reportlab>=4.0,<5.0

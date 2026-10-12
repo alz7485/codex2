@@ -1,0 +1,776 @@
+"""Integrated catalogue/specification authoring prototype for desktop use."""
+import copy
+import csv
+import io
+import json
+import math
+import re
+import sys
+import tkinter as tk
+from pathlib import Path
+from tkinter import filedialog, font, messagebox, ttk
+from . import model, project
+from .app import Studio as LegacyPreview
+
+BLUE = '#2269de'
+NAVY = '#233951'
+BG = '#f3f6fa'
+MUTED = '#738499'
+PAGES = [('catalog', 'カタログ構成'), ('definitions', 'GMSET・PTSET'), ('specs', 'SPEC 登録'), ('books', 'カタログ本・PDF'), ('rules', 'パラメータ規則'), ('checks', '確認・マクロ')]
+
+
+class Preview:
+    """Use the existing schematic renderer with values from one SCOM only."""
+    def __init__(self, parent, family):
+        self.canvas = tk.Canvas(parent, width=360, height=245, bg='#f1f6fc', highlightthickness=0)
+        self.canvas.pack(fill='both', expand=True, pady=8)
+        self.view = tk.DoubleVar(value=20)
+        self.points = tk.BooleanVar(value=True)
+        self.ui_font = family
+        self.project = {'elements': [], 'parameters': []}; self.selected = None; self.drag = None
+        ttk.Scale(parent, from_=-60, to=60, variable=self.view, command=lambda _: self.draw()).pack(fill='x')
+        ttk.Checkbutton(parent, text='ポイント表示（概略）', variable=self.points, command=self.draw).pack(anchor='w')
+        self.canvas.bind('<Configure>', lambda _: self.draw())
+        self.canvas.bind('<ButtonPress-1>', lambda e: setattr(self, 'drag', (e.x, self.view.get())))
+        self.canvas.bind('<B1-Motion>', self.rotate)
+        self.canvas.bind('<ButtonRelease-1>', lambda _: setattr(self, 'drag', None))
+        self.message = ''
+
+    def load(self, data, scom, selected=None):
+        self.message = ''; self.project = {'elements': [], 'parameters': []}; self.selected = selected
+        if scom:
+            try:
+                self.project['parameters'] = project.parameters_for(data, scom)
+                for key in ('gmset_id', 'ptset_id'):
+                    definition = project.get(data, 'definitions', scom.get(key))
+                    if definition:
+                        if any(e['type'] not in model.SCHEMAS for e in definition['elements']):
+                            raise ValueError('未対応の要素型があります。原文を保持し、概略表示は行いません。')
+                        self.project['elements'].extend(definition['elements'])
+                for element in self.project['elements']:
+                    for key in model.SCHEMAS[element['type']][1]:
+                        expr = element['attrs'][key]
+                        if key != '方向': model.evaluate(expr, self.project['parameters'])
+            except ValueError as exc:
+                self.message = 'プレビューを計算できません\n' + str(exc)
+                self.project['elements'] = []
+        else: self.message = '確認用の SCOM を選択してください'
+        self.draw()
+
+    def rotate(self, event):
+        if self.drag:
+            self.view.set(max(-60, min(60, self.drag[1] + (event.x-self.drag[0])/3))); self.draw()
+
+    def draw(self):
+        LegacyPreview.draw(self)
+        if self.message:
+            self.canvas.delete('all')
+            self.canvas.create_text(max(180,self.canvas.winfo_width()/2), max(80,self.canvas.winfo_height()/2), text=self.message, width=320, fill=MUTED, font=(self.ui_font,10))
+
+
+class IntegratedStudio(tk.Tk):
+    def __init__(self):
+        super().__init__()
+        self.title('Catalog Studio — 統合モックアップ')
+        self.geometry('1440x960'); self.minsize(1120,780); self.configure(bg=BG)
+        families=set(font.families(self))
+        self.ui_font=next((f for f in ('Yu Gothic UI','Meiryo','Noto Sans CJK JP','Hiragino Sans','Arial') if f in families),'TkDefaultFont')
+        self.style=ttk.Style(self);self.style.theme_use('clam')
+        self.style.configure('.',font=(self.ui_font,10),background='white',foreground='#243448')
+        self.style.configure('TButton',padding=(10,6))
+        self.style.configure('Primary.TButton',background=BLUE,foreground='white')
+        self.style.map('Primary.TButton',background=[('active','#1758c3')])
+        self.style.configure('Heading.TLabel',font=(self.ui_font,13,'bold'))
+        self.style.configure('Title.TLabel',font=(self.ui_font,21,'bold'))
+        self.style.configure('Muted.TLabel',foreground=MUTED)
+        self.style.configure('Treeview',rowheight=31,background='white',fieldbackground='white')
+        self.style.configure('Treeview.Heading',background='#edf3fa',padding=7)
+        self.style.map('Treeview',background=[('selected','#e5efff')],foreground=[('selected',BLUE)])
+        self.data=project.sample();self.path=None;self.dirty=False;self.page='catalog';self.busy=False
+        self.cate_id=self.data['cates'][0]['id'];self.scom_id=self.data['scoms'][0]['id']
+        self.definition_id=self.data['definitions'][0]['id'];self.spec_id=self.data['specs'][0]['id']
+        self.element_id=None;self.selected_book=None;self.field=None;self.preview=None
+        self.build_shell();self.render_page()
+        self.protocol('WM_DELETE_WINDOW',self.close)
+        self.bind('<Control-s>',lambda _:self.save_project())
+        self.bind('<Control-o>',lambda _:self.open_project())
+        self.bind('<Control-n>',lambda _:self.new_project())
+
+    def build_shell(self):
+        header=ttk.Frame(self,padding=(20,12));header.pack(fill='x')
+        ttk.Label(header,text='◇  Catalog Studio',style='Title.TLabel').pack(side='left')
+        ttk.Label(header,text='  E3D 4.0 / 統合モックアップ',style='Muted.TLabel').pack(side='left',padx=8)
+        for text,command,style in [('構成確認出力',lambda:self.switch('checks'),'Primary.TButton'),('保存',self.save_project,'TButton'),('読み込み',self.open_project,'TButton'),('新規',self.new_project,'TButton')]:
+            ttk.Button(header,text=text,command=command,style=style).pack(side='right',padx=4)
+        tk.Label(self,text='SCOM に実数値、GMSET・PTSET に参照・式を登録。SPEC の選択条件と E3D 登録構文は仮仕様です。',bg='#eaf1fb',fg='#5d7390',anchor='w',padx=20,pady=8).pack(fill='x')
+        self.status=ttk.Label(self,text='サンプルを表示中 · E3D 実行用ではありません',background=BG,foreground=MUTED,padding=(18,7));self.status.pack(side='bottom',fill='x')
+        body=ttk.Frame(self);body.pack(fill='both',expand=True)
+        nav=tk.Frame(body,bg=NAVY,width=185);nav.pack(side='left',fill='y');nav.pack_propagate(False)
+        tk.Label(nav,text='WORKSPACE',bg=NAVY,fg='#9eafc5',font=(self.ui_font,9),pady=20).pack(anchor='w',padx=16)
+        self.nav={}
+        for key,text in PAGES:
+            button=tk.Button(nav,text=text,command=lambda k=key:self.switch(k),bg=NAVY,fg='white',activebackground=BLUE,activeforeground='white',relief='flat',anchor='w',font=(self.ui_font,11),padx=16,pady=14)
+            button.pack(fill='x',padx=7,pady=3);self.nav[key]=button
+        tk.Label(nav,text='入力 → 参照 → SPEC\n→ カタログ本',bg=NAVY,fg='#a9b8cc',font=(self.ui_font,10),justify='left').pack(side='bottom',anchor='w',padx=18,pady=22)
+        self.content=ttk.Frame(body,padding=16);self.content.pack(side='left',fill='both',expand=True)
+
+    def mark(self,text='変更しました。Ctrl+S でプロジェクトを保存できます。'):
+        self.dirty=True;self.title('Catalog Studio — '+self.data['name']+' *');self.status.configure(text=text)
+
+    def switch(self,page):
+        self.commit_definition_name()
+        if page=='catalog':
+            s=project.get(self.data,'scoms',self.scom_id)
+            if s:self.cate_id=s['cate_id']
+        self.page=page;self.render_page()
+
+    def render_page(self):
+        self.busy=True;self.preview=None
+        for child in self.content.winfo_children():child.destroy()
+        for key,button in self.nav.items():button.configure(bg=BLUE if key==self.page else NAVY)
+        getattr(self,'build_'+self.page)()
+        self.busy=False
+
+    def heading(self,title,subtitle='',actions=()):
+        bar=ttk.Frame(self.content);bar.pack(fill='x',pady=(0,12))
+        block=ttk.Frame(bar);block.pack(side='left',fill='x',expand=True)
+        ttk.Label(block,text=title,style='Heading.TLabel').pack(anchor='w')
+        if subtitle:ttk.Label(block,text=subtitle,style='Muted.TLabel',wraplength=760).pack(anchor='w',pady=3)
+        for text,command in actions:ttk.Button(bar,text=text,command=command).pack(side='right',padx=3)
+        return bar
+
+    def table(self,parent,columns,height=10):
+        holder=ttk.Frame(parent);holder.pack(fill='both',expand=True)
+        tree=ttk.Treeview(holder,columns=[c[0] for c in columns],show='headings',selectmode='browse',height=height)
+        for key,title,width in columns:tree.heading(key,text=title);tree.column(key,width=width,minwidth=65)
+        tree.grid(row=0,column=0,sticky='nsew')
+        v=ttk.Scrollbar(holder,orient='vertical',command=tree.yview);v.grid(row=0,column=1,sticky='ns')
+        h=ttk.Scrollbar(holder,orient='horizontal',command=tree.xview);h.grid(row=1,column=0,sticky='ew')
+        tree.configure(yscrollcommand=v.set,xscrollcommand=h.set);holder.rowconfigure(0,weight=1);holder.columnconfigure(0,weight=1)
+        return tree
+
+    def balance(self,panes,fractions):
+        def apply():
+            if panes.winfo_exists():
+                width=panes.winfo_width()
+                for index,fraction in enumerate(fractions):panes.sashpos(index,int(width*fraction))
+        self.after_idle(apply)
+
+    def form(self,title,fields,apply):
+        """Fields: key, label, initial text, optional display choices."""
+        win=tk.Toplevel(self);win.title(title);win.transient(self);win.grab_set();win.geometry('540x650')
+        container=ttk.Frame(win,padding=18);container.pack(fill='both',expand=True)
+        ttk.Label(container,text=title,style='Heading.TLabel').pack(anchor='w',pady=(0,10))
+        canvas=tk.Canvas(container,highlightthickness=0,bg='white');canvas.pack(side='left',fill='both',expand=True)
+        scroll=ttk.Scrollbar(container,orient='vertical',command=canvas.yview);scroll.pack(side='right',fill='y');canvas.configure(yscrollcommand=scroll.set)
+        inner=ttk.Frame(canvas);window=canvas.create_window((0,0),window=inner,anchor='nw')
+        canvas.bind('<Configure>',lambda e:canvas.itemconfigure(window,width=e.width))
+        inner.bind('<Configure>',lambda _:canvas.configure(scrollregion=canvas.bbox('all')))
+        variables={}
+        for key,label,value,choices in fields:
+            ttk.Label(inner,text=label).pack(anchor='w',pady=(8,3));var=tk.StringVar(value=str(value));variables[key]=var
+            widget=ttk.Combobox(inner,textvariable=var,values=choices,state='readonly') if choices is not None else ttk.Entry(inner,textvariable=var)
+            widget.pack(fill='x')
+        error=ttk.Label(win,text='',foreground='#bb4949',wraplength=500,padding=10);error.pack(fill='x')
+        footer=ttk.Frame(win,padding=12);footer.pack(fill='x')
+        def submit():
+            try:apply({k:v.get().strip() for k,v in variables.items()})
+            except (ValueError,KeyError,StopIteration) as exc:error.configure(text=str(exc) or '設定内容を確認してください。');return
+            win.destroy();self.mark();self.render_page()
+        ttk.Button(footer,text='キャンセル',command=win.destroy).pack(side='right',padx=5)
+        ttk.Button(footer,text='適用',command=submit,style='Primary.TButton').pack(side='right')
+        return win
+
+    @staticmethod
+    def required(value,label):
+        if not value:raise ValueError(label+'を入力してください。')
+        return value
+
+    def choices(self,collection,kind=None):
+        return {item['name']:item['id'] for item in self.data[collection] if kind is None or item.get('kind')==kind}
+
+    def build_catalog(self):
+        self.heading('カタログ構成 / CATE・SCOM','SCOM のパラメータ値を入力し、形状・ポイント定義へ結び付けます。', [('SCOM を追加',self.add_scom),('CATE を追加',self.add_cate)])
+        split=ttk.Panedwindow(self.content,orient='horizontal');split.pack(fill='both',expand=True)
+        left=ttk.Frame(split,padding=8);middle=ttk.Frame(split,padding=10);right=ttk.Frame(split,padding=10)
+        split.add(left,weight=1);split.add(middle,weight=4);split.add(right,weight=2)
+        self.balance(split,(.18,.72))
+        ttk.Label(left,text='CATA / '+self.data['name'],style='Heading.TLabel',wraplength=190).pack(anchor='w',pady=8)
+        self.catalog_tree=ttk.Treeview(left,show='tree',height=14);self.catalog_tree.pack(fill='both',expand=True)
+        for cate in self.data['cates']:
+            self.catalog_tree.insert('','end',iid='cate:'+cate['id'],text='CATE '+cate['name'],open=True)
+            for scom in self.data['scoms']:
+                if scom['cate_id']==cate['id']:self.catalog_tree.insert('cate:'+cate['id'],'end',iid='scom:'+scom['id'],text='SCOM '+scom['name'])
+        selected='scom:'+str(self.scom_id) if project.get(self.data,'scoms',self.scom_id) else 'cate:'+str(self.cate_id)
+        if self.catalog_tree.exists(selected):self.catalog_tree.selection_set(selected)
+        self.catalog_tree.bind('<<TreeviewSelect>>',self.catalog_select)
+        ttk.Button(left,text='CATE の情報を編集',command=self.edit_cate).pack(fill='x',pady=6)
+        ttk.Button(left,text='空の CATE を削除',command=self.delete_cate).pack(fill='x')
+        top=ttk.Frame(middle);top.pack(fill='x',pady=(0,10))
+        ttk.Label(top,text='SCOM の実数値',style='Heading.TLabel').pack(side='left')
+        for text,cmd in [('編集',self.edit_scom),('複製',self.duplicate_scom),('削除',self.delete_scom)]:ttk.Button(top,text=text,command=cmd).pack(side='right',padx=2)
+        columns=[('name','SCOM 名',170),('size','サイズ',100),('rev','改訂',65)]+[(p['id'],p['role']+' ['+p['id']+' / '+p.get('unit','mm')+']',150) for p in self.data['parameters']]
+        self.scom_table=self.table(middle,columns,height=10);self.fill_scom_table()
+        ttk.Label(middle,text='行をダブルクリックして、実数値と参照先を編集できます。',style='Muted.TLabel').pack(anchor='w',pady=5)
+        self.scom_table.bind('<<TreeviewSelect>>',self.scom_select);self.scom_table.bind('<Double-1>',lambda _:self.edit_scom())
+        ttk.Button(middle,text='表からまとめて貼り付け',command=self.paste_scoms).pack(anchor='w',pady=10)
+        references=ttk.LabelFrame(middle,text='選択 SCOM の参照先',padding=12);references.pack(fill='x',pady=6)
+        self.reference_label=ttk.Label(references,text='',wraplength=520);self.reference_label.pack(anchor='w')
+        ttk.Button(references,text='GMSET を編集',command=lambda:self.goto_definition('gmset_id')).pack(side='left',pady=8,padx=3)
+        ttk.Button(references,text='PTSET を編集',command=lambda:self.goto_definition('ptset_id')).pack(side='left',pady=8,padx=3)
+        ttk.Label(right,text='選択 SCOM の概略表示',style='Heading.TLabel').pack(anchor='w')
+        self.preview=Preview(right,self.ui_font)
+        self.scom_detail=ttk.Label(right,text='',style='Muted.TLabel',wraplength=330);self.scom_detail.pack(anchor='w',pady=12)
+        ttk.Label(right,text='寸法は SCOM の値です。定義側には保存しません。',style='Muted.TLabel',wraplength=330).pack(anchor='w')
+        self.update_scom_preview()
+
+    def fill_scom_table(self):
+        self.scom_table.delete(*self.scom_table.get_children())
+        for s in self.data['scoms']:
+            if s['cate_id']==self.cate_id:self.scom_table.insert('','end',iid=s['id'],values=[s['name'],s['size'],s['revision']]+[s['values'].get(p['id'],'未入力') for p in self.data['parameters']])
+        if self.scom_table.exists(str(self.scom_id)):self.scom_table.selection_set(self.scom_id)
+
+    def catalog_select(self,_=None):
+        if self.busy:return
+        selected=self.catalog_tree.selection()
+        if not selected:return
+        typ,ident=selected[0].split(':',1)
+        if typ=='cate':
+            if self.cate_id==ident:return
+            self.cate_id=ident;self.scom_id=next((s['id'] for s in self.data['scoms'] if s['cate_id']==ident),None)
+        else:
+            s=project.get(self.data,'scoms',ident)
+            if not s:return
+            if ident==self.scom_id:return
+            self.cate_id=s['cate_id'];self.scom_id=ident
+        self.busy=True;self.fill_scom_table();self.busy=False;self.update_scom_preview()
+
+    def scom_select(self,_=None):
+        if self.busy:return
+        items=self.scom_table.selection()
+        if items:self.scom_id=items[0];self.update_scom_preview()
+
+    def update_scom_preview(self):
+        s=project.get(self.data,'scoms',self.scom_id)
+        self.preview.load(self.data,s)
+        if not s:self.reference_label.configure(text='SCOM を追加・選択してください。');self.scom_detail.configure(text='');return
+        g=project.get(self.data,'definitions',s['gmset_id']);p=project.get(self.data,'definitions',s['ptset_id'])
+        self.reference_label.configure(text='GMRE → '+(g['name'] if g else '未設定')+'\nPTRE  → '+(p['name'] if p else '未設定'))
+        self.scom_detail.configure(text=s['name']+' / Rev.'+s['revision']+'\n'+s['size']+'\n\n'+'\n'.join(p['id']+' '+p['role']+'：'+str(s['values'].get(p['id'],'未入力'))+' '+p.get('unit','mm') for p in self.data['parameters']))
+
+    def add_cate(self):
+        def apply(v):
+            self.required(v['name'],'CATE 名')
+            if v['name'] in self.choices('cates'):raise ValueError('CATE 名が重複しています。')
+            c=project.add_cate(self.data,v['name']);c['description']=v['description'];self.cate_id=c['id'];self.scom_id=None
+        self.form('CATE を追加',[('name','CATE 名','',None),('description','説明','',None)],apply)
+
+    def edit_cate(self):
+        cate=project.get(self.data,'cates',self.cate_id)
+        if not cate:return
+        def apply(v):
+            self.required(v['name'],'CATE 名')
+            if any(c['id']!=cate['id'] and c['name']==v['name'] for c in self.data['cates']):raise ValueError('CATE 名が重複しています。')
+            cate.update(v)
+        self.form('CATE の情報',[('name','CATE 名',cate['name'],None),('description','説明',cate['description'],None),('revision','改訂',cate['revision'],None)],apply)
+
+    def delete_cate(self):
+        if any(s['cate_id']==self.cate_id for s in self.data['scoms']):messagebox.showinfo('削除できません','SCOM がある CATE は削除できません。',parent=self);return
+        if not project.get(self.data,'cates',self.cate_id):return
+        if messagebox.askyesno('削除','空の CATE を削除しますか？',parent=self):
+            self.data['cates']=[c for c in self.data['cates'] if c['id']!=self.cate_id];self.cate_id=next((c['id'] for c in self.data['cates']),None);self.mark();self.render_page()
+
+    def scom_form(self,scom=None):
+        cate_choices=self.choices('cates');gm=self.choices('definitions','GMSET');pt=self.choices('definitions','PTSET')
+        if not cate_choices:messagebox.showinfo('CATE が必要','先に CATE を追加してください。',parent=self);return
+        for mapping in (cate_choices,gm,pt):mapping['未設定']=''
+        if scom:
+            for mapping,key in ((cate_choices,'cate_id'),(gm,'gmset_id'),(pt,'ptset_id')):
+                ident=scom[key]
+                if ident and ident not in mapping.values():mapping['参照先不明：'+ident]=ident
+        def display(mapping,ident):
+            return next((name for name,key in mapping.items() if key==ident),next(iter(mapping)))
+        fields=[('name','SCOM 名',scom['name'] if scom else '',None),('size','サイズ表記',scom['size'] if scom else '',None),('cate','CATE',display(cate_choices,scom['cate_id'] if scom else self.cate_id),list(cate_choices)),('revision','改訂',scom['revision'] if scom else '01',None),('gm','GMRE / GMSET',display(gm,scom.get('gmset_id') if scom else None),list(gm)),('pt','PTRE / PTSET',display(pt,scom.get('ptset_id') if scom else None),list(pt))]
+        for p in self.data['parameters']:fields.append((p['id'],p['id']+'：'+p['role']+' ['+p.get('unit','mm')+']',scom['values'].get(p['id'],'') if scom else '',None))
+        def apply(v):
+            self.required(v['name'],'SCOM 名')
+            if any(s['name']==v['name'] and (scom is None or s['id']!=scom['id']) for s in self.data['scoms']):raise ValueError('SCOM 名が重複しています。')
+            known={p['id'] for p in self.data['parameters']}
+            values={key:value for key,value in scom['values'].items() if key not in known} if scom else {}
+            for p in self.data['parameters']:
+                if not v[p['id']]:continue
+                try:n=float(v[p['id']])
+                except ValueError:raise ValueError(p['id']+' に実数値を入力してください。')
+                if not math.isfinite(n):raise ValueError('有限の数値を入力してください。')
+                values[p['id']]=n
+            obj=scom or project.add_scom(self.data,cate_choices[v['cate']],v['name'])
+            obj.update(name=v['name'],size=v['size'],cate_id=cate_choices[v['cate']],revision=v['revision'],gmset_id=gm.get(v['gm'],''),ptset_id=pt.get(v['pt'],''),values=values)
+            self.scom_id=obj['id'];self.cate_id=obj['cate_id']
+        self.form('SCOM の実数値を登録',fields,apply)
+
+    def add_scom(self):self.scom_form()
+    def edit_scom(self):
+        s=project.get(self.data,'scoms',self.scom_id)
+        if s:self.scom_form(s)
+    def duplicate_scom(self):
+        s=project.get(self.data,'scoms',self.scom_id)
+        if s:self.scom_id=project.duplicate_scom(self.data,s)['id'];self.mark();self.render_page()
+    def delete_scom(self):
+        s=project.get(self.data,'scoms',self.scom_id)
+        if not s:return
+        if any(e['scom_id']==s['id'] for spec in self.data['specs'] for e in spec['entries']):messagebox.showinfo('削除できません','SPEC で参照されています。先に SPEC の登録行を変更・削除してください。',parent=self);return
+        if messagebox.askyesno('削除','SCOM を削除しますか？ 発行済み冊子の内容は変わりません。',parent=self):
+            self.data['scoms']=[x for x in self.data['scoms'] if x['id']!=s['id']];self.scom_id=next((x['id'] for x in self.data['scoms'] if x['cate_id']==self.cate_id),None);self.mark();self.render_page()
+
+    def paste_scoms(self):
+        if not project.get(self.data,'cates',self.cate_id):return
+        win=tk.Toplevel(self);win.title('表から SCOM を追加');win.transient(self);win.grab_set()
+        names=['SCOM名','サイズ']+[p['id'] for p in self.data['parameters']]
+        ttk.Label(win,text='見出しを含めず、次の順序でタブ区切りの行を貼り付けてください。\n'+' / '.join(names)+'\n参照定義は選択中の SCOM から引き継ぎます。',padding=12,wraplength=700).pack()
+        text=tk.Text(win,width=90,height=15);text.pack(padx=12)
+        error=ttk.Label(win,text='',foreground='#bb4949',padding=10);error.pack()
+        def apply():
+            try:
+                candidate=self.parse_scom_paste(text.get('1.0','end'))
+            except ValueError as exc:error.configure(text=str(exc));return
+            self.data=candidate;self.mark();self.render_page();win.destroy()
+        ttk.Button(win,text='まとめて追加',command=apply,style='Primary.TButton').pack(pady=12)
+
+    def parse_scom_paste(self,text):
+        candidate=copy.deepcopy(self.data);base=project.get(candidate,'scoms',self.scom_id)
+        rows=list(csv.reader(io.StringIO(text.strip()),delimiter='\t'))
+        if not text.strip() or len(rows)>200:raise ValueError('1〜200 行を貼り付けてください。')
+        for rownum,row in enumerate(rows,1):
+            if len(row)!=2+len(candidate['parameters']):raise ValueError(f'{rownum} 行目の列数を確認してください。')
+            if not row[0].strip() or any(s['name']==row[0].strip() for s in candidate['scoms']):raise ValueError(f'{rownum} 行目の SCOM 名が空か重複しています。')
+            values={}
+            for p,raw in zip(candidate['parameters'],row[2:]):
+                try:value=float(raw)
+                except ValueError:raise ValueError(f'{rownum} 行目 / {p["id"]} は数値が必要です。')
+                if not math.isfinite(value):raise ValueError('有限の数値を入力してください。')
+                values[p['id']]=value
+            s=project.add_scom(candidate,self.cate_id,row[0].strip());s.update(size=row[1],values=values)
+            if base:s.update(gmset_id=base['gmset_id'],ptset_id=base['ptset_id'])
+        project.validate(candidate);return candidate
+
+    def goto_definition(self,key):
+        s=project.get(self.data,'scoms',self.scom_id)
+        if s and s.get(key):self.definition_id=s[key];self.switch('definitions')
+
+    def build_definitions(self):
+        self.heading('GMSET・PTSET の共通定義','パラメータの役割を選び、式で定義します。実数値は選択 SCOM から読み取り専用で使用します。',[('定義を追加',self.add_definition),('定義情報',self.edit_definition_info)])
+        split=ttk.Panedwindow(self.content,orient='horizontal');split.pack(fill='both',expand=True)
+        left=ttk.Frame(split,padding=8);middle=ttk.Frame(split,padding=12);right=ttk.Frame(split,padding=12)
+        split.add(left,weight=1);split.add(middle,weight=3);split.add(right,weight=2)
+        self.balance(split,(.20,.66))
+        self.def_tree=ttk.Treeview(left,show='tree');self.def_tree.pack(fill='both',expand=True)
+        for d in self.data['definitions']:
+            self.def_tree.insert('','end',iid=d['id'],text=d['kind']+' '+d['name'],open=True)
+        if self.def_tree.exists(str(self.definition_id)):self.def_tree.selection_set(self.definition_id)
+        self.def_tree.bind('<<TreeviewSelect>>',self.definition_select)
+        ttk.Button(left,text='定義を複製',command=self.duplicate_definition).pack(fill='x',pady=8)
+        ttk.Button(left,text='未使用の定義を削除',command=self.delete_definition).pack(fill='x')
+        d=project.get(self.data,'definitions',self.definition_id)
+        if not d:ttk.Label(middle,text='定義を追加してください。').pack();return
+        usage=[s for s in self.data['scoms'] if d['id'] in (s['gmset_id'],s['ptset_id'])]
+        ttk.Label(middle,text=d['kind']+' / 参照 SCOM：'+str(len(usage))+' 件',style='Heading.TLabel').pack(anchor='w')
+        self.def_name=tk.StringVar(value=d['name'])
+        self.def_name_entry=ttk.Entry(middle,textvariable=self.def_name);self.def_name_entry.pack(fill='x',pady=8)
+        self.def_name_entry.bind('<FocusOut>',lambda _:self.commit_definition_name());self.def_name_entry.bind('<Return>',lambda _:self.commit_definition_name())
+        self.element_table=self.table(middle,[('name','要素名',160),('type','種類',100)],height=4)
+        for e in d['elements']:self.element_table.insert('','end',iid=e['id'],values=(e['name'],model.SCHEMAS.get(e['type'],('未対応：'+e['type'],()))[0]))
+        if not any(e['id']==self.element_id for e in d['elements']):self.element_id=next((e['id'] for e in d['elements']),None)
+        if self.element_id:self.element_table.selection_set(self.element_id)
+        self.element_table.bind('<<TreeviewSelect>>',self.element_select)
+        actions=ttk.Frame(middle);actions.pack(fill='x',pady=7)
+        for label,cmd in [('要素を追加',self.add_element),('要素名',self.rename_element),('複製',self.duplicate_element),('削除',self.delete_element)]:ttk.Button(actions,text=label,command=cmd).pack(side='left',padx=2)
+        self.attr_table=self.table(middle,[('key','設定項目',100),('expr','参照・式',220),('refs','パラメータ',90)],height=5)
+        self.attr_table.bind('<<TreeviewSelect>>',self.attr_select)
+        formula=ttk.LabelFrame(middle,text='読みやすい式で編集',padding=10);formula.pack(fill='x',pady=10)
+        self.formula=tk.StringVar();self.formula.trace_add('write',self.formula_changed)
+        self.formula_entry=ttk.Entry(formula,textvariable=self.formula,font=(self.ui_font,14));self.formula_entry.pack(fill='x')
+        self.direction=ttk.Combobox(formula,values=model.DIRECTIONS,state='readonly');self.direction.bind('<<ComboboxSelected>>',self.direction_changed)
+        self.parambar=ttk.Frame(formula);self.parambar.pack(fill='x',pady=8)
+        self.param_choice=ttk.Combobox(self.parambar,values=[p['id']+'：'+p['role'] for p in self.data['parameters']],state='readonly');self.param_choice.pack(side='left',fill='x',expand=True)
+        if self.data['parameters']:self.param_choice.current(0)
+        ttk.Button(self.parambar,text='挿入',command=self.insert_parameter).pack(side='left',padx=3)
+        ttk.Button(self.parambar,text='÷ 2',command=self.half_formula).pack(side='left')
+        self.formula_result=ttk.Label(formula,text='',wraplength=450);self.formula_result.pack(anchor='w')
+        ttk.Label(right,text='参照 SCOM で表示確認',style='Heading.TLabel').pack(anchor='w')
+        self.preview_choices={s['name']:s['id'] for s in usage}
+        self.preview_choice=ttk.Combobox(right,values=list(self.preview_choices),state='readonly');self.preview_choice.pack(fill='x',pady=8)
+        if usage:
+            selected=next((s for s in usage if s['id']==self.scom_id),usage[0]);self.scom_id=selected['id'];self.preview_choice.set(selected['name'])
+        self.preview_choice.bind('<<ComboboxSelected>>',self.preview_scom_selected)
+        self.preview=Preview(right,self.ui_font)
+        self.preview_values=ttk.Label(right,text='',style='Muted.TLabel',wraplength=330);self.preview_values.pack(anchor='w',pady=8)
+        ttk.Button(right,text='SCOM の実数値を編集',command=lambda:self.switch('catalog')).pack(fill='x',pady=8)
+        ttk.Label(right,text='ここに表示する数値は定義には保存されません。',style='Muted.TLabel',wraplength=330).pack(anchor='w')
+        self.populate_attrs();self.update_definition_preview()
+
+    def definition(self):return project.get(self.data,'definitions',self.definition_id)
+    def element(self):return next((e for e in (self.definition() or {}).get('elements',[]) if e['id']==self.element_id),None)
+    def commit_definition_name(self):
+        if self.page!='definitions' or not hasattr(self,'def_name_entry') or not self.def_name_entry.winfo_exists():return
+        d=self.definition();name=self.def_name.get().strip()
+        if not d or name==d['name']:return
+        if not name or any(x['id']!=d['id'] and x['name']==name for x in self.data['definitions']):self.status.configure(text='定義名が空か重複しています。');self.def_name.set(d['name']);return
+        d['name']=name;self.def_tree.item(d['id'],text=d['kind']+' '+name);self.mark()
+    def definition_select(self,_=None):
+        if self.busy:return
+        selection=self.def_tree.selection()
+        if selection and selection[0]!=self.definition_id:self.commit_definition_name();self.definition_id=selection[0];self.element_id=None;self.render_page()
+    def element_select(self,_=None):
+        if self.busy:return
+        selection=self.element_table.selection()
+        if selection and selection[0]!=self.element_id:self.element_id=selection[0];self.field=None;self.populate_attrs();self.update_definition_preview()
+    def populate_attrs(self):
+        self.busy=True;self.attr_table.delete(*self.attr_table.get_children());e=self.element()
+        if e:
+            for k in model.SCHEMAS.get(e['type'],('',tuple(e['attrs'])))[1]:self.attr_table.insert('','end',iid=k,values=(k,e['attrs'][k],', '.join(model.references(str(e['attrs'][k]),self.data['parameters'])) or '—'))
+            if self.field not in e['attrs']:self.field=next(iter(model.SCHEMAS.get(e['type'],('',tuple(e['attrs'])))[1]),None)
+            if self.field:self.attr_table.selection_set(self.field)
+        else:self.field=None
+        self.load_formula();self.busy=False
+    def attr_select(self,_=None):
+        if self.busy:return
+        selection=self.attr_table.selection()
+        if selection and selection[0]!=self.field:self.field=selection[0];self.busy=True;self.load_formula();self.busy=False
+    def load_formula(self):
+        e=self.element()
+        if not e or not self.field:self.formula.set('');self.formula_entry.configure(state='disabled');return
+        if e['type'] not in model.SCHEMAS:
+            self.direction.pack_forget();self.parambar.pack_forget()
+            self.formula_entry.pack(fill='x',before=self.formula_result)
+            self.formula.set(str(e['attrs'][self.field]));self.formula_entry.configure(state='readonly')
+            self.formula_result.configure(text='未対応要素の原文を読み取り専用で保持しています。',foreground=MUTED)
+            return
+        self.formula_entry.configure(state='normal')
+        if self.field=='方向':
+            self.formula_entry.pack_forget();self.parambar.pack_forget();self.direction.pack(fill='x',before=self.formula_result);self.direction.set(e['attrs']['方向'])
+        else:
+            self.direction.pack_forget();self.formula_entry.pack(fill='x',before=self.formula_result);self.parambar.pack(fill='x',pady=8,before=self.formula_result);self.formula.set(e['attrs'][self.field])
+        self.calc_formula()
+    def formula_changed(self,*_):
+        if self.busy or not self.element() or self.element()['type'] not in model.SCHEMAS or not self.field or self.field=='方向':return
+        self.element()['attrs'][self.field]=self.formula.get()
+        self.attr_table.item(self.field,values=(self.field,self.formula.get(),', '.join(model.references(self.formula.get(),self.data['parameters'])) or '—'))
+        self.mark();self.calc_formula();self.update_definition_preview()
+    def direction_changed(self,_=None):
+        if self.element():self.element()['attrs']['方向']=self.direction.get();self.mark();self.populate_attrs();self.update_definition_preview()
+    def calc_formula(self):
+        if not self.element() or not self.field:self.formula_result.configure(text='');return
+        if self.element()['type'] not in model.SCHEMAS:return
+        if self.field=='方向':self.formula_result.configure(text='方向を選択してください。',foreground=MUTED);return
+        s=project.get(self.data,'scoms',self.preview_choices.get(self.preview_choice.get())) if hasattr(self,'preview_choice') and self.preview_choice.winfo_exists() else None
+        try:
+            if not s:raise ValueError('参照 SCOM を選ぶと計算結果を確認できます。')
+            val=model.evaluate(self.formula.get(),project.parameters_for(self.data,s));self.formula_result.configure(text='選択 SCOM での計算結果：'+f'{val:g}',foreground='#168168')
+        except ValueError as exc:self.formula_result.configure(text=str(exc),foreground='#b94c44')
+    def insert_parameter(self):
+        if not self.element() or self.element()['type'] not in model.SCHEMAS or self.field=='方向':return
+        i=self.param_choice.current()
+        if i<0:return
+        name=self.data['parameters'][i]['role'];entry=self.formula_entry
+        try:a,b=entry.index('sel.first'),entry.index('sel.last')
+        except tk.TclError:a=b=entry.index('insert')
+        text=self.formula.get();self.formula.set(text[:a]+name+text[b:]);entry.focus_set();entry.icursor(a+len(name))
+    def half_formula(self):
+        if self.element() and self.element()['type'] in model.SCHEMAS and self.field!='方向':self.formula.set('('+self.formula.get()+') / 2')
+    def edit_definition_info(self):
+        d=self.definition()
+        if not d:return
+        def apply(v):
+            self.required(v['name'],'定義名')
+            if any(x['id']!=d['id'] and x['name']==v['name'] for x in self.data['definitions']):raise ValueError('定義名が重複しています。')
+            d.update(v)
+        self.form('共通定義の情報',[('name','定義名',d['name'],None),('revision','改訂',d['revision'],None)],apply)
+    def preview_scom_selected(self,_=None):self.scom_id=self.preview_choices.get(self.preview_choice.get());self.calc_formula();self.update_definition_preview()
+    def update_definition_preview(self):
+        if not self.preview:return
+        s=project.get(self.data,'scoms',self.preview_choices.get(self.preview_choice.get()))
+        self.preview.load(self.data,s,self.element_id)
+        self.preview_values.configure(text='読み取り専用 / '+(s['name'] if s else 'SCOM 未選択')+'\n'+('\n'.join(p['id']+' '+p['role']+'：'+str(s['values'].get(p['id'],'未入力'))+' '+p.get('unit','mm') for p in self.data['parameters']) if s else ''))
+    def add_definition(self):
+        def apply(v):
+            self.required(v['name'],'定義名')
+            if v['name'] in self.choices('definitions'):raise ValueError('定義名が重複しています。')
+            d=project.add_definition(self.data,v['kind'],v['name']);self.definition_id=d['id'];self.element_id=None
+        self.form('共通定義を追加',[('kind','種類','GMSET',['GMSET','PTSET']),('name','定義名','',None)],apply)
+    def duplicate_definition(self):
+        d=self.definition()
+        if not d:return
+        import uuid
+        copied=copy.deepcopy(d);copied['id']=uuid.uuid4().hex;name=d['name']+'-COPY';n=1
+        while name in self.choices('definitions'):n+=1;name=d['name']+'-COPY'+str(n)
+        copied['name']=name
+        for e in copied['elements']:e['id']=uuid.uuid4().hex
+        self.data['definitions'].append(copied);self.definition_id=copied['id'];self.element_id=None;self.mark();self.render_page()
+    def delete_definition(self):
+        d=self.definition()
+        if not d:return
+        if any(d['id'] in (s['gmset_id'],s['ptset_id']) for s in self.data['scoms']):messagebox.showinfo('削除できません','SCOM から参照されています。',parent=self);return
+        if messagebox.askyesno('削除','未使用の共通定義を削除しますか？',parent=self):self.data['definitions'].remove(d);self.definition_id=next((x['id'] for x in self.data['definitions']),None);self.mark();self.render_page()
+    def add_element(self):
+        d=self.definition()
+        if not d:return
+        choices={model.SCHEMAS[k][0]:k for k in model.SCHEMAS if (k=='point')==(d['kind']=='PTSET')}
+        def apply(v):e=project.add_element(self.data,d,choices[v['kind']]);self.element_id=e['id']
+        self.form('要素を追加',[('kind','要素の種類',next(iter(choices)),list(choices))],apply)
+    def duplicate_element(self):
+        d=self.definition();e=self.element()
+        if e:
+            # Legacy helper only copies metadata/expressions, never numeric parameter values.
+            self.element_id=model.duplicate_element({'elements':d['elements']},e)['id'];self.mark();self.render_page()
+    def rename_element(self):
+        e=self.element()
+        if not e:return
+        def apply(v):self.required(v['name'],'要素名');e['name']=v['name']
+        self.form('要素名を編集',[('name','要素名',e['name'],None)],apply)
+    def delete_element(self):
+        d=self.definition();e=self.element()
+        if e and messagebox.askyesno('削除','要素を削除しますか？ 共通定義の使用先に影響します。',parent=self):d['elements'].remove(e);self.element_id=None;self.mark();self.render_page()
+
+    def build_specs(self):
+        self.heading('SPEC 登録','部品種別・口径条件と参照 SCOM を選択表で管理します。E3D の SELE・SPCO 構文への変換は未対応です。',[('SPEC を追加',self.add_spec)])
+        split=ttk.Panedwindow(self.content,orient='horizontal');split.pack(fill='both',expand=True)
+        left=ttk.Frame(split,padding=8);middle=ttk.Frame(split,padding=12);right=ttk.Frame(split,padding=12)
+        split.add(left,weight=1);split.add(middle,weight=4);split.add(right,weight=2)
+        self.balance(split,(.18,.72))
+        self.spec_tree=ttk.Treeview(left,show='tree');self.spec_tree.pack(fill='both',expand=True)
+        for spec in self.data['specs']:self.spec_tree.insert('','end',iid=spec['id'],text=spec['name'])
+        if self.spec_tree.exists(str(self.spec_id)):self.spec_tree.selection_set(self.spec_id)
+        self.spec_tree.bind('<<TreeviewSelect>>',self.spec_select)
+        ttk.Button(left,text='SPEC 情報を編集',command=self.edit_spec).pack(fill='x',pady=8)
+        ttk.Button(left,text='SPEC を複製',command=self.duplicate_spec).pack(fill='x',pady=4)
+        ttk.Button(left,text='SPEC を削除',command=self.delete_spec).pack(fill='x',pady=4)
+        spec=project.get(self.data,'specs',self.spec_id)
+        if not spec:ttk.Label(middle,text='SPEC を追加してください。').pack();return
+        ttk.Label(middle,text=spec['name']+' / Rev.'+spec['revision'],style='Heading.TLabel').pack(anchor='w')
+        ttk.Label(middle,text=spec['description'],style='Muted.TLabel',wraplength=600).pack(anchor='w',pady=6)
+        toolbar=ttk.Frame(middle);toolbar.pack(fill='x',pady=10)
+        for label,cmd in [('登録行を追加',self.add_spec_entry),('編集',self.edit_spec_entry),('複製',self.duplicate_spec_entry),('削除',self.delete_spec_entry)]:ttk.Button(toolbar,text=label,command=cmd).pack(side='left',padx=3)
+        self.spec_table=self.table(middle,[('type','部品種別',90),('bore1','口径 1',80),('bore2','口径 2',80),('scom','参照 SCOM',210),('desc','説明',160)],height=14)
+        for entry in spec['entries']:
+            scom=project.get(self.data,'scoms',entry['scom_id'])
+            self.spec_table.insert('','end',iid=entry['id'],values=(entry['type'],entry['bore1'],entry['bore2'],scom['name'] if scom else '[未設定]',entry['description']))
+        self.spec_table.bind('<<TreeviewSelect>>',self.spec_entry_select);self.spec_table.bind('<Double-1>',lambda _:self.edit_spec_entry())
+        ttk.Label(middle,text='この表は選択条件のたたき台です。実機で必要な属性や分岐条件は作成例から追加します。',style='Muted.TLabel',wraplength=580).pack(anchor='w',pady=12)
+        ttk.Label(right,text='参照部品を確認',style='Heading.TLabel').pack(anchor='w')
+        self.preview=Preview(right,self.ui_font)
+        self.spec_detail=ttk.Label(right,text='登録行を選択してください。',style='Muted.TLabel',wraplength=320);self.spec_detail.pack(anchor='w',pady=12)
+        ttk.Button(right,text='参照 SCOM を開く',command=self.goto_spec_scom).pack(fill='x',pady=8)
+        ttk.Button(right,text='SPEC をカタログ本に掲載',command=lambda:self.switch('books')).pack(fill='x')
+        if spec['entries']:self.spec_table.selection_set(spec['entries'][0]['id']);self.update_spec_preview()
+    def spec(self):return project.get(self.data,'specs',self.spec_id)
+    def spec_entry(self):
+        if not hasattr(self,'spec_table') or not self.spec_table.winfo_exists() or not self.spec():return None
+        selection=self.spec_table.selection();return next((e for e in self.spec()['entries'] if selection and e['id']==selection[0]),None)
+    def spec_select(self,_=None):
+        if self.busy:return
+        selection=self.spec_tree.selection()
+        if selection and selection[0]!=self.spec_id:self.spec_id=selection[0];self.render_page()
+    def spec_entry_select(self,_=None):
+        if not self.busy:self.update_spec_preview()
+    def update_spec_preview(self):
+        entry=self.spec_entry();scom=project.get(self.data,'scoms',entry['scom_id']) if entry else None
+        self.preview.load(self.data,scom)
+        self.spec_detail.configure(text=('種別：'+entry['type']+'\n口径条件：'+entry['bore1']+' × '+entry['bore2']+'\n参照：'+(scom['name'] if scom else '未設定')+'\n\nSCOM の値や共通定義は参照先で編集します。') if entry else '登録行を選択してください。')
+    def goto_spec_scom(self):
+        entry=self.spec_entry();s=project.get(self.data,'scoms',entry['scom_id']) if entry else None
+        if s:self.scom_id=s['id'];self.cate_id=s['cate_id'];self.switch('catalog')
+    def spec_form(self,spec=None):
+        def apply(v):
+            self.required(v['name'],'SPEC 名')
+            if any(x['name']==v['name'] and (not spec or x['id']!=spec['id']) for x in self.data['specs']):raise ValueError('SPEC 名が重複しています。')
+            item=spec or project.add_spec(self.data,v['name']);item.update(v);self.spec_id=item['id']
+        self.form('SPEC 情報',[('name','SPEC 名',spec['name'] if spec else '',None),('description','説明',spec['description'] if spec else '',None),('revision','改訂',spec['revision'] if spec else '01',None)],apply)
+    def add_spec(self):self.spec_form()
+    def edit_spec(self):
+        if self.spec():self.spec_form(self.spec())
+    def duplicate_spec(self):
+        spec=self.spec()
+        if not spec:return
+        import uuid
+        item=copy.deepcopy(spec);item['id']=uuid.uuid4().hex;name=spec['name']+'-COPY';n=1
+        while name in self.choices('specs'):n+=1;name=spec['name']+'-COPY'+str(n)
+        item['name']=name
+        for entry in item['entries']:entry['id']=uuid.uuid4().hex
+        self.data['specs'].append(item);self.spec_id=item['id'];self.mark();self.render_page()
+    def delete_spec(self):
+        spec=self.spec()
+        if spec and messagebox.askyesno('削除','SPEC を削除しますか？ 発行済み冊子の内容は変わりません。',parent=self):self.data['specs'].remove(spec);self.spec_id=next((x['id'] for x in self.data['specs']),None);self.mark();self.render_page()
+    def entry_form(self,entry=None):
+        spec=self.spec();scoms=self.choices('scoms')
+        if not spec or not scoms:messagebox.showinfo('SCOM が必要','先に参照する SCOM を作成してください。',parent=self);return
+        selected=next((name for name,ident in scoms.items() if ident==(entry['scom_id'] if entry else self.scom_id)),next(iter(scoms)))
+        fields=[('type','部品種別（仮の選択項目）',entry['type'] if entry else 'REDU',None),('bore1','口径条件 1',entry['bore1'] if entry else '',None),('bore2','口径条件 2',entry['bore2'] if entry else '',None),('scom','参照 SCOM',selected,list(scoms)),('description','説明',entry['description'] if entry else '',None)]
+        def apply(v):
+            self.required(v['type'],'部品種別');self.required(v['bore1'],'口径条件 1')
+            record=entry or project.add_spec_entry(self.data,spec,scoms[v['scom']])
+            record.update(type=v['type'],bore1=v['bore1'],bore2=v['bore2'],scom_id=scoms[v['scom']],description=v['description'])
+        self.form('SPEC の登録行',fields,apply)
+    def add_spec_entry(self):self.entry_form()
+    def edit_spec_entry(self):
+        entry=self.spec_entry()
+        if entry:self.entry_form(entry)
+    def duplicate_spec_entry(self):
+        entry=self.spec_entry()
+        if not entry:return
+        import uuid
+        item=copy.deepcopy(entry);item['id']=uuid.uuid4().hex;self.spec()['entries'].append(item);self.mark();self.render_page()
+    def delete_spec_entry(self):
+        entry=self.spec_entry()
+        if entry and messagebox.askyesno('削除','SPEC の登録行を削除しますか？',parent=self):self.spec()['entries'].remove(entry);self.mark();self.render_page()
+
+    def build_books(self):
+        self.heading('カタログ本・PDF','SCOM・共通定義・SPEC の改訂を固定して、後から同じ内容で PDF を出力できます。')
+        split=ttk.Panedwindow(self.content,orient='horizontal');split.pack(fill='both',expand=True)
+        left=ttk.Frame(split,padding=10);right=ttk.Frame(split,padding=14);split.add(left,weight=3);split.add(right,weight=2)
+        meta=ttk.LabelFrame(left,text='新しい冊子を作成',padding=12);meta.pack(fill='x')
+        ttk.Label(meta,text='タイトル').grid(row=0,column=0,sticky='w');self.book_title=tk.StringVar(value='配管部品カタログ');ttk.Entry(meta,textvariable=self.book_title).grid(row=0,column=1,sticky='ew',padx=8,pady=5)
+        ttk.Label(meta,text='版').grid(row=1,column=0,sticky='w');self.book_edition=tk.StringVar(value='第 1 版');ttk.Entry(meta,textvariable=self.book_edition).grid(row=1,column=1,sticky='ew',padx=8,pady=5);meta.columnconfigure(1,weight=1)
+        notebook=ttk.Notebook(left);notebook.pack(fill='both',expand=True,pady=12)
+        sframe=ttk.Frame(notebook,padding=8);specframe=ttk.Frame(notebook,padding=8)
+        notebook.add(sframe,text='掲載 SCOM');notebook.add(specframe,text='掲載 SPEC')
+        ttk.Label(sframe,text='Ctrl / Shift で複数選択。SPEC の参照 SCOM は自動で追加されます。',style='Muted.TLabel',wraplength=600).pack(anchor='w',pady=5)
+        self.book_scoms=self.table(sframe,[('name','SCOM',230),('size','サイズ',100),('revision','改訂',70)],height=9);self.book_scoms.configure(selectmode='extended')
+        for s in self.data['scoms']:self.book_scoms.insert('','end',iid=s['id'],values=(s['name'],s['size'],s['revision']))
+        self.book_scoms.selection_set(self.book_scoms.get_children())
+        self.book_specs=self.table(specframe,[('name','SPEC',240),('rev','改訂',80)],height=9);self.book_specs.configure(selectmode='extended')
+        for spec in self.data['specs']:self.book_specs.insert('','end',iid=spec['id'],values=(spec['name'],spec['revision']))
+        self.book_specs.selection_set(self.book_specs.get_children())
+        ttk.Button(left,text='掲載内容と改訂を固定して冊子を作成',command=self.create_book,style='Primary.TButton').pack(fill='x',pady=8)
+        ttk.Label(right,text='保存した冊子',style='Heading.TLabel').pack(anchor='w',pady=6)
+        self.books_table=self.table(right,[('title','タイトル',220),('edition','版',90),('date','保存日',100)],height=6)
+        for book in self.data['books']:
+            if isinstance(book,dict) and 'id' in book:self.books_table.insert('','end',iid=book['id'],values=(book.get('title',''),book.get('edition',''),book.get('created_at','')[:10]))
+        if self.books_table.exists(str(self.selected_book)):self.books_table.selection_set(self.selected_book)
+        self.books_table.bind('<<TreeviewSelect>>',self.book_select)
+        self.book_info=tk.Text(right,height=12,wrap='word',font=(self.ui_font,10),relief='flat',bg='#f3f7fc');self.book_info.pack(fill='both',expand=True,pady=10)
+        ttk.Button(right,text='選択した冊子を PDF に保存',command=self.export_pdf,style='Primary.TButton').pack(fill='x',pady=6)
+        ttk.Button(right,text='冊子の固定データを JSON で保存',command=self.export_book_json).pack(fill='x')
+        ttk.Button(right,text='選択した冊子を削除',command=self.delete_book).pack(fill='x',pady=6)
+        self.update_book_info()
+    def book(self):return next((b for b in self.data['books'] if isinstance(b,dict) and b.get('id')==self.selected_book),None)
+    def book_select(self,_=None):
+        if self.busy:return
+        selection=self.books_table.selection()
+        if selection:self.selected_book=selection[0];self.update_book_info()
+    def update_book_info(self):
+        book=self.book()
+        if book:
+            text=book['title']+' / '+book['edition']+'\n作成日：'+book['created_at'][:10]+'\n\nSCOM：'+str(len(book['scoms']))+' 件\nSPEC：'+str(len(book['specs']))+' 件\n共通定義：'+str(len(book['definitions']))+' 件\n\n掲載対象と改訂を固定済み。\nその後のプロジェクト編集はこの冊子に反映されません。\n\n'+('\n'.join(s['name']+' / Rev.'+s['revision'] for s in book['scoms'][:8]))
+        else:text='冊子を作成・選択してください。\n\nPDF には表紙、収録一覧、寸法表、SCOM 概略図、SPEC 表、共通定義と式を掲載します。\n\nPDF 出力は reportlab を使用します。'
+        self.set_text(self.book_info,text)
+    def create_book(self):
+        from . import booklet
+        try:
+            book=booklet.snapshot(self.data,list(self.book_scoms.selection()),list(self.book_specs.selection()),self.book_title.get(),self.book_edition.get())
+        except (ValueError,KeyError) as exc:messagebox.showerror('冊子を作成できません',str(exc),parent=self);return
+        self.data['books'].append(book);self.selected_book=book['id'];self.mark('冊子の内容・改訂を固定しました。プロジェクトも保存してください。');self.render_page()
+    def export_pdf(self):
+        book=self.book()
+        if not book:messagebox.showinfo('冊子を選択','先に冊子を作成・選択してください。',parent=self);return
+        path=filedialog.asksaveasfilename(parent=self,title='PDF カタログ本を保存',defaultextension='.pdf',initialfile='catalog-book.pdf',filetypes=[('PDF','*.pdf')])
+        if not path:return
+        from . import booklet
+        try:booklet.generate_pdf(book,path)
+        except (OSError,ValueError,RuntimeError,KeyError) as exc:messagebox.showerror('PDF を出力できません',str(exc),parent=self);return
+        self.status.configure(text='PDF を保存しました：'+path)
+    def export_book_json(self):
+        book=self.book()
+        if not book:return
+        path=filedialog.asksaveasfilename(parent=self,defaultextension='.json',initialfile='catalog-book-snapshot.json')
+        if path:
+            try:Path(path).write_text(json.dumps(book,ensure_ascii=False,indent=2),encoding='utf-8')
+            except OSError as exc:messagebox.showerror('保存できません',str(exc),parent=self)
+    def delete_book(self):
+        book=self.book()
+        if book and messagebox.askyesno('冊子を削除','プロジェクト内の冊子固定データを削除しますか？ 出力済みの PDF は削除しません。',parent=self):self.data['books'].remove(book);self.selected_book=None;self.mark();self.render_page()
+
+    def build_rules(self):
+        self.heading('パラメータ規則','番号ごとに役割と単位を定義します。実数値は各 SCOM の編集画面で登録します。',[('パラメータを追加',self.add_parameter)])
+        self.param_table=self.table(self.content,[('id','番号',100),('role','役割・表示名',360),('unit','単位',100)],height=15)
+        for p in self.data['parameters']:self.param_table.insert('','end',iid=p['id'],values=(p['id'],p['role'],p.get('unit','mm')))
+        self.param_table.bind('<Double-1>',lambda _:self.edit_parameter())
+        actions=ttk.Frame(self.content);actions.pack(fill='x',pady=10)
+        ttk.Button(actions,text='役割・単位を編集',command=self.edit_parameter).pack(side='left',padx=3)
+        ttk.Button(actions,text='未使用のパラメータを削除',command=self.remove_parameter).pack(side='left',padx=3)
+        ttk.Label(self.content,text='役割名を変更すると共通定義の式も更新します。発行済み冊子の役割名は変更しません。番号の並べ替え・再採番は行いません。',style='Muted.TLabel',wraplength=1000).pack(anchor='w',pady=8)
+    def parameter_form(self,param=None):
+        next_id='P'+str(max([int(p['id'][1:]) for p in self.data['parameters']]+[0])+1)
+        fields=([('id','番号',next_id,None)] if param is None else [])+[('role','役割・表示名',param['role'] if param else '',None),('unit','単位',param.get('unit','mm') if param else 'mm',None)]
+        def apply(v):
+            if not model.valid_role(v['role']):raise ValueError('役割名に空白や演算記号は使用できません。')
+            if any(p['role']==v['role'] and (param is None or p['id']!=param['id']) for p in self.data['parameters']):raise ValueError('役割名が重複しています。')
+            if param:project.rename_parameter(self.data,param['id'],v['role']);param['unit']=v['unit']
+            else:
+                if not re.fullmatch(r'P[1-9]\d*',v['id']) or any(p['id']==v['id'] for p in self.data['parameters']):raise ValueError('P1 のような未使用の番号を指定してください。')
+                self.data['parameters'].append({'id':v['id'],'role':v['role'],'unit':v['unit']})
+        self.form('パラメータ規則',fields,apply)
+    def add_parameter(self):self.parameter_form()
+    def edit_parameter(self):
+        selection=self.param_table.selection()
+        if selection:self.parameter_form(project.get(self.data,'parameters',selection[0]))
+    def remove_parameter(self):
+        selection=self.param_table.selection()
+        if not selection:return
+        pid=selection[0]
+        if any(pid in model.references(expr,self.data['parameters']) for d in self.data['definitions'] for e in d['elements'] for expr in e['attrs'].values() if isinstance(expr,str)) or any(pid in s['values'] for s in self.data['scoms']):messagebox.showinfo('削除できません','定義の式または SCOM の値で使用されています。',parent=self);return
+        if messagebox.askyesno('削除',pid+' を削除しますか？',parent=self):self.data['parameters']=[p for p in self.data['parameters'] if p['id']!=pid];self.mark();self.render_page()
+
+    @staticmethod
+    def set_text(widget,text):widget.configure(state='normal');widget.delete('1.0','end');widget.insert('1.0',text);widget.configure(state='disabled')
+    def build_checks(self):
+        self.heading('確認・マクロ','参照関係、入力値、式、SPEC の条件を確認します。出力はコメントのみの構成確認用ファイルです。',[('構成確認ファイルを保存',self.export_review)])
+        notebook=ttk.Notebook(self.content);notebook.pack(fill='both',expand=True)
+        first=ttk.Frame(notebook,padding=12);second=ttk.Frame(notebook,padding=12);notebook.add(first,text='入力・参照の確認');notebook.add(second,text='生成内容のたたき台')
+        problems=project.issues(self.data)
+        check=tk.Text(first,wrap='word',font=(self.ui_font,11));check.pack(fill='both',expand=True)
+        self.set_text(check,('\n\n'.join('! '+p for p in problems) if problems else '✓ 入力・参照の基本チェックに問題はありません。')+'\n\n○ E3D の実機属性、選択条件、登録コマンドは未検証です。')
+        text=tk.Text(second,wrap='none',font=('Consolas',10));text.pack(fill='both',expand=True);self.set_text(text,project.macro_text(self.data))
+    def export_review(self):
+        path=filedialog.asksaveasfilename(parent=self,defaultextension='.mac',initialfile='catalog-integrated-review.mac')
+        if path:
+            try:Path(path).write_text(project.macro_text(self.data),encoding='utf-8')
+            except OSError as exc:messagebox.showerror('出力できません',str(exc),parent=self);return
+            self.status.configure(text='構成確認用コメントファイルを保存しました：'+path)
+    def guard(self):
+        self.commit_definition_name()
+        if not self.dirty:return True
+        answer=messagebox.askyesnocancel('未保存の変更','変更を保存しますか？',parent=self)
+        return False if answer is None else self.save_project() if answer else True
+    def save_project(self):
+        self.commit_definition_name()
+        path=self.path or filedialog.asksaveasfilename(parent=self,defaultextension='.json',initialfile='catalog-integrated-project.json',filetypes=[('プロジェクト JSON','*.json')])
+        if not path:return False
+        try:project.save(self.data,path)
+        except (OSError,ValueError) as exc:messagebox.showerror('保存できません',str(exc),parent=self);return False
+        self.path=path;self.dirty=False;self.title('Catalog Studio — '+self.data['name']);self.status.configure(text='保存済み：'+str(path));return True
+    def reset_selection(self):
+        for collection,attr in [('cates','cate_id'),('scoms','scom_id'),('definitions','definition_id'),('specs','spec_id')]:setattr(self,attr,next((x['id'] for x in self.data[collection]),None))
+        self.element_id=None;self.field=None;self.selected_book=None
+    def open_project(self):
+        if not self.guard():return
+        path=filedialog.askopenfilename(parent=self,title='プロジェクト JSON を読み込み（E3D 出力は未対応）',filetypes=[('プロジェクト JSON','*.json')])
+        if not path:return
+        try:data=project.load(path)
+        except (OSError,ValueError,RecursionError) as exc:messagebox.showerror('読み込みできません',str(exc),parent=self);return
+        self.data=data;self.path=path;self.dirty=False;self.reset_selection();self.render_page();self.title('Catalog Studio — '+data['name']);self.status.configure(text='読み込み済み：'+path)
+    def new_project(self):
+        if not self.guard():return
+        def apply(v):
+            self.required(v['name'],'プロジェクト名');self.data=project.sample();self.data['name']=v['name']
+            for key in ('cates','scoms','definitions','specs','books'):self.data[key]=[]
+            self.path=None;self.reset_selection();self.page='catalog'
+        self.form('新規プロジェクト',[('name','プロジェクト名','新規カタログ',None)],apply)
+    def close(self):
+        if self.guard():self.destroy()
+
+
+def main():
+    try:app=IntegratedStudio()
+    except tk.TclError as exc:
+        print('デスクトップ環境で起動してください。\n'+str(exc),file=sys.stderr);return 1
+    app.mainloop();return 0
