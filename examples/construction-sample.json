@@ -93,7 +93,7 @@
       "revision": "01",
       "elements": [
         {
-          "id": "20db00e38a7944db897db10b3a53730d",
+          "id": "0bb675b52777453d8aba47f7ed965a77",
           "type": "PTAXI",
           "name": "接続点 1",
           "attrs": {
@@ -108,7 +108,7 @@
           }
         },
         {
-          "id": "ac7df623bd544bcbad8a3ca5e91ba5fe",
+          "id": "cf7841a0b69b4a53aad3a24965641740",
           "type": "PTCAR",
           "name": "接続点 2",
           "attrs": {
@@ -125,7 +125,7 @@
           }
         },
         {
-          "id": "6ffd5f903d15404c9d05ba5111ffadae",
+          "id": "a83c3cdeec2146c69a54d0d1acda7237",
           "type": "PTMIX",
           "name": "補助点",
           "attrs": {
@@ -142,7 +142,7 @@
           }
         },
         {
-          "id": "531bb3dc350f44ab88e2e9b3ce53d3d1",
+          "id": "6ff5549ae3814d6e9f48def5fa50655b",
           "type": "PTPOS",
           "name": "基準点",
           "attrs": {
@@ -165,7 +165,7 @@
       "revision": "01",
       "elements": [
         {
-          "id": "0f9f2999197340fe99afb0b807b5d090",
+          "id": "2e223b86ba624521b6e2007f17dc4460",
           "type": "SCYL",
           "name": "胴部",
           "attrs": {
@@ -185,7 +185,7 @@
           }
         },
         {
-          "id": "4cdea5ece01447e989c4c852ea76b455",
+          "id": "6784417f31d94bfe941c175363943b5c",
           "type": "SCYL",
           "name": "フランジ",
           "attrs": {
@@ -205,7 +205,7 @@
           }
         },
         {
-          "id": "df398019fdaf4d00b3bb41dd38157b00",
+          "id": "6a917a10e27a4ed8b584a511469ca227",
           "type": "SBOX",
           "name": "補助形状",
           "attrs": {
@@ -225,7 +225,7 @@
           }
         },
         {
-          "id": "b432543035884239920a1e5bd84389d0",
+          "id": "0a5c11e03d69492abee9397f473d7aed",
           "type": "NSCY",
           "name": "切り欠き",
           "attrs": {
@@ -242,14 +242,7 @@
             "DESC": "",
             "GTYP": "",
             "PURP": "",
-            "PJOI": "",
-            "SJOI": "",
-            "SUBJ": "",
-            "SCOJ": "",
-            "PFIT": "",
-            "COFI": "",
-            "FITT": "",
-            "FIXI": ""
+            "NAPP": "1"
           }
         }
       ]
@@ -339,5 +332,7 @@
       ]
     }
   ],
-  "books": []
+  "books": [],
+  "texts": [],
+  "tables": []
 }

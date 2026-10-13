@@ -1,6 +1,6 @@
 """Integrated catalogue mockup model, independent of the desktop UI.
 
-Parameters describe roles only. Actual numbers belong to SCOM records; GMSET
+Parameters describe roles only. Actual numeric and word values belong to SCOM records; GMSET
 and PTSET hold reusable expressions. SPEC entries are a conceptual mockup
 schema, not an implementation of the unverified E3D selection syntax.
 """
@@ -12,7 +12,7 @@ import re
 import uuid
 from pathlib import Path
 
-from . import model
+from . import model, element_schema, expressions, catalogue
 
 FORMAT = 'catalog-studio-integrated'
 VERSION = 2
@@ -63,7 +63,7 @@ def sample():
                         'scom_id': 'scom-80-50', 'description': '同心レデューサー'},
                        {'id': 'entry-100-65', 'type': 'REDU', 'bore1': '100', 'bore2': '65',
                         'scom_id': 'scom-100-65', 'description': '同心レデューサー'}]}],
-        'books': []}
+        'books': [], 'texts': [], 'tables': []}
 
 
 def _finite(value):
@@ -87,6 +87,29 @@ def _records(records, label, fields, limit):
             raise ValueError(label + 'の項目を確認してください。')
 
 
+def parse_value(parameter, value):
+    if parameter.get('value_type','number') == 'word':
+        if not isinstance(value,str): raise ValueError(parameter['id'] + ' は文字列（WORD）です。')
+        return value
+    if isinstance(value,bool): raise ValueError('有限の数値を入力してください。')
+    try: result=float(value)
+    except (ValueError,TypeError,OverflowError): raise ValueError(parameter['id'] + ' に数値を入力してください。')
+    if not math.isfinite(result): raise ValueError('有限の数値を入力してください。')
+    # Stored numeric parameters must actually be numeric, not numeric strings.
+    return result
+
+
+def validate_elements(elements, depth=0, identifiers=None):
+    if depth > 8: raise ValueError('要素階層が深すぎます。')
+    identifiers = identifiers if identifiers is not None else set()
+    _records(elements,'要素',('type','name'),200)
+    for element in elements:
+        if element['id'] in identifiers: raise ValueError('階層内の要素識別子が重複しています。')
+        identifiers.add(element['id'])
+        if not isinstance(element.get('attrs'),dict): raise ValueError('属性は辞書です。')
+        validate_elements(element.get('children',[]),depth+1,identifiers)
+
+
 def validate(data):
     """Validate storage structure, while allowing incomplete editing drafts.
 
@@ -103,14 +126,21 @@ def validate(data):
         if (not re.fullmatch(r'P[1-9]\d*', p['id']) or not model.valid_role(p['role'])
                 or p['role'] in roles or 'value' in p):
             raise ValueError('パラメータ番号・役割を確認してください。実数値は SCOM に保存します。')
+        if p.get('value_type','number') not in ('number','word'): raise ValueError('パラメータの値型を確認してください。')
         roles.add(p['role'])
+    reference_roles=data.get('reference_roles',{})
+    if not isinstance(reference_roles,dict):raise ValueError('参照種類の役割は辞書です。')
+    for family,roles in reference_roles.items():
+        if family not in expressions.FAMILIES or family=='PARAM' or not isinstance(roles,dict) or any(not isinstance(pid,str) or not re.fullmatch(r'P[1-9]\d*',pid) or not isinstance(role,str) for pid,role in roles.items()):raise ValueError('参照種類・番号・役割を確認してください。')
     _records(data.get('cates'), 'CATE', ('name', 'description', 'revision'), LIMITS['cates'])
     _records(data.get('definitions'), '共通定義', ('name', 'kind', 'revision'), LIMITS['definitions'])
     for definition in data['definitions']:
-        if definition['kind'] not in ('GMSET', 'PTSET'):
+        if definition['kind'] not in element_schema.TYPES_BY_SET:
             raise ValueError('共通定義の種別を確認してください。')
         _records(definition.get('elements'), '要素', ('type', 'name'), 200)
-        for e in definition['elements']:
+        validate_elements(definition['elements'])
+        if not isinstance(definition.get('attrs',{}),dict): raise ValueError('親属性の形式が不正です。')
+        for e in element_schema.walk(definition['elements']):
             if not e['type'] or not isinstance(e.get('attrs'), dict):
                 raise ValueError('要素型・属性の形式を確認してください。')
             if e['type'] in model.SCHEMAS and any(
@@ -119,12 +149,31 @@ def validate(data):
     _records(data.get('scoms'), 'SCOM', ('name', 'cate_id', 'size', 'revision', 'gmset_id', 'ptset_id'), LIMITS['scoms'])
     for scom in data['scoms']:
         if (not isinstance(scom.get('values'), dict) or
-                any(not isinstance(key, str) or not _finite(value) for key, value in scom['values'].items())):
-            raise ValueError('SCOM のパラメータ値は有限の実数値で保存してください。')
+                any(not isinstance(key, str) or not (_finite(value) or isinstance(value,str)) for key, value in scom['values'].items())):
+            raise ValueError('SCOM のパラメータ値は有限の数値または文字列で保存してください。')
+        for param in data['parameters']:
+            if param['id'] in scom['values']:
+                v=scom['values'][param['id']]
+                if param.get('value_type','number') == 'number' and not _finite(v): raise ValueError(param['id'] + ' は有限の数値で保存してください。')
+                parse_value(param,v)
+        contexts=scom.get('expression_contexts',{})
+        if not isinstance(contexts,dict): raise ValueError('参照コンテキストは辞書で保存してください。')
+        for family,values in contexts.items():
+            if family not in expressions.FAMILIES or family == 'PARAM' or not isinstance(values,dict) or any(not isinstance(k,str) or not re.fullmatch(r'P[1-9]\d*',k) or not (_finite(v) or isinstance(v,str)) for k,v in values.items()): raise ValueError('参照コンテキストの種類・値が不正です。')
+        attributes=scom.get('component_attrs',{})
+        if not isinstance(attributes,dict) or ('ANGL' in attributes and not _finite(attributes['ANGL'])): raise ValueError('ANGL は度の有限数値です。')
     _records(data.get('specs'), 'SPEC', ('name', 'description', 'revision'), LIMITS['specs'])
     for spec in data['specs']:
+        _records(spec.get('entries'), 'SPEC 選択行', ('type','bore1','bore2','scom_id','description'),5000)
+        for entry in spec['entries']:
+            for key in ('sdte_id','smte_id'):
+                if key in entry and not isinstance(entry[key],str): raise ValueError('SPEC のテキスト参照は識別子です。')
         _records(spec.get('entries'), 'SPEC 選択行',
                  ('type', 'bore1', 'bore2', 'scom_id', 'description'), 5000)
+    for collection in ('texts','tables'):
+        _records(data.get(collection,[]), collection, ('name','type','parent_id','revision'),5000)
+        for record in data.get(collection,[]):
+            if not isinstance(record.get('attrs'),dict): raise ValueError('管理レコードの属性は辞書です。')
     if not isinstance(data.get('books'), list) or len(data['books']) > LIMITS['books']:
         raise ValueError('カタログ本の構成を確認してください。')
     book_ids=set()
@@ -138,13 +187,15 @@ def validate(data):
         if any(not isinstance(book.get(k),str) for k in ('title','edition','created_at','project_name')):
             raise ValueError('カタログ本のタイトル・版・日付を確認してください。')
         frozen={key:book.get(key) for key in ('parameters','cates','definitions','scoms','specs')}
+        for collection in ('texts','tables'): frozen[collection]=book.get(collection,[])
+        frozen['reference_roles']=book.get('reference_roles',{})
         frozen.update(format=FORMAT,version=VERSION,name=book['project_name'],books=[])
         validate(frozen)
     return data
 
 
 def get(data, collection, record_id):
-    return next((record for record in data[collection] if record['id'] == record_id), None)
+    return next((record for record in data.get(collection,[]) if record['id'] == record_id), None)
 
 
 def parameters_for(data, scom):
@@ -155,6 +206,7 @@ def parameters_for(data, scom):
         raise ValueError('表示する SCOM を選択してください。')
     parameters = []
     for p in data['parameters']:
+        if p.get('value_type','number') == 'word': continue
         if p['id'] not in scom['values']:
             raise ValueError(scom['name'] + '：' + p['id'] + ' ' + p['role'] + 'の実数値がありません。')
         value = scom['values'][p['id']]
@@ -273,7 +325,7 @@ def add_spec_entry(data, spec, scom_id=None):
     bore1 = bore_value(('大径側呼び径', '呼び径', '接続口径'))
     bore2 = bore_value(('小径側呼び径',))
     entry = {'id': _id(), 'type': 'REDU', 'bore1': bore1, 'bore2': bore2,
-             'scom_id': scom['id'] if scom else (scom_id or ''), 'description': ''}
+             'scom_id': scom['id'] if scom else (scom_id or ''), 'description': '', 'sdte_id':'', 'smte_id':''}
     spec['entries'].append(entry)
     return entry
 
@@ -296,9 +348,11 @@ def rename_parameter(data, pid, new_role):
         raise ValueError('変更するパラメータがありません。')
     old = parameter['role']
     for definition in data['definitions']:
-        for element in definition['elements']:
+        for element in element_schema.walk(definition['elements']):
             for key, value in element['attrs'].items():
-                if isinstance(value, str) and key != '方向':
+                literal_fields={'方向','PAXI','PAAX','PBAX','PCAX','PLAXI','PTCDIR','PTCD','DESC','PURP','PSKEY','GTYP','SKEY','NUMB','NAPP','PKEY','LEVEL','PTS','CLFLA','TUFLA','TVISI','BVISI','OBST'}
+                editable_fields=set(model.SCHEMAS.get(element['type'],('',()))[1]) | set(element_schema.fields(element['type']))
+                if isinstance(value,str) and key in editable_fields and key not in literal_fields:
                     element['attrs'][key] = re.sub(
                         r'[^\s+*/()\-]+', lambda match: new_role if match[0] == old else match[0], value)
     parameter['role'] = new_role
@@ -332,8 +386,8 @@ def issues(data):
     result = []
     # E3D names are globally visible; also find duplicate names across classes.
     names = {}
-    for collection in ('cates', 'definitions', 'scoms', 'specs'):
-        for record in data[collection]:
+    for collection in ('cates', 'definitions', 'scoms', 'specs', 'texts', 'tables'):
+        for record in data.get(collection,[]):
             if not record['name'].strip():
                 result.append(collection + '：名前を入力してください。')
             elif record['name'].casefold() in names:
@@ -341,6 +395,7 @@ def issues(data):
             else:
                 names[record['name'].casefold()] = collection
     for definition in data['definitions']:
+        result.extend(catalogue.definition_issues(definition,data['parameters']))
         local_names = set()
         if not definition['elements']:
             result.append(definition['name'] + '：要素がありません。')
@@ -352,6 +407,7 @@ def issues(data):
                 result.append(definition['name'] + '：要素名が重複：' + e['name'])
             local_names.add(e['name'])
             if e['type'] not in model.SCHEMAS:
+                if element_schema.known(e['type']): continue
                 result.append(prefix + '：未対応の要素型（原文は保持）：' + e['type'])
                 continue
             if (definition['kind'] == 'PTSET') != (e['type'] == 'point'):
@@ -380,6 +436,7 @@ def issues(data):
             if not definition or definition['kind'] != kind:
                 result.append(scom['name'] + '：' + kind + 'の参照先が未選択または不正です。')
                 continue
+            result.extend(catalogue.definition_issues(definition,data['parameters'],scom))
             # Evaluate only with supplied values. Missing values remain missing.
             parameters = [{**p, 'value': scom['values'][p['id']]} for p in data['parameters']
                           if p['id'] in scom['values']]
@@ -395,6 +452,12 @@ def issues(data):
                             result.append(scom['name'] + ' / ' + e['name'] + '：' + attr + 'は正の値にしてください。')
                     except ValueError as exc:
                         result.append(scom['name'] + ' / ' + e['name'] + ' / ' + attr + '：' + str(exc))
+        for ref_key,kind in (('ngmset_id','NGMSET'),('gmsset_id','GMSSET'),('ptsset_id','PTSSET')):
+            ident=scom.get(ref_key,'')
+            if not ident:continue
+            definition=get(data,'definitions',ident)
+            if not definition or definition['kind'] != kind:result.append(scom['name']+'：'+kind+' の参照が不正です。')
+            else:result.extend(catalogue.definition_issues(definition,data['parameters'],scom))
     for spec in data['specs']:
         selections = set()
         for entry in spec['entries']:
@@ -406,6 +469,11 @@ def issues(data):
             if key in selections:
                 result.append(spec['name'] + '：部品種別・口径の選択条件が重複しています。')
             selections.add(key)
+            for key,kind in (('sdte_id','SDTE'),('smte_id','SMTE')):
+                ident=entry.get(key,'')
+                text=get(data,'texts',ident)
+                if ident and (not text or text['type'] != kind): result.append(spec['name'] + '：' + kind + ' 参照が不正です。')
+    result.extend(catalogue.companion_issues(data))
     return list(dict.fromkeys(result))
 
 
@@ -483,7 +551,8 @@ def macro_text(data):
                 comment('    ' + p['id'] + ' ' + p['role'] + ' = ' + str(scom['values'].get(p['id'], '[未入力]')))
     for definition in data['definitions']:
         comment(definition['kind'] + ' ' + definition['name'])
-        for element in definition['elements']:
+        for attr,value in definition.get('attrs',{}).items(): comment('  '+attr+' = '+str(value))
+        for element in element_schema.walk(definition['elements']):
             comment('  ' + element['name'] + ' [' + element['type'] + ']')
             for attr, expr in element['attrs'].items():
                 comment('    ' + attr + ' = ' + str(expr))
@@ -493,4 +562,8 @@ def macro_text(data):
             scom = get(data, 'scoms', entry['scom_id'])
             comment('  ' + entry['type'] + ' ' + entry['bore1'] + ' × ' + entry['bore2']
                     + ' → ' + (scom['name'] if scom else '[未設定]'))
+    for collection in ('texts','tables'):
+        for record in data.get(collection,[]):
+            comment(record['type']+' '+record['name']+' / 親 '+record['parent_id'])
+            for key,value in record['attrs'].items():comment('  '+key+' = '+str(value))
     return '\n'.join(lines)

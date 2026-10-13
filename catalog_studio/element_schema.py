@@ -1,4 +1,4 @@
-"""Editor field lists supplied by the user, not a verified E3D command dictionary."""
+"""Catalogue editing rules; unverified syntax and original extra fields remain intact."""
 import copy
 import uuid
 
@@ -27,11 +27,11 @@ GM_TYPES = {
     'LSNO': ('PAAX', 'PBAX', 'PTDI', 'PBDI', 'PTDM', 'PBDM', 'POFF', 'TVISI', 'BVISI', 'PTRA', 'PBRA'),
     'SSPH': ('PAXI', 'PDIS', 'PDIA'),
     'TUBE': ('PDIAM', 'TVISI', 'BVISI'),
-    'SEXT': ('PX', 'PY', 'PZ', 'PAAX', 'PBAX', 'PHEI', 'PRAD'),
-    'SREV': ('PX', 'PY', 'PZ', 'PAAX', 'PBAX', 'PANGLE', 'PRAD'),
+    'SEXT': ('PX', 'PY', 'PZ', 'PAAX', 'PBAX', 'PHEI'),
+    'SREV': ('PX', 'PY', 'PZ', 'PAAX', 'PBAX', 'PANGLE'),
 }
 GM_COMMON = ('LEVEL', 'CLFLA', 'TUFLA', 'OBST', 'DESC', 'GTYP', 'PURP')
-NEGATIVE_EXTRA = ('PJOI', 'SJOI', 'SUBJ', 'SCOJ', 'PFIT', 'COFI', 'FITT', 'FIXI')
+NEGATIVE_EXTRA = ('NAPP',)
 # UI working correspondence only; no executable command is generated from it.
 NEGATIVE_BASE = {
     'NSBO': 'SBOX', 'NBOX': 'BOXI', 'NSCO': 'SCON', 'NLCY': 'LCYL',
@@ -54,20 +54,111 @@ OBST_CHOICES = {'未設定': '', '0：対象外': '0', '1：ソフト': '1', '2�
 DIRECTIONS = ('X', '-X', 'Y', '-Y', 'Z', '-Z', 'E', 'W', 'U', 'D')
 
 
-def known(kind):
-    return kind in PT_TYPES or kind in GM_TYPES or kind in NEGATIVE_BASE
+PARENT_FIELDS = {'PTSET': ('DESC', 'GTYP', 'SKEY', 'PURP'), 'GMSET': (), 'NGMSET': (),
+                 'PTSSET': ('NAREF',), 'GMSSET': ()}
+STRUCTURAL_TYPES = {
+    'PLINE': ('PKEY', 'PX', 'PY', 'PLAXI'),
+    'SREC': ('PXLE', 'PYLE', 'DXLE', 'DYLE', 'PX', 'PY', 'DX', 'DY', 'PLAXI'),
+    'SANN': ('PX', 'PY', 'DX', 'DY', 'PRAD', 'DRAD', 'PWID', 'DWID', 'PANG', 'PLAXI'),
+    'SPRO': ('PLAXI',),
+}
+CHILD_TYPES = {'SLOO': (), 'SVER': ('PX', 'PY', 'PRAD'),
+               'SPVE': ('PX', 'PY', 'DX', 'DY', 'PRAD', 'DRAD')}
+TYPES_BY_SET = {'PTSET': PT_TYPES, 'GMSET': GM_TYPES, 'NGMSET': NEGATIVE_BASE,
+                'PTSSET': {'PLINE': STRUCTURAL_TYPES['PLINE']},
+                'GMSSET': {k: STRUCTURAL_TYPES[k] for k in ('SREC','SANN','SPRO')}}
+LABELS = dict(zip(GM_TYPES, ('箱', '矩形の暗黙チューブ', '円錐', '円筒：両端位置', '円筒：底面＋高さ',
+                            '傾斜端面円筒', '円板：厚さゼロ', '皿形', '始終点の線', '点を結ぶ線',
+                            '矩形レデューサー', '円形断面トーラス', '矩形断面トーラス', '円形レデューサー',
+                            '球', '円形の暗黙チューブ', '輪郭の押出し', '輪郭の回転')))
+LABELS.update(PTAXI='軸＋距離の点', PTCAR='XYZ＋方向式の点', PTMIX='XYZ＋軸の点',
+              PTPOS='位置式＋方向式の点', PLINE='構造材の基準線', SREC='矩形断面',
+              SANN='円環断面', SPRO='任意断面', SLOO='輪郭', SVER='輪郭の頂点', SPVE='断面の頂点')
+DESCRIPTIONS.update({
+    'PXLE':'X 方向の寸法', 'PYLE':'Y 方向の寸法', 'PZLE':'Z 方向の寸法',
+    'PDIA':'直径', 'PHEI':'高さ', 'PBDI':'底面の軸上位置', 'PTDI':'上面の軸上位置',
+    'PAAX':'A 軸', 'PBAX':'B 軸', 'PCAX':'C 軸', 'PBTP':'上面 B 方向寸法', 'PCTP':'上面 C 方向寸法',
+    'PBBT':'底面 B 方向寸法', 'PCBT':'底面 C 方向寸法', 'PBOF':'上面 B 方向オフセット', 'PCOF':'上面 C 方向オフセット',
+    'PTDM':'上面直径', 'PBDM':'底面直径', 'PTRA':'上面半径（直径の代替）', 'PBRA':'底面半径（直径の代替）',
+    'POFF':'偏心量', 'PDIAM':'チューブ直径', 'PANGLE':'回転角度（−360〜360 度）',
+    'PXTS':'上面 X 方向傾斜', 'PYTS':'上面 Y 方向傾斜', 'PXBS':'底面 X 方向傾斜', 'PYBS':'底面 Y 方向傾斜',
+    'LEVEL':'表示レベルの範囲（下限 上限）', 'CLFLA':'中心線描画フラグ', 'TUFLA':'チューブ描画フラグ',
+    'GTYP':'汎用部品種別', 'PSKEY':'端部条件キー（通常 unset）', 'SKEY':'シンボルキー',
+    'NAPP':'除去する適用先の組み合わせ', 'PTS':'順序付き P/T ポイント（最大 6）',
+    'PTSPOS':'始点の位置式', 'PTEPOS':'終点の位置式', 'NAREF':'中立軸 PLINE の参照',
+    'PKEY':'基準線の文字識別キー', 'PLAXI':'断面内の方向', 'DX':'終端までの X 座標差', 'DY':'終端までの Y 座標差',
+    'DXLE':'終端までの X 寸法差', 'DYLE':'終端までの Y 寸法差', 'PRAD':'半径',
+    'DRAD':'終端までの半径差', 'PWID':'円環の半径方向幅', 'DWID':'終端までの幅差', 'PANG':'円環角度（−180〜180 度）',
+})
+TYPE_MEANINGS = {
+    'PTAXI': {'PDIS':'軸に沿うポイント位置'},
+    'SCON': {'PDIS':'頂点から底面までの高さ', 'PDIA':'底面直径'},
+    'SCYL': {'PDIS':'底面中心の軸上位置', 'PHEI':'底面からの高さ'},
+    'SSLC': {'PDIS':'底面と軸の交点までの距離', 'PHEI':'軸上の上下端面間距離'},
+    'SDIS': {'PDIS':'円板中心の軸上位置'},
+    'SDSH': {'PDIS':'面中心の軸上距離（基準面は要確認）', 'PHEI':'底面からの最大盛上がり', 'PRAD':'隅半径：0 球面／正値 楕円面'},
+    'SSPH': {'PDIS':'球中心の軸上位置'},
+    'BOXI': {'PXLE':'断面 X 方向寸法', 'PZLE':'断面 Z 方向寸法', 'PAXI':'端面中心を通る法線の位置・方向'},
+    'SRTO': {'PDIA':'矩形断面の幅', 'PHEI':'矩形断面の高さ'},
+    'SCTO': {'PDIA':'円形断面直径', 'PAAX':'一方の端面の法線', 'PBAX':'他方の端面の法線'},
+    'LSNO': {'PBAX':'偏心方向', 'PAAX':'上面法線・A 軸'},
+    'SREC': {'PLAXI':'矩形のローカル Y 方向'}, 'SANN': {'PLAXI':'円環の開始方向', 'PRAD':'外半径'},
+    'SPRO': {'PLAXI':'断面のローカル Y 方向'}, 'PLINE': {'PLAXI':'XY 面内で基準線から向く方向'},
+    'SVER': {'PRAD':'頂点のフィレット半径'}, 'SPVE': {'PRAD':'頂点のフィレット半径', 'DRAD':'終端までのフィレット半径差'},
+    'SEXT': {'PAAX':'輪郭のローカル X 軸', 'PBAX':'輪郭のローカル Y 軸', 'PHEI':'輪郭の押出し距離'},
+    'SREV': {'PAAX':'輪郭 X 軸・回転軸', 'PBAX':'輪郭のローカル Y 軸'},
+}
+NOTES = {
+    'LINE':'P は通常点、T は接線点。例：P1 P2 T3。対応 PTSET を参照します。',
+    'SEXT':'SLOO の下に SVER を順番に並べます。PRAD は頂点に設定します。',
+    'SREV':'輪郭を PAAX（ローカル X 軸）まわりに回転。角度は −360〜360 度。',
+    'LSNO':'上面・底面はそれぞれ直径か半径を選択。同じ面の両方を同時に指定しません。',
+    'SCTO':'円弧は 180 度以内。曲率の確定には端面の軸情報が必要です。',
+    'BOXI':'GTYPE=TUBE の暗黙チューブ。長さ・配置は設計側の前後部品に依存します。',
+    'TUBE':'GTYPE=TUBE の暗黙チューブ。独立した円筒の高さ入力はありません。',
+    'PLINE':'線自体は部品 Z 軸と平行。位置と方向は XY 面内で定義します。',
+    'SDSH':'PDIS の基準面は確認待ち。プレビューで基準面を推測しません。',
+}
 
+
+def positive(kind): return NEGATIVE_BASE.get(kind, kind)
+def meaning(kind, key): return TYPE_MEANINGS.get(positive(kind), {}).get(key, DESCRIPTIONS.get(key, '未確認の属性'))
+def known(kind): return kind in PT_TYPES or kind in GM_TYPES or kind in NEGATIVE_BASE or kind in STRUCTURAL_TYPES or kind in CHILD_TYPES
 
 def fields(kind, section='main'):
     if kind in PT_TYPES:
-        return PT_DETAIL if section == 'detail' else PT_COMMON + PT_TYPES[kind]
+        if section == 'detail': return PT_DETAIL
+        return PT_COMMON + PT_TYPES[kind] if section == 'main' else ()
+    if kind in STRUCTURAL_TYPES:
+        if section == 'common': return ('LEVEL','CLFLA','TUFLA','DESC','PURP') if kind == 'PLINE' else GM_COMMON
+        return STRUCTURAL_TYPES[kind] if section == 'main' else ()
+    if kind in CHILD_TYPES: return CHILD_TYPES[kind] if section == 'main' else ()
     if kind in GM_TYPES or kind in NEGATIVE_BASE:
         if section == 'common': return GM_COMMON
         if section == 'negative': return NEGATIVE_EXTRA if kind in NEGATIVE_BASE else ()
-        positive = NEGATIVE_BASE[kind] if kind in NEGATIVE_BASE else kind
-        return GM_TYPES.get(positive, ())
+        return GM_TYPES.get(positive(kind), ()) if section == 'main' else ()
     return ()
 
+
+def walk(elements):
+    for element in elements:
+        yield element
+        yield from walk(element.get('children', []))
+
+
+def child_kind(kind):
+    kind = positive(kind)
+    return {'SEXT':'SLOO', 'SREV':'SLOO', 'SLOO':'SVER', 'SPRO':'SPVE'}.get(kind)
+
+
+def add_child(element):
+    kind = child_kind(element['type'])
+    if not kind: raise ValueError('この要素には頂点・輪郭を追加できません。')
+    children = element.setdefault('children', [])
+    if kind == 'SLOO' and children: raise ValueError('既存の輪郭を選択して頂点を追加してください。')
+    if len(children) >= 200: raise ValueError('子要素の上限です。')
+    child = {'id':uuid.uuid4().hex, 'type':kind, 'name':LABELS[kind] + ' ' + str(len(children)+1), 'attrs':default_attrs(kind)}
+    children.append(child); return child
 
 def default_attrs(kind, number=1):
     attrs = {key: '' for section in ('main', 'detail', 'common', 'negative') for key in fields(kind, section)}
@@ -78,6 +169,7 @@ def default_attrs(kind, number=1):
             if key in attrs: attrs[key] = '0'
         if 'PAXI' in attrs: attrs['PAXI'] = 'X'
         if 'PTCDIR' in attrs: attrs['PTCDIR'] = 'X'
+    if kind in NEGATIVE_BASE: attrs['NAPP'] = '1'
     return attrs
 
 
@@ -97,7 +189,8 @@ def set_value(element, key, text):
 
 def add_element(definition, kind):
     if not known(kind): raise ValueError('未対応の要素型です。')
-    if (kind in PT_TYPES) != (definition['kind'] == 'PTSET'): raise ValueError('定義と要素の種類が一致しません。')
+    allowed = TYPES_BY_SET.get(definition['kind'], {})
+    if kind not in allowed and not (definition['kind'] == 'GMSET' and kind in NEGATIVE_BASE): raise ValueError('定義と要素の種類が一致しません。')
     if len(definition['elements']) >= 200: raise ValueError('要素数は最大 200 です。')
     existing = {e['name'] for e in definition['elements']}
     n = 1

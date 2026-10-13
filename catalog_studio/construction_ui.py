@@ -3,7 +3,7 @@ import copy
 import tkinter as tk
 import uuid
 from tkinter import messagebox, ttk
-from . import element_schema as schema, project
+from . import element_schema as schema, project, expressions, catalogue
 
 BLUE = '#2269de'
 MUTED = '#738499'
@@ -30,13 +30,13 @@ class ConstructionEditor(ttk.Frame):
     @property
     def data(self): return self.host.data
     def definition(self): return project.get(self.data, 'definitions', self.definition_id)
-    def element(self): return next((e for e in (self.definition() or {}).get('elements', []) if e['id'] == self.element_id), None)
+    def element(self): return next((e for e in schema.walk((self.definition() or {}).get('elements', [])) if e['id'] == self.element_id), None)
 
     def build(self):
         top = ttk.Frame(self); top.pack(fill='x', pady=(0, 10))
         block = ttk.Frame(top); block.pack(side='left', fill='x', expand=True)
         ttk.Label(block, text=self.kind + ' を作成・編集', style='Heading.TLabel').pack(anchor='w')
-        ttk.Label(block, text='要素・属性・式を保存できる UI のたたき台です。新しい要素の形状計算と実機出力は未対応。', style='Muted.TLabel', wraplength=690).pack(anchor='w', pady=4)
+        ttk.Label(block, text='要素・属性・式を保存できる UI のたたき台です。式の評価・輪郭・適用先を編集できます。CAD 表示は構成模式図です。', style='Muted.TLabel', wraplength=690).pack(anchor='w', pady=4)
         for text, command in [('保存', self.host.save_project), ('出力を確認', self.review), ('定義を追加', self.add_definition)]:
             ttk.Button(top, text=text, command=command).pack(side='right', padx=3)
         metadata = ttk.Frame(self); metadata.pack(fill='x', pady=(0, 10))
@@ -44,6 +44,7 @@ class ConstructionEditor(ttk.Frame):
         self.def_name = tk.StringVar()
         self.name_entry = ttk.Entry(metadata, textvariable=self.def_name, width=32); self.name_entry.pack(side='left', padx=8)
         self.name_entry.bind('<FocusOut>', lambda _: self.commit_name()); self.name_entry.bind('<Return>', lambda _: self.commit_name())
+        if schema.PARENT_FIELDS[self.kind]:ttk.Button(metadata, text='親属性・中立軸', command=self.edit_parent).pack(side='left', padx=4)
         self.usage_label = ttk.Label(metadata, text='', style='Muted.TLabel'); self.usage_label.pack(side='left', padx=10)
         ttk.Button(metadata, text='複製して作成', command=self.duplicate_definition).pack(side='right')
         split = ttk.Panedwindow(self, orient='horizontal'); split.pack(fill='both', expand=True)
@@ -60,12 +61,16 @@ class ConstructionEditor(ttk.Frame):
         self.elements.pack(fill='both', expand=True); self.elements.bind('<<TreeviewSelect>>', self.select_element)
         buttons = ttk.Frame(left); buttons.pack(fill='x', pady=8)
         for text, fn in [('複製', self.duplicate_element), ('削除', self.delete_element)]: ttk.Button(buttons, text=text, command=fn).pack(side='left', padx=2)
+        outline = ttk.Frame(left); outline.pack(fill='x')
+        for text,fn in [('子を追加',self.add_child),('↑',lambda:self.move_element(-1)),('↓',lambda:self.move_element(1))]: ttk.Button(outline,text=text,command=fn,width=7).pack(side='left',padx=2)
+        if self.kind == 'PTSET': ttk.Label(left,text='P0：原点 / +Z（自動生成・編集不可）',style='Muted.TLabel',wraplength=250).pack(anchor='w',pady=5)
         library = ttk.LabelFrame(left, text='要素ライブラリ', padding=8); library.pack(fill='x', pady=6)
         self.negative = tk.BooleanVar(value=False)
         if self.kind == 'GMSET':
             ttk.Checkbutton(library, text='ネガティブ（15種類）', variable=self.negative, command=self.populate_library).pack(anchor='w')
             ttk.Label(library, text='ポジティブ：18種類', style='Muted.TLabel').pack(anchor='w')
-        else: ttk.Label(library, text='PTAXI / PTCAR / PTMIX / PTPOS', style='Muted.TLabel', wraplength=240).pack(anchor='w')
+        elif self.kind == 'PTSET': ttk.Label(library, text='PTAXI / PTCAR / PTMIX / PTPOS', style='Muted.TLabel', wraplength=240).pack(anchor='w')
+        else: ttk.Label(library,text=' / '.join(schema.TYPES_BY_SET[self.kind]),style='Muted.TLabel').pack(anchor='w')
         library_list=ttk.Frame(library);library_list.pack(fill='x',pady=5)
         self.library = tk.Listbox(library_list, height=4 if self.kind=='PTSET' else 3, exportselection=False, font=(self.host.ui_font, 10), relief='flat', selectbackground='#e4efff', selectforeground=BLUE)
         self.library.pack(side='left',fill='x',expand=True)
@@ -86,17 +91,17 @@ class ConstructionEditor(ttk.Frame):
         sections += [('extra', '保持した追加属性')]
         for key, label in sections:
             frame = ttk.Frame(self.tabs, padding=3); self.tabs.add(frame, text=label)
-            table = self.host.table(frame, [('attr', '属性', 90), ('meaning', '説明', 125), ('value', '設定値・式', 260)], height=6)
+            table = self.host.table(frame, [('attr', '属性', 90), ('meaning', '説明', 180), ('value', '設定値・式', 260)], height=4)
             table.bind('<<TreeviewSelect>>', lambda event, s=key: self.select_field(s))
             self.tables[key] = table
         self.section_order = [s[0] for s in sections]
         self.tabs.bind('<<NotebookTabChanged>>', self.tab_changed)
-        editor = ttk.LabelFrame(center, text='属性値・式の入力', padding=10); editor.pack(fill='x')
+        editor = ttk.LabelFrame(center, text='属性値・式の入力', padding=10); editor.pack(side='bottom',fill='x',before=self.tabs)
         self.field_label = ttk.Label(editor, text='', style='Heading.TLabel'); self.field_label.pack(anchor='w', pady=(0, 6))
         self.expression = tk.StringVar(); self.expression.trace_add('write', self.edit_expression)
         self.expression_entry = ttk.Entry(editor, textvariable=self.expression, font=(self.host.ui_font, 13)); self.expression_entry.pack(fill='x')
         self.choice_entry = ttk.Combobox(editor, textvariable=self.expression, state='normal')
-        reference = ttk.Frame(editor); reference.pack(fill='x', pady=8)
+        reference = self.reference_frame = ttk.Frame(editor); reference.pack(fill='x', pady=8)
         self.ref_kind = ttk.Combobox(reference, values=schema.REFERENCE_TYPES, state='readonly', width=14); self.ref_kind.set('PARAM'); self.ref_kind.pack(side='left')
         self.ref_kind.bind('<<ComboboxSelected>>', lambda _: self.update_role())
         self.ref_number = tk.StringVar(value='1')
@@ -105,7 +110,9 @@ class ConstructionEditor(ttk.Frame):
         ttk.Button(reference, text='式へ挿入', command=self.insert_reference).pack(side='left', padx=3)
         ttk.Button(reference, text='÷ 2', command=self.half).pack(side='left')
         self.role_label = ttk.Label(editor, text='', style='Muted.TLabel'); self.role_label.pack(anchor='w')
-        ttk.Label(editor, text='画面用の参照表記です。原文入力も可能。ANGL は度。\nTIMES・TAN・複合方向式の計算／E3D 構文変換は未対応です。', style='Muted.TLabel', wraplength=520).pack(anchor='w', pady=5)
+        helpers=ttk.Frame(editor);helpers.pack(fill='x',pady=4)
+        for text,fn in [('式を読みやすく整理',self.normalize_expression),('NAPP 適用先',self.edit_napp),('直径／半径',self.edit_sizes),('LINE の点列',self.edit_points)]: ttk.Button(helpers,text=text,command=fn).pack(side='left',padx=2)
+        ttk.Label(editor,text='四則演算・SUM・TIMES・TAN に対応。ANGL は度。',style='Muted.TLabel',wraplength=520).pack(anchor='w',pady=5)
         self.validation_note = ttk.Label(editor, text='', foreground='#bb6440', wraplength=520); self.validation_note.pack(anchor='w')
         ttk.Label(right, text='構成プレビュー', style='Heading.TLabel').pack(anchor='w')
         ttk.Label(right, text='模式図：寸法・式・方向は未反映', style='Muted.TLabel', wraplength=310).pack(anchor='w', pady=5)
@@ -115,13 +122,16 @@ class ConstructionEditor(ttk.Frame):
         self.scom_choice = ttk.Combobox(right, state='readonly'); self.scom_choice.pack(fill='x', pady=5)
         self.scom_choice.bind('<<ComboboxSelected>>', self.select_scom)
         self.values_label = ttk.Label(right, text='', style='Muted.TLabel', wraplength=300); self.values_label.pack(anchor='w', pady=8)
-        ttk.Button(right, text='SCOM の実数値を編集', command=self.open_scom).pack(fill='x', pady=8)
-        ttk.Label(right, text='読み取り専用。点・形状の定義には保存されません。\n新しい要素の寸法計算と CAD 表示は今後追加します。', style='Muted.TLabel', wraplength=310).pack(anchor='w')
+        ttk.Button(right, text='SCOM の値・ANGL を編集', command=self.open_scom).pack(fill='x', pady=8)
+        ttk.Label(right, text='読み取り専用。点・形状の定義には保存されません。\n設計側のコンテキストを推測せず、未設定参照は計算不可と表示します。', style='Muted.TLabel', wraplength=310).pack(anchor='w')
 
     def populate_library(self):
-        items = schema.PT_TYPES if self.kind == 'PTSET' else (schema.NEGATIVE_BASE if self.negative.get() else schema.GM_TYPES)
+        items = schema.TYPES_BY_SET[self.kind]
+        if self.kind == 'GMSET' and self.negative.get(): items = schema.NEGATIVE_BASE
         self.library.delete(0, 'end')
-        for kind in items: self.library.insert('end', kind)
+        for kind in items:
+            label=schema.LABELS.get(kind,'負 '+schema.LABELS.get(schema.positive(kind),'未確認'))
+            self.library.insert('end',kind+'  '+label)
         if items: self.library.selection_set(0)
 
     def refresh(self):
@@ -134,10 +144,14 @@ class ConstructionEditor(ttk.Frame):
         self.elements.delete(*self.elements.get_children())
         if d:
             self.host.definition_id = d['id']
-            for e in d['elements']: self.elements.insert('', 'end', iid=e['id'], text=e['name'], values=(e['type'],))
-            if not any(e['id'] == self.element_id for e in d['elements']): self.element_id = next((e['id'] for e in d['elements']), None)
+            def insert(items,parent=''):
+                for e in items:
+                    self.elements.insert(parent,'end',iid=e['id'],text=e['name'],values=(e['type'],),open=True)
+                    insert(e.get('children',[]),e['id'])
+            insert(d['elements'])
+            if not any(e['id'] == self.element_id for e in schema.walk(d['elements'])): self.element_id = next((e['id'] for e in d['elements']), None)
             if self.element_id: self.elements.selection_set(self.element_id)
-            usage = sum(d['id'] in (s['gmset_id'], s['ptset_id']) for s in self.data['scoms'])
+            usage = sum(d['id'] in (s.get('gmset_id'), s.get('ptset_id'), s.get('ngmset_id'), s.get('gmsset_id'), s.get('ptsset_id')) for s in self.data['scoms'])
             self.usage_label.configure(text=f'使用先 SCOM：{usage} 件')
         else: self.element_id = None; self.usage_label.configure(text='定義を追加してください。')
         self.scom_names = {s['name']: s['id'] for s in self.data['scoms']}
@@ -151,7 +165,9 @@ class ConstructionEditor(ttk.Frame):
     def refresh_element(self):
         e = self.element()
         self.element_name.set(e['name'] if e else '')
-        available = list(schema.PT_TYPES) if self.kind == 'PTSET' else list(schema.GM_TYPES) + list(schema.NEGATIVE_BASE)
+        available = list(schema.TYPES_BY_SET[self.kind])
+        if self.kind == 'GMSET': available += list(schema.NEGATIVE_BASE)
+        if e and e['type'] in schema.CHILD_TYPES: available = [e['type']]
         if e and e['type'] not in available: available += [e['type']]
         self.type_choice['values'] = available; self.type_choice.set(e['type'] if e else '')
         for table in self.tables.values(): table.delete(*table.get_children())
@@ -162,17 +178,19 @@ class ConstructionEditor(ttk.Frame):
             for section, table in self.tables.items():
                 if section == 'extra': continue
                 for key in schema.fields(e['type'], section):
-                    listed.add(key); table.insert('', 'end', iid=key, values=(key, schema.DESCRIPTIONS.get(key, '属性値・式（意味未確認）'), schema.value(e, key)))
+                    listed.add(key); table.insert('', 'end', iid=key, values=(key, schema.meaning(e['type'],key), schema.value(e, key)))
             for key, value in e['attrs'].items():
                 if key not in listed and not (key == 'PTCD' and 'PTCDIR' in listed):
                     self.tables['extra'].insert('', 'end', iid=key, values=(key, '元データを保持', str(value)))
             note = '通常は PSKEY・DESC・PURP を非表示。新規値は unset。' if self.kind == 'PTSET' else '固有属性と共通属性を分けて編集します。OBST：0 対象外 / 1 ソフト / 2 ハード。'
             if e['type'] in schema.NEGATIVE_BASE:
-                note = 'ネガティブの対応属性は仮配置です。実機の作成例で確認します。'
+                note = 'NAPP：1 Attached / 2 Owner / 4 Self の組み合わせ。対象の実体は設計側の文脈に依存します。'
                 if e['type'] == 'NSRU': note += ' NSRU の固有属性は未確認です。'
         else:
             for key, value in e['attrs'].items(): self.tables['extra'].insert('', 'end', iid=key, values=(key, '旧仮要素・未対応の原文', str(value)))
             note = '旧仮要素・未対応要素です。追加属性で原文を確認できます。正式要素への変更時も原文を保持します。'
+        note = schema.LABELS.get(e['type'],'負 '+schema.LABELS.get(schema.positive(e['type']),''))+' / '+note
+        note += '\n' + schema.NOTES.get(schema.positive(e['type']),'')
         self.element_note.configure(text=note)
         table = self.tables[self.section]
         keys = table.get_children()
@@ -206,25 +224,43 @@ class ConstructionEditor(ttk.Frame):
     def load_field(self):
         e = self.element()
         self.choice_entry.pack_forget(); self.expression_entry.pack_forget()
-        self.field_label.configure(text=(self.field + ' / ' + schema.DESCRIPTIONS.get(self.field, '属性値・式')) if self.field else '属性を選択してください')
+        self.field_label.configure(text=(self.field + ' / ' + schema.meaning(e['type'],self.field) if e else '') if self.field else '属性を選択してください')
         self.expression.set(schema.value(e, self.field) if e and self.field else '')
         choices = ()
         if self.field == 'OBST': choices = tuple(schema.OBST_CHOICES)
-        elif self.field in ('PAXI', 'PAAX', 'PBAX', 'PCAX', 'PTCDIR'): choices = schema.DIRECTIONS
+        elif self.field in ('PAXI', 'PAAX', 'PBAX', 'PCAX', 'PLAXI', 'PTCDIR'): choices = schema.DIRECTIONS
+        elif self.field in ('CLFLA','TUFLA','TVISI','BVISI'): choices = ('','TRUE','FALSE')
+        elif self.field == 'NAPP': choices = tuple(str(i) for i in range(8))
         if choices:
             self.choice_entry['values'] = choices
             if self.field == 'OBST': self.expression.set(next((key for key, val in schema.OBST_CHOICES.items() if val == schema.value(e, self.field)), schema.value(e, self.field)))
-            self.choice_entry.pack(fill='x', before=self.choice_entry.master.winfo_children()[3])
-        else: self.expression_entry.pack(fill='x', before=self.expression_entry.master.winfo_children()[3])
+            self.choice_entry.pack(fill='x', before=self.reference_frame)
+        else: self.expression_entry.pack(fill='x', before=self.reference_frame)
         self.expression_entry.configure(state='normal' if e and self.field and schema.known(e['type']) and self.section != 'extra' else 'readonly')
         self.choice_entry.configure(state='normal' if e and self.field else 'disabled')
         self.update_role(); self.update_validation()
 
     def update_validation(self):
-        text = '保存できます。式・位置・方向の評価は未対応です。'
-        if self.field == 'NUMB' and not self.expression.get().isdigit(): text = 'ポイント番号は整数で指定してください（現在は入力中の値を保持）。'
-        elif self.field == 'OBST': text = '0：障害物対象外 / 1：ソフト / 2：ハード'
-        elif self.field in ('TVISI', 'BVISI'): text = '表示するかどうかの設定。実機での値の形式は未確認のため原文で入力します。'
+        if not self.field or not self.element(): self.validation_note.configure(text=''); return
+        e = self.element(); key = self.field; expr = schema.value(e,key)
+        if key == 'NUMB':
+            text = 'P0 は自動生成。正の整数で、同じ PTSET 内の番号を重複させません。'
+        elif key == 'LEVEL': text = '下限 上限 の 2 数値。描画フラグと REPRESENTATION の設定にも依存します。'
+        elif key == 'NAPP':
+            try:
+                val=int(expr); text='適用先：' + (' / '.join(name for bit,name in ((1,'Attached'),(2,'Owner'),(4,'Self')) if val & bit) or 'なし')
+            except ValueError: text='適用先を 0〜7 で指定してください。'
+        elif key in ('TVISI','BVISI','CLFLA','TUFLA'): text='TRUE / FALSE の描画フラグです。'
+        elif key in ('PAXI','PAAX','PBAX','PCAX','PLAXI','PTCDIR','PTCPOS','PTSPOS','PTEPOS','PTS','DESC','PURP','PSKEY','GTYP','PKEY'):
+            text='原文を保持。複合方向・位置式の座標計算は未対応です。' if key in ('PAXI','PAAX','PBAX','PCAX','PLAXI','PTCDIR','PTCPOS','PTSPOS','PTEPOS') else schema.meaning(e['type'],key)
+        elif not expr.strip(): text='未入力'
+        elif key=='PCON' and expr.isidentifier() and expr not in {p['role'] for p in self.data['parameters']} and expr.upper() not in ('PARAM','PARA','ANGL'):text='固定の接続コード：'+expr
+        else:
+            try:
+                scom=project.get(self.data,'scoms',self.preview_scom_id)
+                value=expressions.evaluate(expr,expressions.contexts_for(scom or {}),(scom or {}).get('component_attrs',{}),self.data['parameters'])
+                text='確認結果：' + str(value) + ('（選択 SCOM）' if scom else '（定数）')
+            except ValueError as exc: text=str(exc)
         self.validation_note.configure(text=text)
 
     def edit_expression(self, *_):
@@ -232,7 +268,7 @@ class ConstructionEditor(ttk.Frame):
         value = self.expression.get()
         if self.field == 'OBST': value = schema.OBST_CHOICES.get(value, value)
         schema.set_value(self.element(), self.field, value)
-        self.tables[self.section].item(self.field, values=(self.field, schema.DESCRIPTIONS.get(self.field, '属性値・式（意味未確認）'), value))
+        self.tables[self.section].item(self.field, values=(self.field, schema.meaning(self.element()['type'],self.field), value))
         self.host.mark(); self.update_validation()
 
     def rename_element(self, *_):
@@ -248,7 +284,7 @@ class ConstructionEditor(ttk.Frame):
 
     def insert_reference(self):
         e = self.element()
-        if not e or not self.field or self.section == 'extra' or not schema.known(e['type']): return
+        if not e or not self.field or self.field == 'NUMB' or self.section == 'extra' or not schema.known(e['type']): return
         try: number = int(self.ref_number.get())
         except ValueError: self.validation_note.configure(text='参照番号は正の整数を指定してください。'); return
         if number < 1: self.validation_note.configure(text='参照番号は正の整数を指定してください。'); return
@@ -265,7 +301,7 @@ class ConstructionEditor(ttk.Frame):
         kind = self.ref_kind.get()
         pid = 'P' + self.ref_number.get()
         param = project.get(self.data, 'parameters', pid) if kind == 'PARAM' else None
-        self.role_label.configure(text=schema.REFERENCE_LABELS.get(kind, kind) + ' / 役割：' + (param['role'] if param else '未設定（参照種類ごとに区別）'))
+        self.role_label.configure(text=schema.REFERENCE_LABELS.get(kind, kind) + ' / 役割：' + (param['role'] if param else self.data.get('reference_roles',{}).get(kind,{}).get(pid,'未設定（参照種類ごとに区別）')))
 
     def commit_name(self):
         d = self.definition()
@@ -294,7 +330,10 @@ class ConstructionEditor(ttk.Frame):
         names = {x['name'] for x in self.data['definitions']}; name = d['name'] + '-COPY'; n = 1
         while name in names: n += 1; name = d['name'] + '-COPY' + str(n)
         copied['name'] = name
-        for e in copied['elements']: e['id'] = uuid.uuid4().hex
+        remap={}
+        for e in schema.walk(copied['elements']):
+            old=e['id'];e['id']=uuid.uuid4().hex;remap[old]=e['id']
+        if copied.get('attrs',{}).get('NAREF') in remap: copied['attrs']['NAREF']=remap[copied['attrs']['NAREF']]
         self.data['definitions'].append(copied); self.definition_id = copied['id']; self.element_id = None
         self.host.mark(); self.refresh()
 
@@ -302,30 +341,34 @@ class ConstructionEditor(ttk.Frame):
         d = self.definition(); selected = self.library.curselection()
         if not d: self.validation_note.configure(text='先に定義を追加してください。'); return
         if not selected: return
-        try: e = schema.add_element(d, self.library.get(selected[0]))
+        try: e = schema.add_element(d, self.library.get(selected[0]).split()[0])
         except ValueError as exc: messagebox.showerror('追加できません', str(exc), parent=self.host); return
         self.element_id = e['id']; self.section = 'main'; self.tabs.select(0); self.field = None
         self.host.mark(); self.refresh()
 
     def duplicate_element(self):
         e, d = self.element(), self.definition()
-        if not e or len(d['elements']) >= 200: return
-        copied = copy.deepcopy(e); copied['id'] = uuid.uuid4().hex; name = e['name'] + ' コピー'; n = 1
-        names = {x['name'] for x in d['elements']}
+        if not e:return
+        siblings=self.siblings(e)
+        if len(siblings)>=200 or e['type']=='SLOO': self.validation_note.configure(text='輪郭は 1 つ。頂点を追加・複製してください。');return
+        copied = copy.deepcopy(e)
+        for node in schema.walk([copied]): node['id']=uuid.uuid4().hex
+        name = e['name'] + ' コピー'; n = 1
+        names = {x['name'] for x in siblings}
         while name in names: n += 1; name = e['name'] + ' コピー ' + str(n)
         copied['name'] = name
         if 'NUMB' in copied['attrs']:
             numbers = [int(x['attrs']['NUMB']) for x in d['elements'] if str(x['attrs'].get('NUMB', '')).isdigit()]
             copied['attrs']['NUMB'] = str(max(numbers + [0]) + 1)
-        d['elements'].append(copied); self.element_id = copied['id']; self.host.mark(); self.refresh()
+        self.siblings(e).append(copied); self.element_id = copied['id']; self.host.mark(); self.refresh()
 
     def delete_element(self):
         e = self.element()
         if e and messagebox.askyesno('要素を削除', '要素を削除しますか？ 使用先にも影響します。', parent=self.host):
-            self.definition()['elements'].remove(e); self.element_id = None; self.host.mark(); self.refresh()
+            self.siblings(e).remove(e); self.element_id = None; self.host.mark(); self.refresh()
 
     def select_scom(self, _=None):
-        self.preview_scom_id = self.scom_names.get(self.scom_choice.get()); self.refresh_values()
+        self.preview_scom_id = self.scom_names.get(self.scom_choice.get()); self.refresh_values(); self.update_validation()
 
     def refresh_values(self):
         s = project.get(self.data, 'scoms', self.preview_scom_id)
@@ -334,6 +377,93 @@ class ConstructionEditor(ttk.Frame):
     def open_scom(self):
         s = project.get(self.data, 'scoms', self.preview_scom_id)
         if s: self.host.scom_id = s['id']; self.host.cate_id = s['cate_id']; self.host.switch('catalog')
+
+    def edit_parent(self):
+        d=self.definition()
+        if not d: return
+        keys=schema.PARENT_FIELDS[self.kind]
+        if not keys: messagebox.showinfo('親属性','このセットには形状用の固有親属性はありません。',parent=self.host);return
+        options={'未設定':''}
+        if self.kind == 'PTSSET': options.update({e['name']:e['id'] for e in d['elements'] if e['type']=='PLINE'})
+        fields=[]
+        for key in keys:
+            raw=d.get('attrs',{}).get(key,'')
+            if key == 'NAREF':
+                if raw and raw not in options.values(): options['参照先不明：'+raw]=raw
+                initial=next((name for name,ident in options.items() if ident==raw),'未設定')
+                fields.append((key,schema.DESCRIPTIONS[key],initial,list(options)))
+            else: fields.append((key,schema.DESCRIPTIONS.get(key,key),raw,None))
+        def apply(v):
+            d.setdefault('attrs',{}).update({key:options[v[key]] if key=='NAREF' else v[key] for key in keys})
+        self.host.form(self.kind+' の親属性',fields,apply)
+
+    def siblings(self,element):
+        d=self.definition()
+        if element in d['elements']: return d['elements']
+        return next(node['children'] for node in schema.walk(d['elements']) if element in node.get('children',[]))
+
+    def add_child(self):
+        e=self.element()
+        if not e: return
+        try: child=schema.add_child(e)
+        except ValueError as exc: self.validation_note.configure(text=str(exc));return
+        self.element_id=child['id'];self.field=None;self.section='main';self.tabs.select(0)
+        self.host.mark();self.refresh()
+
+    def move_element(self,delta):
+        e=self.element()
+        if not e: return
+        siblings=self.siblings(e);index=siblings.index(e);target=index+delta
+        if 0 <= target < len(siblings):
+            siblings[index],siblings[target]=siblings[target],siblings[index];self.host.mark();self.refresh()
+
+    def normalize_expression(self):
+        e=self.element()
+        if not e or not self.field or self.section == 'extra': return
+        try: value=expressions.normalized(self.expression.get(),self.data['parameters'])
+        except ValueError as exc: self.validation_note.configure(text=str(exc));return
+        e.setdefault('expression_sources',{}).setdefault(self.field,self.expression.get())
+        self.expression.set(value)
+
+    def edit_napp(self):
+        e=self.element()
+        if not e or e['type'] not in schema.NEGATIVE_BASE: self.validation_note.configure(text='ネガティブ要素を選択してください。');return
+        win=tk.Toplevel(self.host);win.title('NAPP：除去する適用先');win.transient(self.host);win.grab_set()
+        try: value=int(e['attrs'].get('NAPP','1'))
+        except ValueError: value=0
+        flags=[]
+        for bit,label in ((1,'Attached（接続先）'),(2,'Owner（所有元）'),(4,'Self（部品自身）')):
+            var=tk.BooleanVar(value=bool(value&bit));flags.append((bit,var))
+            ttk.Checkbutton(win,text=label,variable=var).pack(anchor='w',padx=20,pady=8)
+        ttk.Label(win,text='全て OFF：0 / 全て ON：7。対象の実体は設計側の文脈に依存します。',wraplength=360).pack(padx=20,pady=10)
+        def apply():
+            e['attrs']['NAPP']=str(sum(bit for bit,var in flags if var.get()));self.host.mark();win.destroy();self.refresh()
+        ttk.Button(win,text='適用',command=apply).pack(pady=12)
+
+    def edit_sizes(self):
+        e=self.element()
+        if not e or schema.positive(e['type']) != 'LSNO': self.validation_note.configure(text='LSNO / NLSN を選択してください。');return
+        fields=[]
+        for face,d,r in (('top','PTDM','PTRA'),('bottom','PBDM','PBRA')):
+            fields.extend([(face+'mode',face+' 入力モード','半径' if e['attrs'].get(r) and not e['attrs'].get(d) else '直径',['直径','半径']),
+                           (face+'value',face+' 値・式',e['attrs'].get(d) or e['attrs'].get(r,''),None)])
+        def apply(v):
+            e.setdefault('size_history',[]).append(copy.deepcopy(e['attrs']))
+            for face,d,r in (('top','PTDM','PTRA'),('bottom','PBDM','PBRA')):
+                radius=v[face+'mode']=='半径';e['attrs'][r if radius else d]=v[face+'value'];e['attrs'][d if radius else r]=''
+        self.host.form('LSNO：面ごとの寸法を選択',fields,apply)
+
+    def edit_points(self):
+        e=self.element()
+        if not e or e['type'] != 'LINE': self.validation_note.configure(text='LINE を選択してください。');return
+        values=str(e['attrs'].get('PTS','')).split()
+        fields=[(str(i),'点 '+str(i+1)+'（P1 / T2、空欄は省略）',values[i] if i<len(values) else '',None) for i in range(6)]
+        def apply(v):
+            points=[v[str(i)].upper().strip() for i in range(6) if v[str(i)].strip()]
+            import re
+            if any(not re.fullmatch(r'[PT]\d+',p) for p in points): raise ValueError('P1 / T2 形式で指定してください。')
+            e['attrs']['PTS']=' '.join(points)
+        self.host.form('LINE：点の順序',fields,apply)
 
     def draw(self):
         c = self.canvas; c.delete('all'); w, h = max(c.winfo_width(), 100), max(c.winfo_height(), 120)
@@ -360,9 +490,7 @@ class ConstructionEditor(ttk.Frame):
         win = tk.Toplevel(self.host); win.title('定義の出力確認'); win.transient(self.host)
         ttk.Label(win, text='構成確認用のコメント表示です。E3D 実行用ではありません。', padding=12).pack()
         text = tk.Text(win, width=82, height=25, font=('Consolas',10)); text.pack(fill='both', expand=True, padx=12, pady=8)
-        lines = ['$* ' + d['kind'] + ' ' + d['name']]
-        for e in d['elements']:
-            lines.extend('$* ' + line for line in (e['type']+' '+e['name']).splitlines())
-            for key, value in e['attrs'].items(): lines.extend('$*   ' + line for line in (key+' = '+str(value)).splitlines())
+        report=copy.deepcopy(self.data);report['definitions']=[d];report['cates']=[];report['scoms']=[];report['specs']=[];report['tables']=[];report['texts']=[]
+        lines=project.macro_text(report).splitlines()
         text.insert('1.0','\n'.join(lines)); text.configure(state='disabled')
         ttk.Button(win, text='閉じる', command=win.destroy).pack(pady=8)

@@ -15,7 +15,7 @@ if not exist ".build-venv\Scripts\python.exe" (
 ".build-venv\Scripts\python.exe" -m pip install -r requirements-build.txt
 if errorlevel 1 goto failed
 
-".build-venv\Scripts\python.exe" -m PyInstaller --noconfirm --clean --onedir --windowed --name CatalogStudio --collect-all reportlab --add-data "examples;examples" --add-data "docs;docs" main.py
+".build-venv\Scripts\python.exe" -m PyInstaller --noconfirm --clean --onedir --windowed --name CatalogStudio --collect-all reportlab --add-data "examples;examples" main.py
 if errorlevel 1 goto failed
 
 echo.

@@ -26,7 +26,7 @@ def snapshot(data, scom_ids=None, spec_ids=None, title="カタログ本", editio
     if not isinstance(title, str) or not title.strip():
         raise ValueError("カタログ本のタイトルを入力してください。")
     indexes = {}
-    for key in ("scoms", "specs", "cates", "definitions"):
+    for key in ("scoms", "specs", "cates", "definitions", "texts", "tables"):
         items = data.get(key, [])
         indexes[key] = {item["id"]: item for item in items}
         if len(indexes[key]) != len(items):
@@ -41,12 +41,18 @@ def snapshot(data, scom_ids=None, spec_ids=None, title="カタログ本", editio
 
     selected_scoms = selection("scoms", scom_ids)
     selected_specs = selection("specs", spec_ids)
+    text_ids=set()
     for spec_id in selected_specs:
         for entry in indexes["specs"][spec_id].get("entries", []):
             scom_id = entry.get("scom_id")
             if scom_id not in indexes["scoms"]:
                 raise ValueError("スペックの参照先 SCOM が見つかりません。")
             selected_scoms.add(scom_id)
+            for key,kind in (('sdte_id','SDTE'),('smte_id','SMTE')):
+                ident=entry.get(key,'')
+                if not ident:continue
+                if ident not in indexes['texts'] or indexes['texts'][ident]['type'] != kind:raise ValueError('スペックのテキスト参照先が不正です。')
+                text_ids.add(ident)
     cate_ids, definition_ids = set(), set()
     for scom_id in selected_scoms:
         scom = indexes["scoms"][scom_id]
@@ -54,8 +60,9 @@ def snapshot(data, scom_ids=None, spec_ids=None, title="カタログ本", editio
         if cate_id not in indexes["cates"]:
             raise ValueError("SCOM の参照先 CATE が見つかりません。")
         cate_ids.add(cate_id)
-        for key, kind in (("gmset_id", "GMSET"), ("ptset_id", "PTSET")):
+        for key, kind in (("gmset_id", "GMSET"), ("ptset_id", "PTSET"),('ngmset_id','NGMSET'),('gmsset_id','GMSSET'),('ptsset_id','PTSSET')):
             definition_id = scom.get(key)
+            if key not in ('gmset_id','ptset_id') and not definition_id:continue
             if definition_id not in indexes["definitions"]:
                 raise ValueError(f"SCOM の参照先 {kind} が見つかりません。")
             if indexes["definitions"][definition_id].get("kind") != kind:
@@ -70,10 +77,17 @@ def snapshot(data, scom_ids=None, spec_ids=None, title="カタログ本", editio
         "created_at": datetime.now(JST).isoformat(timespec="seconds"),
         "project_name": data.get("name", ""),
         "parameters": copy.deepcopy(data.get("parameters", [])),
+        "reference_roles":copy.deepcopy(data.get("reference_roles",{})),
     }
     for key, ids in (("scoms", selected_scoms), ("specs", selected_specs),
                      ("cates", cate_ids), ("definitions", definition_ids)):
         book[key] = copy.deepcopy([item for item in data.get(key, []) if item["id"] in ids])
+    book['texts']=copy.deepcopy([r for r in data.get('texts',[]) if r['id'] in text_ids])
+    # Shared tables are project context; freeze the complete table collection.
+    book['tables']=copy.deepcopy(data.get('tables',[]))
+    owners={r.get('parent_id') for r in book['texts']+book['tables']}
+    for cate in data.get('cates',[]):
+        if cate['id'] in owners and cate['id'] not in cate_ids:book['cates'].append(copy.deepcopy(cate))
     return book
 
 
@@ -154,6 +168,7 @@ def generate_pdf(book, path):
     specs = book.get("specs", [])
     parameters = book.get("parameters", [])
     definitions = {item["id"]: item for item in book.get("definitions", [])}
+    text_index={r['id']:r for r in book.get('texts',[])}
     scom_index = {item["id"]: item for item in scoms}
     story = [Spacer(1, 55), p("CATALOG STUDIO", "h2"),
              p(book.get("title", "カタログ本"), "title"),
@@ -205,7 +220,7 @@ def generate_pdf(book, path):
         for entry in spec.get("entries", []):
             scom = scom_index.get(entry.get("scom_id"), {})
             rows.append([entry.get("type", ""), entry.get("bore1", ""), entry.get("bore2", ""),
-                         scom.get("name", "参照なし"), entry.get("description", "")])
+                         scom.get("name", "参照なし"), entry.get("description", "")+'\n'+ '\n'.join(kind+': '+text_index.get(entry.get(key,''),{}).get('name','未設定') for key,kind in (('sdte_id','SDTE'),('smte_id','SMTE')))])
         story.append(table(rows, [70, 48, 48, 145, width - 311]))
     if definitions:
         story.extend([PageBreak(), p("共通定義とパラメータ", "h1"),
@@ -213,19 +228,36 @@ def generate_pdf(book, path):
         rows = [["番号", "役割", "単位"]] + [[parameter["id"], parameter.get("role", ""),
                                                      parameter.get("unit", "")] for parameter in parameters]
         story.append(table(rows, [65, width - 130, 65]))
+        if book.get('reference_roles'):
+            story.append(table([['参照種類','番号','役割']]+[[family,pid,role] for family,roles in book['reference_roles'].items() for pid,role in roles.items()],[120,60,width-180]))
         for definition in definitions.values():
             story.extend([p(definition.get("name", ""), "h2"),
                           p(f"{definition.get('kind', '')}　／　改訂：{definition.get('revision', '')}", "small")])
-            rows = [["要素 / 種類", "属性", "設定式・値"]]
-            for element in definition.get("elements", []):
+            from . import element_schema
+            rows = [["要素 / 種類", "属性・役割", "設定式・値"]]
+            for key,value in definition.get('attrs',{}).items():rows.append(['セットの親属性',key,value])
+            for element in element_schema.walk(definition.get("elements", [])):
                 first = True
+                if not element.get('attrs'):rows.append([element.get('name','')+'\n'+element.get('type',''),'子要素の管理',''])
                 for key, value in element.get("attrs", {}).items():
                     label = f"{element.get('name', '')}\n{element.get('type', '')}" if first else ""
-                    rows.append([label, key, value])
+                    rows.append([label, key+'\n'+element_schema.meaning(element['type'],key), value])
                     first = False
             if len(rows) == 1:
                 rows.append(["要素なし", "", ""])
             story.append(table(rows, [145, 85, width - 230]))
+
+    for collection,title in (('texts','説明・材質テキスト'),('tables','発行時点の共通テーブル')):
+        records=book.get(collection,[])
+        if not records:continue
+        story.extend([PageBreak(),p(title,'h1')])
+        if collection=='tables':story.append(p('プロジェクト内の共通テーブルを発行時点で固定しています。','small'))
+        from . import catalogue
+        for record in records:
+            story.append(p(record['type']+' '+record['name'],'h2'))
+            story.append(p('親：'+record['parent_id']+' / 改訂：'+record['revision'],'small'))
+            rows=[['属性','役割','値']]+[[key,catalogue.MEANINGS.get(key,'原文属性'),str(value)] for key,value in record['attrs'].items()]
+            if len(rows)>1:story.append(table(rows,[70,150,width-220]))
 
     path = Path(path)
     temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")

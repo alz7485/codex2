@@ -171,5 +171,7 @@
       ]
     }
   ],
-  "books": []
+  "books": [],
+  "texts": [],
+  "tables": []
 }

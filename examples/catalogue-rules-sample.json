@@ -1,0 +1,624 @@
+{
+  "format": "catalog-studio-integrated",
+  "version": 2,
+  "name": "カタログ編集サンプル（架空の部品）",
+  "parameters": [
+    {
+      "id": "P1",
+      "role": "大径側外径",
+      "unit": "mm"
+    },
+    {
+      "id": "P2",
+      "role": "小径側外径",
+      "unit": "mm"
+    },
+    {
+      "id": "P3",
+      "role": "全長",
+      "unit": "mm"
+    },
+    {
+      "id": "P4",
+      "role": "大径側呼び径",
+      "unit": "mm"
+    },
+    {
+      "id": "P5",
+      "role": "小径側呼び径",
+      "unit": "mm"
+    },
+    {
+      "id": "P6",
+      "role": "接続形式",
+      "unit": "",
+      "value_type": "word"
+    }
+  ],
+  "cates": [
+    {
+      "id": "cate-reducer",
+      "name": "/REDUCER-CATE",
+      "description": "同心レデューサー（モックアップ参考値）",
+      "revision": "01"
+    }
+  ],
+  "definitions": [
+    {
+      "id": "ui-ptset",
+      "kind": "PTSET",
+      "name": "/UI-POINTS",
+      "revision": "01",
+      "elements": [
+        {
+          "id": "7b696f435d2e4de982c2e5f45c36e33f",
+          "type": "PTAXI",
+          "name": "接続点 1",
+          "attrs": {
+            "NUMB": "1",
+            "PCON": "PARAM[6]",
+            "PBOR": "PARAM[4]",
+            "PAXI": "-X",
+            "PDIS": "PARAM[2] + 1.5 + DES PARAM[2]",
+            "PSKEY": "unset",
+            "DESC": "unset",
+            "PURP": "unset"
+          }
+        },
+        {
+          "id": "5c7a285d70dd4ae8be1551970ddda254",
+          "type": "PTCAR",
+          "name": "接続点 2",
+          "attrs": {
+            "NUMB": "2",
+            "PCON": "PARAM[6]",
+            "PBOR": "PARAM[4]",
+            "PX": "0",
+            "PY": "0.5 * APARAM[3]",
+            "PZ": "0",
+            "PTCDIR": "X",
+            "PSKEY": "unset",
+            "DESC": "unset",
+            "PURP": "unset"
+          }
+        },
+        {
+          "id": "283b91c1c8e04872a156531ad2ae2cac",
+          "type": "PTMIX",
+          "name": "補助点",
+          "attrs": {
+            "NUMB": "3",
+            "PCON": "PARAM[6]",
+            "PBOR": "PARAM[4]",
+            "PX": "0",
+            "PY": "0",
+            "PZ": "0",
+            "PAXI": "X",
+            "PSKEY": "unset",
+            "DESC": "unset",
+            "PURP": "unset"
+          }
+        },
+        {
+          "id": "475cbd2fd8a54df485509d07e7bf4adb",
+          "type": "PTPOS",
+          "name": "基準点",
+          "attrs": {
+            "NUMB": "4",
+            "PCON": "PARAM[6]",
+            "PBOR": "PARAM[4]",
+            "PTCPOS": "",
+            "PTCDIR": "X",
+            "PSKEY": "unset",
+            "DESC": "unset",
+            "PURP": "unset"
+          }
+        }
+      ],
+      "attrs": {
+        "SKEY": "TEST",
+        "DESC": "架空の接続点",
+        "GTYP": "",
+        "PURP": "unset"
+      }
+    },
+    {
+      "id": "ui-gmset",
+      "kind": "GMSET",
+      "name": "/UI-GEOMETRY",
+      "revision": "01",
+      "elements": [
+        {
+          "id": "a08451268c9447beae3d95dc262ab748",
+          "type": "SCYL",
+          "name": "胴部",
+          "attrs": {
+            "PAXI": "Z",
+            "PHEI": "PARAM[3]",
+            "PDIA": "PARAM[1]",
+            "PDIS": "0",
+            "TVISI": "",
+            "BVISI": "",
+            "LEVEL": "1 10",
+            "CLFLA": "TRUE",
+            "TUFLA": "TRUE",
+            "OBST": "2",
+            "DESC": "",
+            "GTYP": "",
+            "PURP": ""
+          }
+        },
+        {
+          "id": "2c82a49a22c344eb93c11236e674e9ef",
+          "type": "SCYL",
+          "name": "フランジ",
+          "attrs": {
+            "PAXI": "X",
+            "PHEI": "PARAM[3]",
+            "PDIA": "PARAM[1]",
+            "PDIS": "PARAM[2]",
+            "TVISI": "",
+            "BVISI": "",
+            "LEVEL": "",
+            "CLFLA": "",
+            "TUFLA": "",
+            "OBST": "",
+            "DESC": "",
+            "GTYP": "",
+            "PURP": ""
+          }
+        },
+        {
+          "id": "42cd3e7accf04f7a94f0c2d37a14912f",
+          "type": "SBOX",
+          "name": "補助形状",
+          "attrs": {
+            "PXLE": "",
+            "PYLE": "",
+            "PZLE": "",
+            "PX": "",
+            "PY": "",
+            "PZ": "",
+            "LEVEL": "",
+            "CLFLA": "",
+            "TUFLA": "",
+            "OBST": "",
+            "DESC": "",
+            "GTYP": "",
+            "PURP": ""
+          }
+        },
+        {
+          "id": "2cf4472de6b14a01a61847e329e3dd03",
+          "type": "NSCY",
+          "name": "切り欠き",
+          "attrs": {
+            "PAXI": "X",
+            "PHEI": "PARAM[3]",
+            "PDIA": "PARAM[1]",
+            "PDIS": "0",
+            "TVISI": "",
+            "BVISI": "",
+            "LEVEL": "",
+            "CLFLA": "",
+            "TUFLA": "",
+            "OBST": "",
+            "DESC": "",
+            "GTYP": "",
+            "PURP": "",
+            "NAPP": "6"
+          }
+        },
+        {
+          "id": "417877f783054a1ea67f89bc7921466e",
+          "type": "SEXT",
+          "name": "押出しサンプル",
+          "attrs": {
+            "PX": "0",
+            "PY": "0",
+            "PZ": "0",
+            "PAAX": "X",
+            "PBAX": "Y",
+            "PHEI": "PARAM[3] / 4",
+            "LEVEL": "",
+            "CLFLA": "",
+            "TUFLA": "",
+            "OBST": "",
+            "DESC": "",
+            "GTYP": "",
+            "PURP": ""
+          },
+          "children": [
+            {
+              "id": "a9848af0a21746beb08357fbe53dc4a2",
+              "type": "SLOO",
+              "name": "輪郭 1",
+              "attrs": {},
+              "children": [
+                {
+                  "id": "c32a9421bee54da680d72c081d5fe24d",
+                  "type": "SVER",
+                  "name": "輪郭の頂点 1",
+                  "attrs": {
+                    "PX": "0",
+                    "PY": "0",
+                    "PRAD": "0"
+                  }
+                },
+                {
+                  "id": "f1ed4a8b1d494f4e999cc9dcbdbfef2e",
+                  "type": "SVER",
+                  "name": "輪郭の頂点 2",
+                  "attrs": {
+                    "PX": "PARAM[1] / 2",
+                    "PY": "0",
+                    "PRAD": "0"
+                  }
+                },
+                {
+                  "id": "059d11cec00b41c8b917a506c7fdd191",
+                  "type": "SVER",
+                  "name": "輪郭の頂点 3",
+                  "attrs": {
+                    "PX": "PARAM[1] / 2",
+                    "PY": "PARAM[2] / 2",
+                    "PRAD": "0"
+                  }
+                },
+                {
+                  "id": "8fa17da1b3c3485a97bd4b76dd9b23fd",
+                  "type": "SVER",
+                  "name": "輪郭の頂点 4",
+                  "attrs": {
+                    "PX": "0",
+                    "PY": "PARAM[2] / 2",
+                    "PRAD": "0"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "7d3ec391ec7d41379fd6a529640d3394",
+          "type": "LINE",
+          "name": "LINE 1",
+          "attrs": {
+            "PTS": "P1 T2 P3",
+            "LEVEL": "",
+            "CLFLA": "TRUE",
+            "TUFLA": "",
+            "OBST": "0",
+            "DESC": "",
+            "GTYP": "",
+            "PURP": ""
+          }
+        }
+      ]
+    },
+    {
+      "id": "sample-NGMSET",
+      "name": "/SAMPLE-NGMSET",
+      "kind": "NGMSET",
+      "revision": "01",
+      "attrs": {},
+      "elements": [
+        {
+          "id": "7d04da8184e14a088f9bffed47325a3d",
+          "type": "NSCY",
+          "name": "NSCY 1",
+          "attrs": {
+            "PAXI": "Z",
+            "PHEI": "PARAM[3]",
+            "PDIA": "PARAM[2]",
+            "PDIS": "0",
+            "TVISI": "",
+            "BVISI": "",
+            "LEVEL": "",
+            "CLFLA": "",
+            "TUFLA": "",
+            "OBST": "",
+            "DESC": "",
+            "GTYP": "",
+            "PURP": "",
+            "NAPP": "6"
+          }
+        }
+      ]
+    },
+    {
+      "id": "sample-PTSSET",
+      "name": "/SAMPLE-PTSSET",
+      "kind": "PTSSET",
+      "revision": "01",
+      "attrs": {
+        "NAREF": "b05c97e2b397468087db659828efd5af"
+      },
+      "elements": [
+        {
+          "id": "b05c97e2b397468087db659828efd5af",
+          "type": "PLINE",
+          "name": "PLINE 1",
+          "attrs": {
+            "PKEY": "NA",
+            "PX": "0",
+            "PY": "0",
+            "PLAXI": "Y",
+            "LEVEL": "",
+            "CLFLA": "",
+            "TUFLA": "",
+            "DESC": "",
+            "PURP": ""
+          }
+        }
+      ]
+    },
+    {
+      "id": "sample-GMSSET",
+      "name": "/SAMPLE-GMSSET",
+      "kind": "GMSSET",
+      "revision": "01",
+      "attrs": {},
+      "elements": [
+        {
+          "id": "a20e01344ef240fb9e0a6fd9c82cef0b",
+          "type": "SREC",
+          "name": "SREC 1",
+          "attrs": {
+            "PXLE": "PARAM[1]",
+            "PYLE": "PARAM[2]",
+            "DXLE": "0",
+            "DYLE": "0",
+            "PX": "0",
+            "PY": "0",
+            "DX": "0",
+            "DY": "0",
+            "PLAXI": "Y",
+            "LEVEL": "",
+            "CLFLA": "",
+            "TUFLA": "",
+            "OBST": "2",
+            "DESC": "",
+            "GTYP": "",
+            "PURP": ""
+          }
+        }
+      ]
+    }
+  ],
+  "scoms": [
+    {
+      "id": "scom-65-40",
+      "name": "/REDUCER-65X40",
+      "cate_id": "cate-reducer",
+      "size": "65 × 40",
+      "revision": "01",
+      "gmset_id": "ui-gmset",
+      "ptset_id": "ui-ptset",
+      "values": {
+        "P1": 76.3,
+        "P2": 48.6,
+        "P3": 89,
+        "P4": 65,
+        "P5": 40,
+        "P6": "BW"
+      },
+      "component_attrs": {
+        "ANGL": 60
+      },
+      "expression_contexts": {
+        "IPARAM": {
+          "P1": 6
+        },
+        "APARAM": {
+          "P3": 18
+        },
+        "DES PARAM": {
+          "P2": 4
+        }
+      },
+      "ngmset_id": "sample-NGMSET",
+      "ptsset_id": "sample-PTSSET",
+      "gmsset_id": "sample-GMSSET"
+    },
+    {
+      "id": "scom-80-50",
+      "name": "/REDUCER-80X50",
+      "cate_id": "cate-reducer",
+      "size": "80 × 50",
+      "revision": "01",
+      "gmset_id": "ui-gmset",
+      "ptset_id": "ui-ptset",
+      "values": {
+        "P1": 89.1,
+        "P2": 60.5,
+        "P3": 89,
+        "P4": 80,
+        "P5": 50,
+        "P6": "BW"
+      },
+      "component_attrs": {
+        "ANGL": 60
+      },
+      "expression_contexts": {
+        "IPARAM": {
+          "P1": 6
+        },
+        "APARAM": {
+          "P3": 18
+        },
+        "DES PARAM": {
+          "P2": 4
+        }
+      },
+      "ngmset_id": "sample-NGMSET",
+      "ptsset_id": "sample-PTSSET",
+      "gmsset_id": "sample-GMSSET"
+    },
+    {
+      "id": "scom-100-65",
+      "name": "/REDUCER-100X65",
+      "cate_id": "cate-reducer",
+      "size": "100 × 65",
+      "revision": "01",
+      "gmset_id": "ui-gmset",
+      "ptset_id": "ui-ptset",
+      "values": {
+        "P1": 114.3,
+        "P2": 76.3,
+        "P3": 102,
+        "P4": 100,
+        "P5": 65,
+        "P6": "BW"
+      },
+      "component_attrs": {
+        "ANGL": 60
+      },
+      "expression_contexts": {
+        "IPARAM": {
+          "P1": 6
+        },
+        "APARAM": {
+          "P3": 18
+        },
+        "DES PARAM": {
+          "P2": 4
+        }
+      },
+      "ngmset_id": "sample-NGMSET",
+      "ptsset_id": "sample-PTSSET",
+      "gmsset_id": "sample-GMSSET"
+    }
+  ],
+  "specs": [
+    {
+      "id": "spec-cs150",
+      "name": "/CS-150-SPEC",
+      "description": "炭素鋼クラスの選択表（仮データ・E3D選択構文は未検証）",
+      "revision": "01",
+      "entries": [
+        {
+          "id": "entry-65-40",
+          "type": "REDU",
+          "bore1": "65",
+          "bore2": "40",
+          "scom_id": "scom-65-40",
+          "description": "同心レデューサー",
+          "sdte_id": "2abf4c673be14c3db9dd9d7d0876fc38",
+          "smte_id": "0ebe66c94a514ef6963756c80439b3c3"
+        },
+        {
+          "id": "entry-80-50",
+          "type": "REDU",
+          "bore1": "80",
+          "bore2": "50",
+          "scom_id": "scom-80-50",
+          "description": "同心レデューサー",
+          "sdte_id": "2abf4c673be14c3db9dd9d7d0876fc38",
+          "smte_id": "0ebe66c94a514ef6963756c80439b3c3"
+        },
+        {
+          "id": "entry-100-65",
+          "type": "REDU",
+          "bore1": "100",
+          "bore2": "65",
+          "scom_id": "scom-100-65",
+          "description": "同心レデューサー",
+          "sdte_id": "2abf4c673be14c3db9dd9d7d0876fc38",
+          "smte_id": "0ebe66c94a514ef6963756c80439b3c3"
+        }
+      ]
+    }
+  ],
+  "books": [],
+  "texts": [
+    {
+      "id": "2abf4c673be14c3db9dd9d7d0876fc38",
+      "type": "SDTE",
+      "name": "/SAMPLE-DESCRIPTION",
+      "parent_id": "cate-reducer",
+      "revision": "01",
+      "attrs": {
+        "RTEX": "架空の部品・動作確認用",
+        "STEX": "",
+        "TTEX": "",
+        "SKEY": "TEST"
+      },
+      "isodraft": true
+    },
+    {
+      "id": "0ebe66c94a514ef6963756c80439b3c3",
+      "type": "SMTE",
+      "name": "/SAMPLE-MATERIAL",
+      "parent_id": "cate-reducer",
+      "revision": "01",
+      "attrs": {
+        "XTEX": "架空の材質",
+        "YTEX": "",
+        "ZTEX": ""
+      }
+    }
+  ],
+  "tables": [
+    {
+      "id": "048763db997c4dc099cd43dc50cfd7bd",
+      "type": "CCTA",
+      "name": "/SAMPLE-CONNECTIONS",
+      "parent_id": "",
+      "revision": "01",
+      "attrs": {}
+    },
+    {
+      "id": "f91a8113ff834e95964910adcef38d60",
+      "type": "COCO",
+      "name": "/SAMPLE-PAIR",
+      "parent_id": "048763db997c4dc099cd43dc50cfd7bd",
+      "revision": "01",
+      "attrs": {
+        "CTYPE": "BW BW"
+      }
+    },
+    {
+      "id": "a2aa85f1c0f843368aa82144bfa834c9",
+      "type": "BLTAB",
+      "name": "/SAMPLE-BOLT-TABLE",
+      "parent_id": "",
+      "revision": "01",
+      "attrs": {}
+    },
+    {
+      "id": "6386e0a7de1845c2902c024d05134c15",
+      "type": "LTAB",
+      "name": "/SAMPLE-LENGTH-TABLE",
+      "parent_id": "a2aa85f1c0f843368aa82144bfa834c9",
+      "revision": "01",
+      "attrs": {}
+    },
+    {
+      "id": "d4290296b884467682a8a04e8680638f",
+      "type": "DTAB",
+      "name": "/SAMPLE-LENGTHS",
+      "parent_id": "6386e0a7de1845c2902c024d05134c15",
+      "revision": "01",
+      "attrs": {
+        "BLEN": [
+          35,
+          45,
+          55,
+          65
+        ]
+      }
+    }
+  ],
+  "reference_roles": {
+    "IPARAM": {
+      "P1": "断熱材厚さ"
+    },
+    "APARAM": {
+      "P3": "取付先の長さ"
+    },
+    "DES PARAM": {
+      "P2": "設計側の補正距離"
+    }
+  }
+}

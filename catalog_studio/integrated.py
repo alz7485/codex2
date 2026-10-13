@@ -9,14 +9,14 @@ import sys
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, font, messagebox, ttk
-from . import model, project
+from . import model, project, element_schema, expressions
 from .app import Studio as LegacyPreview
 
 BLUE = '#2269de'
 NAVY = '#233951'
 BG = '#f3f6fa'
 MUTED = '#738499'
-PAGES = [('catalog', 'カタログ構成'), ('ptset', 'PTSET 作成'), ('gmset', 'GMSET 作成'), ('specs', 'SPEC 登録'), ('books', 'カタログ本・PDF'), ('rules', 'パラメータ規則'), ('checks', '確認・マクロ')]
+PAGES = [('catalog', 'カタログ構成'), ('ptset', 'PTSET 作成'), ('gmset', 'GMSET 作成'), ('structural', '構造材・NGMSET'), ('texts','説明・材質'), ('tables','共通テーブル'), ('specs', 'SPEC 登録'), ('books', 'カタログ本・PDF'), ('rules', 'パラメータ規則'), ('checks', '確認・マクロ')]
 
 
 class Preview:
@@ -105,7 +105,7 @@ class IntegratedStudio(tk.Tk):
         ttk.Label(header,text='  E3D 4.0 / 統合モックアップ',style='Muted.TLabel').pack(side='left',padx=8)
         for text,command,style in [('構成確認出力',lambda:self.switch('checks'),'Primary.TButton'),('保存',self.save_project,'TButton'),('読み込み',self.open_project,'TButton'),('新規',self.new_project,'TButton')]:
             ttk.Button(header,text=text,command=command,style=style).pack(side='right',padx=4)
-        tk.Label(self,text='SCOM に実数値、GMSET・PTSET に参照・式を登録。SPEC の選択条件と E3D 登録構文は仮仕様です。',bg='#eaf1fb',fg='#5d7390',anchor='w',padx=20,pady=8).pack(fill='x')
+        tk.Label(self,text='SCOM に寸法・文字列、GMSET・PTSET に参照・式を登録。SPEC の選択条件と E3D 登録構文は仮仕様です。',bg='#eaf1fb',fg='#5d7390',anchor='w',padx=20,pady=8).pack(fill='x')
         self.status=ttk.Label(self,text='サンプルを表示中 · E3D 実行用ではありません',background=BG,foreground=MUTED,padding=(18,7));self.status.pack(side='bottom',fill='x')
         body=ttk.Frame(self);body.pack(fill='both',expand=True)
         nav=tk.Frame(body,bg=NAVY,width=185);nav.pack(side='left',fill='y');nav.pack_propagate(False)
@@ -210,13 +210,15 @@ class IntegratedStudio(tk.Tk):
         ttk.Button(left,text='CATE の情報を編集',command=self.edit_cate).pack(fill='x',pady=6)
         ttk.Button(left,text='空の CATE を削除',command=self.delete_cate).pack(fill='x')
         top=ttk.Frame(middle);top.pack(fill='x',pady=(0,10))
-        ttk.Label(top,text='SCOM の実数値',style='Heading.TLabel').pack(side='left')
+        ttk.Label(top,text='SCOM の寸法・文字列',style='Heading.TLabel').pack(side='left')
         for text,cmd in [('編集',self.edit_scom),('複製',self.duplicate_scom),('削除',self.delete_scom)]:ttk.Button(top,text=text,command=cmd).pack(side='right',padx=2)
         columns=[('name','SCOM 名',170),('size','サイズ',100),('rev','改訂',65)]+[(p['id'],p['role']+' ['+p['id']+' / '+p.get('unit','mm')+']',150) for p in self.data['parameters']]
         self.scom_table=self.table(middle,columns,height=10);self.fill_scom_table()
-        ttk.Label(middle,text='行をダブルクリックして、実数値と参照先を編集できます。',style='Muted.TLabel').pack(anchor='w',pady=5)
+        ttk.Label(middle,text='行をダブルクリックして、数値・文字列・参照先を編集できます。',style='Muted.TLabel').pack(anchor='w',pady=5)
         self.scom_table.bind('<<TreeviewSelect>>',self.scom_select);self.scom_table.bind('<Double-1>',lambda _:self.edit_scom())
-        ttk.Button(middle,text='表からまとめて貼り付け',command=self.paste_scoms).pack(anchor='w',pady=10)
+        tools=ttk.Frame(middle);tools.pack(fill='x',pady=10)
+        ttk.Button(tools,text='表からまとめて貼り付け',command=self.paste_scoms).pack(side='left',padx=3)
+        ttk.Button(tools,text='確認用の参照コンテキスト',command=self.edit_contexts).pack(side='left',padx=3)
         references=ttk.LabelFrame(middle,text='選択 SCOM の参照先',padding=12);references.pack(fill='x',pady=6)
         self.reference_label=ttk.Label(references,text='',wraplength=520);self.reference_label.pack(anchor='w')
         ttk.Button(references,text='GMSET を編集',command=lambda:self.goto_definition('gmset_id')).pack(side='left',pady=8,padx=3)
@@ -280,6 +282,7 @@ class IntegratedStudio(tk.Tk):
     def delete_cate(self):
         if any(s['cate_id']==self.cate_id for s in self.data['scoms']):messagebox.showinfo('削除できません','SCOM がある CATE は削除できません。',parent=self);return
         if not project.get(self.data,'cates',self.cate_id):return
+        if any(r['parent_id']==self.cate_id for key in ('texts','tables') for r in self.data.get(key,[])):messagebox.showinfo('使用中','説明・材質または共通テーブルが所属しています。',parent=self);return
         if messagebox.askyesno('削除','空の CATE を削除しますか？',parent=self):
             self.data['cates']=[c for c in self.data['cates'] if c['id']!=self.cate_id];self.cate_id=next((c['id'] for c in self.data['cates']),None);self.mark();self.render_page()
 
@@ -295,6 +298,12 @@ class IntegratedStudio(tk.Tk):
             return next((name for name,key in mapping.items() if key==ident),next(iter(mapping)))
         fields=[('name','SCOM 名',scom['name'] if scom else '',None),('size','サイズ表記',scom['size'] if scom else '',None),('cate','CATE',display(cate_choices,scom['cate_id'] if scom else self.cate_id),list(cate_choices)),('revision','改訂',scom['revision'] if scom else '01',None),('gm','GMRE / GMSET',display(gm,scom.get('gmset_id') if scom else None),list(gm)),('pt','PTRE / PTSET',display(pt,scom.get('ptset_id') if scom else None),list(pt))]
         for p in self.data['parameters']:fields.append((p['id'],p['id']+'：'+p['role']+' ['+p.get('unit','mm')+']',scom['values'].get(p['id'],'') if scom else '',None))
+        fields.append(('angl','ANGL：部品の角度（度、空欄は未設定）',(scom or {}).get('component_attrs',{}).get('ANGL',''),None))
+        for kind,key in (('NGMSET','ngmset_id'),('GMSSET','gmsset_id'),('PTSSET','ptsset_id')):
+            mapping=self.choices('definitions',kind);mapping['未設定']=''
+            ident=(scom or {}).get(key,'')
+            if ident and ident not in mapping.values():mapping['参照先不明：'+ident]=ident
+            fields.append((key,kind,next((name for name,value in mapping.items() if value==ident),'未設定'),list(mapping)))
         def apply(v):
             self.required(v['name'],'SCOM 名')
             if any(s['name']==v['name'] and (scom is None or s['id']!=scom['id']) for s in self.data['scoms']):raise ValueError('SCOM 名が重複しています。')
@@ -302,14 +311,19 @@ class IntegratedStudio(tk.Tk):
             values={key:value for key,value in scom['values'].items() if key not in known} if scom else {}
             for p in self.data['parameters']:
                 if not v[p['id']]:continue
-                try:n=float(v[p['id']])
-                except ValueError:raise ValueError(p['id']+' に実数値を入力してください。')
-                if not math.isfinite(n):raise ValueError('有限の数値を入力してください。')
-                values[p['id']]=n
+                values[p['id']]=project.parse_value(p,v[p['id']])
+            component=copy.deepcopy((scom or {}).get('component_attrs',{}))
+            if v['angl']:
+                component['ANGL']=project.parse_value({'id':'ANGL'},v['angl'])
+            else:component.pop('ANGL',None)
             obj=scom or project.add_scom(self.data,cate_choices[v['cate']],v['name'])
             obj.update(name=v['name'],size=v['size'],cate_id=cate_choices[v['cate']],revision=v['revision'],gmset_id=gm.get(v['gm'],''),ptset_id=pt.get(v['pt'],''),values=values)
+            obj['component_attrs']=component
+            for kind,key in (('NGMSET','ngmset_id'),('GMSSET','gmsset_id'),('PTSSET','ptsset_id')):
+                mapping=self.choices('definitions',kind);mapping['未設定']=''
+                obj[key]=mapping.get(v[key],obj.get(key,''))
             self.scom_id=obj['id'];self.cate_id=obj['cate_id']
-        self.form('SCOM の実数値を登録',fields,apply)
+        self.form('SCOM の値を登録',fields,apply)
 
     def add_scom(self):self.scom_form()
     def edit_scom(self):
@@ -348,9 +362,7 @@ class IntegratedStudio(tk.Tk):
             if not row[0].strip() or any(s['name']==row[0].strip() for s in candidate['scoms']):raise ValueError(f'{rownum} 行目の SCOM 名が空か重複しています。')
             values={}
             for p,raw in zip(candidate['parameters'],row[2:]):
-                try:value=float(raw)
-                except ValueError:raise ValueError(f'{rownum} 行目 / {p["id"]} は数値が必要です。')
-                if not math.isfinite(value):raise ValueError('有限の数値を入力してください。')
+                value=project.parse_value(p,raw)
                 values[p['id']]=value
             s=project.add_scom(candidate,self.cate_id,row[0].strip());s.update(size=row[1],values=values)
             if base:s.update(gmset_id=base['gmset_id'],ptset_id=base['ptset_id'])
@@ -367,6 +379,34 @@ class IntegratedStudio(tk.Tk):
     def build_gmset(self):
         from .construction_ui import ConstructionEditor
         self.geometry_editor=ConstructionEditor(self,'GMSET')
+
+    def build_structural(self):
+        from .construction_ui import ConstructionEditor
+        bar=ttk.Frame(self.content);bar.pack(fill='x',pady=(0,8))
+        for kind,label in (('NGMSET','負形状セット'),('PTSSET','構造材の基準線'),('GMSSET','構造材の断面')):
+            ttk.Button(bar,text=kind+' / '+label,command=lambda k=kind:self.select_structural(k)).pack(side='left',padx=4)
+        self.geometry_editor=ConstructionEditor(self,getattr(self,'structural_kind','NGMSET'))
+
+    def select_structural(self,kind):
+        self.structural_kind=kind;self.commit_definition_name();self.render_page()
+
+    def build_texts(self):
+        from .companion_ui import CompanionEditor
+        self.companion_editor=CompanionEditor(self,'texts')
+
+    def build_tables(self):
+        from .companion_ui import CompanionEditor
+        self.companion_editor=CompanionEditor(self,'tables')
+
+    def edit_contexts(self):
+        from .companion_ui import json_dialog
+        scom=project.get(self.data,'scoms',self.scom_id)
+        if not scom:return
+        def apply(value):
+            candidate=copy.deepcopy(self.data)
+            project.get(candidate,'scoms',scom['id'])['expression_contexts']=value
+            project.validate(candidate);scom['expression_contexts']=value
+        json_dialog(self,'確認用の参照値：例 IPARAM → P1 → 数値。自動で他の SCOM に結び付けません。',scom.get('expression_contexts',{}),apply)
 
     def build_definitions(self):
         self.heading('GMSET・PTSET の共通定義','パラメータの役割を選び、式で定義します。実数値は選択 SCOM から読み取り専用で使用します。',[('定義を追加',self.add_definition),('定義情報',self.edit_definition_info)])
@@ -422,7 +462,7 @@ class IntegratedStudio(tk.Tk):
     def definition(self):return project.get(self.data,'definitions',self.definition_id)
     def element(self):return next((e for e in (self.definition() or {}).get('elements',[]) if e['id']==self.element_id),None)
     def commit_definition_name(self):
-        if self.page in ('ptset','gmset') and hasattr(self,'geometry_editor') and self.geometry_editor.winfo_exists():
+        if self.page in ('ptset','gmset','structural') and hasattr(self,'geometry_editor') and self.geometry_editor.winfo_exists():
             self.geometry_editor.commit_name()
             return
         if self.page!='definitions' or not hasattr(self,'def_name_entry') or not self.def_name_entry.winfo_exists():return
@@ -564,10 +604,10 @@ class IntegratedStudio(tk.Tk):
         ttk.Label(middle,text=spec['description'],style='Muted.TLabel',wraplength=600).pack(anchor='w',pady=6)
         toolbar=ttk.Frame(middle);toolbar.pack(fill='x',pady=10)
         for label,cmd in [('登録行を追加',self.add_spec_entry),('編集',self.edit_spec_entry),('複製',self.duplicate_spec_entry),('削除',self.delete_spec_entry)]:ttk.Button(toolbar,text=label,command=cmd).pack(side='left',padx=3)
-        self.spec_table=self.table(middle,[('type','部品種別',90),('bore1','口径 1',80),('bore2','口径 2',80),('scom','参照 SCOM',210),('desc','説明',160)],height=14)
+        self.spec_table=self.table(middle,[('type','部品種別',90),('bore1','口径 1',80),('bore2','口径 2',80),('scom','参照 SCOM',210),('desc','説明',160),('sdte','SDTE',160),('smte','SMTE',160)],height=14)
         for entry in spec['entries']:
             scom=project.get(self.data,'scoms',entry['scom_id'])
-            self.spec_table.insert('','end',iid=entry['id'],values=(entry['type'],entry['bore1'],entry['bore2'],scom['name'] if scom else '[未設定]',entry['description']))
+            self.spec_table.insert('','end',iid=entry['id'],values=(entry['type'],entry['bore1'],entry['bore2'],scom['name'] if scom else '[未設定]',entry['description'],*( (project.get(self.data,'texts',entry.get(k,'')) or {}).get('name','未設定') for k in ('sdte_id','smte_id'))))
         self.spec_table.bind('<<TreeviewSelect>>',self.spec_entry_select);self.spec_table.bind('<Double-1>',lambda _:self.edit_spec_entry())
         ttk.Label(middle,text='この表は選択条件のたたき台です。実機で必要な属性や分岐条件は作成例から追加します。',style='Muted.TLabel',wraplength=580).pack(anchor='w',pady=12)
         ttk.Label(right,text='参照部品を確認',style='Heading.TLabel').pack(anchor='w')
@@ -617,12 +657,22 @@ class IntegratedStudio(tk.Tk):
     def entry_form(self,entry=None):
         spec=self.spec();scoms=self.choices('scoms')
         if not spec or not scoms:messagebox.showinfo('SCOM が必要','先に参照する SCOM を作成してください。',parent=self);return
+        scoms['未設定']=''
+        if entry and entry['scom_id'] and entry['scom_id'] not in scoms.values():scoms['参照先不明：'+entry['scom_id']]=entry['scom_id']
         selected=next((name for name,ident in scoms.items() if ident==(entry['scom_id'] if entry else self.scom_id)),next(iter(scoms)))
         fields=[('type','部品種別（仮の選択項目）',entry['type'] if entry else 'REDU',None),('bore1','口径条件 1',entry['bore1'] if entry else '',None),('bore2','口径条件 2',entry['bore2'] if entry else '',None),('scom','参照 SCOM',selected,list(scoms)),('description','説明',entry['description'] if entry else '',None)]
+        mappings={}
+        for key,kind in (('sdte_id','SDTE'),('smte_id','SMTE')):
+            mapping={r['name']:r['id'] for r in self.data.get('texts',[]) if r['type']==kind};mapping['未設定']=''
+            ident=(entry or {}).get(key,'')
+            if ident and ident not in mapping.values():mapping['参照先不明：'+ident]=ident
+            mappings[key]=mapping
+            fields.append((key,'参照 '+kind,next((name for name,value in mapping.items() if value==ident),'未設定'),list(mapping)))
         def apply(v):
             self.required(v['type'],'部品種別');self.required(v['bore1'],'口径条件 1')
             record=entry or project.add_spec_entry(self.data,spec,scoms[v['scom']])
             record.update(type=v['type'],bore1=v['bore1'],bore2=v['bore2'],scom_id=scoms[v['scom']],description=v['description'])
+            for key,mapping in mappings.items():record[key]=mapping[v[key]]
         self.form('SPEC の登録行',fields,apply)
     def add_spec_entry(self):self.entry_form()
     def edit_spec_entry(self):
@@ -704,24 +754,32 @@ class IntegratedStudio(tk.Tk):
         if book and messagebox.askyesno('冊子を削除','プロジェクト内の冊子固定データを削除しますか？ 出力済みの PDF は削除しません。',parent=self):self.data['books'].remove(book);self.selected_book=None;self.mark();self.render_page()
 
     def build_rules(self):
-        self.heading('パラメータ規則','番号ごとに役割と単位を定義します。実数値は各 SCOM の編集画面で登録します。',[('パラメータを追加',self.add_parameter)])
-        self.param_table=self.table(self.content,[('id','番号',100),('role','役割・表示名',360),('unit','単位',100)],height=15)
-        for p in self.data['parameters']:self.param_table.insert('','end',iid=p['id'],values=(p['id'],p['role'],p.get('unit','mm')))
+        self.heading('パラメータ規則','番号ごとに役割と単位を定義します。実数値は各 SCOM の編集画面で登録します。',[('パラメータを追加',self.add_parameter),('参照種類別の役割',self.edit_reference_roles)])
+        self.param_table=self.table(self.content,[('id','番号',100),('role','役割・表示名',360),('unit','単位',100),('value_type','値型',100)],height=15)
+        for p in self.data['parameters']:self.param_table.insert('','end',iid=p['id'],values=(p['id'],p['role'],p.get('unit','mm'),p.get('value_type','number')))
         self.param_table.bind('<Double-1>',lambda _:self.edit_parameter())
         actions=ttk.Frame(self.content);actions.pack(fill='x',pady=10)
         ttk.Button(actions,text='役割・単位を編集',command=self.edit_parameter).pack(side='left',padx=3)
         ttk.Button(actions,text='未使用のパラメータを削除',command=self.remove_parameter).pack(side='left',padx=3)
         ttk.Label(self.content,text='役割名を変更すると共通定義の式も更新します。発行済み冊子の役割名は変更しません。番号の並べ替え・再採番は行いません。',style='Muted.TLabel',wraplength=1000).pack(anchor='w',pady=8)
+    def edit_reference_roles(self):
+        from .companion_ui import json_dialog
+        def apply(value):
+            candidate=copy.deepcopy(self.data);candidate['reference_roles']=value;project.validate(candidate)
+            self.data['reference_roles']=value
+        json_dialog(self,'参照種類別の役割：例 IPARAM → P1 → 断熱材厚さ（値は含めません）',self.data.get('reference_roles',{}),apply)
+
     def parameter_form(self,param=None):
         next_id='P'+str(max([int(p['id'][1:]) for p in self.data['parameters']]+[0])+1)
-        fields=([('id','番号',next_id,None)] if param is None else [])+[('role','役割・表示名',param['role'] if param else '',None),('unit','単位',param.get('unit','mm') if param else 'mm',None)]
+        fields=([('id','番号',next_id,None)] if param is None else [])+[('role','役割・表示名',param['role'] if param else '',None),('unit','単位',param.get('unit','mm') if param else 'mm',None),('value_type','値型',param.get('value_type','number') if param else 'number',['number','word'])]
         def apply(v):
             if not model.valid_role(v['role']):raise ValueError('役割名に空白や演算記号は使用できません。')
             if any(p['role']==v['role'] and (param is None or p['id']!=param['id']) for p in self.data['parameters']):raise ValueError('役割名が重複しています。')
-            if param:project.rename_parameter(self.data,param['id'],v['role']);param['unit']=v['unit']
+            if param and param.get('value_type','number') != v['value_type'] and any(param['id'] in r['values'] for r in self.data['scoms']):raise ValueError('値型を変更する前に、この番号の SCOM 値を編集・解除してください。')
+            if param:project.rename_parameter(self.data,param['id'],v['role']);param['unit']=v['unit'];param['value_type']=v['value_type']
             else:
                 if not re.fullmatch(r'P[1-9]\d*',v['id']) or any(p['id']==v['id'] for p in self.data['parameters']):raise ValueError('P1 のような未使用の番号を指定してください。')
-                self.data['parameters'].append({'id':v['id'],'role':v['role'],'unit':v['unit']})
+                self.data['parameters'].append({'id':v['id'],'role':v['role'],'unit':v['unit'],'value_type':v['value_type']})
         self.form('パラメータ規則',fields,apply)
     def add_parameter(self):self.parameter_form()
     def edit_parameter(self):
@@ -731,7 +789,11 @@ class IntegratedStudio(tk.Tk):
         selection=self.param_table.selection()
         if not selection:return
         pid=selection[0]
-        if any(pid in model.references(expr,self.data['parameters']) for d in self.data['definitions'] for e in d['elements'] for expr in e['attrs'].values() if isinstance(expr,str)) or any(pid in s['values'] for s in self.data['scoms']):messagebox.showinfo('削除できません','定義の式または SCOM の値で使用されています。',parent=self);return
+        def referenced(expr):
+            if pid in model.references(expr,self.data['parameters']):return True
+            try:return ('PARAM',pid) in expressions.refs(expressions.parse(expr,self.data['parameters']))
+            except ValueError:return False
+        if any(referenced(expr) for d in self.data['definitions'] for e in element_schema.walk(d['elements']) for expr in e['attrs'].values() if isinstance(expr,str)) or any(pid in s['values'] for s in self.data['scoms']):messagebox.showinfo('削除できません','定義の式または SCOM の値で使用されています。',parent=self);return
         if messagebox.askyesno('削除',pid+' を削除しますか？',parent=self):self.data['parameters']=[p for p in self.data['parameters'] if p['id']!=pid];self.mark();self.render_page()
 
     @staticmethod
@@ -776,9 +838,15 @@ class IntegratedStudio(tk.Tk):
         if not self.guard():return
         def apply(v):
             self.required(v['name'],'プロジェクト名');self.data=project.sample();self.data['name']=v['name']
-            for key in ('cates','scoms','definitions','specs','books'):self.data[key]=[]
+            for key in ('cates','scoms','definitions','specs','books','texts','tables'):self.data[key]=[]
             self.path=None;self.reset_selection();self.page='catalog'
         self.form('新規プロジェクト',[('name','プロジェクト名','新規カタログ',None)],apply)
+    def destroy(self):
+        # Tcl keeps scheduled layout callbacks after widget commands disappear.
+        for timer in self.tk.call('after','info'):
+            self.after_cancel(timer)
+        super().destroy()
+
     def close(self):
         if self.guard():self.destroy()
 
