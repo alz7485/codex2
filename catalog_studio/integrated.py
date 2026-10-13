@@ -82,7 +82,7 @@ class IntegratedStudio(tk.Tk):
         self.style.configure('Primary.TButton',background=BLUE,foreground='white')
         self.style.map('Primary.TButton',background=[('active','#1758c3')])
         self.style.configure('Heading.TLabel',font=(self.ui_font,13,'bold'))
-        self.style.configure('Title.TLabel',font=(self.ui_font,21,'bold'))
+        self.style.configure('Title.TLabel',font=(self.ui_font,16,'bold'))
         self.style.configure('Muted.TLabel',foreground=MUTED)
         self.style.configure('Treeview',rowheight=31,background='white',fieldbackground='white')
         self.style.configure('Treeview.Heading',background='#edf3fa',padding=7)
@@ -104,18 +104,21 @@ class IntegratedStudio(tk.Tk):
         header=ttk.Frame(self,padding=(20,12));header.pack(fill='x')
         ttk.Label(header,text='◇  Catalog Studio',style='Title.TLabel').pack(side='left')
         ttk.Label(header,text='  E3D 4.0 / 統合モックアップ',style='Muted.TLabel').pack(side='left',padx=8)
-        for text,command,style in [('構成確認出力',lambda:self.switch('checks'),'Primary.TButton'),('保存',self.save_project,'TButton'),('読み込み',self.open_project,'TButton'),('新規',self.new_project,'TButton')]:
+        for text,command,style in [('保存',self.save_project,'Primary.TButton'),('読み込み',self.open_project,'TButton'),('新規',self.new_project,'TButton')]:
             ttk.Button(header,text=text,command=command,style=style).pack(side='right',padx=4)
-        tk.Label(self,text='作成順：PTSET（ポイント） → GMSET（形状） → SCOM（部品の値） → スペック（選択条件）',bg='#eaf1fb',fg='#5d7390',anchor='w',padx=20,pady=8).pack(fill='x')
         self.status=ttk.Label(self,text='サンプルを表示中 · E3D 実行用ではありません',background=BG,foreground=MUTED,padding=(18,7));self.status.pack(side='bottom',fill='x')
         body=ttk.Frame(self);body.pack(fill='both',expand=True)
         nav=tk.Frame(body,bg=NAVY,width=185);nav.pack(side='left',fill='y');nav.pack_propagate(False)
-        tk.Label(nav,text='WORKSPACE',bg=NAVY,fg='#9eafc5',font=(self.ui_font,9),pady=20).pack(anchor='w',padx=16)
+        tk.Label(nav,text='部品を作成',bg=NAVY,fg='#9eafc5',font=(self.ui_font,9),pady=16).pack(anchor='w',padx=16)
+        self.additional_nav=tk.Frame(nav,bg=NAVY)
+        self.additional_nav_open=False
         self.nav={}
         for key,text in PAGES:
-            button=tk.Button(nav,text=text,command=lambda k=key:self.switch(k),bg=NAVY,fg='white',activebackground=BLUE,activeforeground='white',relief='flat',anchor='w',font=(self.ui_font,11),padx=16,pady=14)
+            parent=nav if key in ('ptset','gmset','catalog','specs','books') else self.additional_nav
+            button=tk.Button(parent,text=text,command=lambda k=key:self.switch(k),bg=NAVY,fg='white',activebackground=BLUE,activeforeground='white',relief='flat',highlightthickness=0,anchor='w',font=(self.ui_font,11),padx=12,pady=11)
             button.pack(fill='x',padx=7,pady=3);self.nav[key]=button
-        tk.Label(nav,text='PTSET → GMSET\n→ SCOM → スペック',bg=NAVY,fg='#a9b8cc',font=(self.ui_font,10),justify='left').pack(side='bottom',anchor='w',padx=18,pady=22)
+        self.more_nav_button=tk.Button(nav,text='その他の管理 ▸',command=self.toggle_additional_nav,bg=NAVY,fg='#a9b8cc',relief='flat',highlightthickness=0,anchor='w',font=(self.ui_font,10),padx=16,pady=12)
+        self.more_nav_button.pack(fill='x',pady=(14,0))
         self.content=ttk.Frame(body,padding=16);self.content.pack(side='left',fill='both',expand=True)
 
     def mark(self,text='変更しました。Ctrl+S でプロジェクトを保存できます。'):
@@ -123,10 +126,17 @@ class IntegratedStudio(tk.Tk):
 
     def switch(self,page):
         self.commit_definition_name()
+        if page not in ('ptset','gmset','catalog','specs','books') and not self.additional_nav_open:self.toggle_additional_nav()
         if page=='catalog':
             s=project.get(self.data,'scoms',self.scom_id)
             if s:self.cate_id=s['cate_id']
         self.page=page;self.render_page()
+
+    def toggle_additional_nav(self):
+        self.additional_nav_open=not self.additional_nav_open
+        if self.additional_nav_open:self.additional_nav.pack(fill='x')
+        else:self.additional_nav.pack_forget()
+        self.more_nav_button.configure(text='その他の管理 ▾' if self.additional_nav_open else 'その他の管理 ▸')
 
     def render_page(self):
         self.busy=True;self.preview=None

@@ -36,6 +36,10 @@ class ConstructionEditor(ttk.Frame):
     def element(self): return next((e for e in schema.walk((self.definition() or {}).get('elements', [])) if e['id'] == self.element_id), None)
 
     def build(self):
+        if self.kind in ('PTSET','GMSET'):
+            from .construction_layout import build_simple
+            build_simple(self)
+            return
         top = ttk.Frame(self); top.pack(fill='x', pady=(0, 10))
         block = ttk.Frame(top); block.pack(side='left', fill='x', expand=True)
         ttk.Label(block, text=({'PTSET':'1. PTSET','GMSET':'2. GMSET'}.get(self.kind,self.kind)) + ' を作成・編集', style='Heading.TLabel').pack(anchor='w')
@@ -177,14 +181,51 @@ class ConstructionEditor(ttk.Frame):
         self.describe_selected_type()
 
     def describe_selected_type(self,_=None):
-        if self.kind!='PTSET':return
+        if self.kind!='PTSET' and not getattr(self,'simple_layout',False):return
         selection=self.library.curselection()
         if not selection:
-            self.type_help.configure(text='作成するポイントの種類を選んでください。')
+            self.type_help.configure(text='作成する種類を選んでください。')
             self.create_element_button.configure(text='種類を選択して作成',state='disabled');return
-        kind=self.library.get(selection[0]).split()[0];guide=schema.PT_GUIDES[kind]
-        self.type_help.configure(text=kind+'：'+guide['name']+'\n\n'+guide['position']+'\n'+guide['direction']+'\n\n'+guide['usage'])
+        kind=self.library.get(selection[0]).split()[0]
+        if kind in schema.PT_GUIDES:
+            guide=schema.PT_GUIDES[kind]
+            text=guide['position']+'\n'+guide['direction']
+            if not getattr(self,'simple_layout',False):text+='\n'+guide['usage']
+        else:
+            text=schema.LABELS.get(kind,'負 '+schema.LABELS.get(schema.positive(kind),'未確認'))
+            text+='\n'+('ネガティブ形状。NAPP で適用先を指定します。' if kind in schema.NEGATIVE_BASE else '形状を作成してから、寸法・位置の式を入力します。')
+        self.type_help.configure(text=text)
         self.create_element_button.configure(text=kind+' を作成',state='normal' if self.definition() else 'disabled')
+
+    def toggle_create(self):
+        self.creating=not self.creating
+        if self.creating:self.creation_frame.pack(fill='x',pady=(0,10),before=self.tree_holder)
+        else:self.creation_frame.pack_forget()
+        self.add_button.configure(text='閉じる' if self.creating else '＋ 追加')
+
+    def toggle_settings(self):
+        self.settings_open=not self.settings_open
+        if self.settings_open:self.settings_frame.pack(fill='x',pady=(0,14),before=self.main_split)
+        else:self.commit_name();self.settings_frame.pack_forget()
+        self.settings_button.configure(text='設定を閉じる' if self.settings_open else '設定・確認')
+
+    def toggle_references(self):
+        self.references_open=not self.references_open
+        if self.references_open:self.reference_controls.pack(fill='x',pady=4)
+        else:self.reference_controls.pack_forget()
+        self.reference_button.configure(text='PARAM 選択を閉じる' if self.references_open else 'PARAM を選ぶ…')
+
+    def open_preview(self):
+        existing=getattr(self,'preview_window',None)
+        if existing and existing.winfo_exists():existing.lift();return
+        win=tk.Toplevel(self.host);self.preview_window=win;win.title('構成プレビュー');win.geometry('520x480');win.transient(self.host)
+        ttk.Label(win,text='構成の模式図。寸法・位置・方向は未反映です。',padding=12).pack(anchor='w')
+        self.canvas=tk.Canvas(win,bg='#f2f6fc',highlightthickness=0);self.canvas.pack(fill='both',expand=True,padx=12,pady=8)
+        self.canvas.bind('<Configure>',lambda _:self.draw())
+        def close():self.canvas=None;win.destroy()
+        win.protocol('WM_DELETE_WINDOW',close);ttk.Button(win,text='閉じる',command=close).pack(pady=10)
+        self.bind('<Destroy>',lambda event:close() if event.widget is self and win.winfo_exists() else None,add='+')
+        self.draw()
 
     def focus_value_input(self):
         if not self.element() or not self.field:return
@@ -197,10 +238,13 @@ class ConstructionEditor(ttk.Frame):
         self.def_choice['values'] = list(self.definition_names)
         d=self.definition()
         self.describe_selected_type()
+        if getattr(self,'simple_layout',False):
+            self.add_button.configure(state='normal' if d else 'disabled')
+            self.preset_summary.configure(text='PARAM：'+presets.label(self.data,d) if d else '')
         if hasattr(self,'create_part_button'):
             self.create_part_button.configure(state='normal' if d else 'disabled')
             pointset=project.get(self.data,'definitions',self.data.get('creation_draft',{}).get('ptset_id'))
-            self.workflow_label.configure(text=('使用する PTSET：'+pointset['name']) if self.kind=='GMSET' and pointset else 'PTSET → GMSET → SCOM → スペック')
+            self.workflow_label.configure(text=('使用する PTSET：'+pointset['name']) if self.kind=='GMSET' and pointset else ('' if getattr(self,'simple_layout',False) else 'PTSET → GMSET → SCOM → スペック'))
         self.def_choice.set(d['name'] if d else '')
         self.def_name.set(d['name'] if d else '')
         self.elements.delete(*self.elements.get_children())
@@ -230,17 +274,26 @@ class ConstructionEditor(ttk.Frame):
 
     def refresh_element(self):
         e = self.element()
+        if getattr(self,'simple_layout',False):
+            for button,match in self.helper_buttons:
+                button.pack_forget()
+                if e and (match=='negative' and e['type'] in schema.NEGATIVE_BASE or schema.positive(e['type'])==match):button.pack(side='left',pady=6,padx=(0,6))
+            self.child_button.pack_forget()
+            if e and schema.child_kind(e['type']):self.child_button.pack(side='right')
         self.element_name.set(e['name'] if e else '')
         available = list(schema.TYPES_BY_SET[self.kind])
         if self.kind == 'GMSET': available += list(schema.NEGATIVE_BASE)
         if e and e['type'] in schema.CHILD_TYPES: available = [e['type']]
         if e and e['type'] not in available: available += [e['type']]
-        self.type_choice['values']=available;self.type_choice.set(e['type'] if e else '')
-        self.type_choice.configure(state='readonly' if e else 'disabled')
-        self.element_name_entry.configure(state='normal' if e else 'disabled')
+        self.type_choice.set(e['type'] if e else '')
+        if not getattr(self,'simple_layout',False):
+            self.type_choice['values']=available
+            self.type_choice.configure(state='readonly' if e else 'disabled')
+            self.element_name_entry.configure(state='normal' if e else 'disabled')
         for table in self.tables.values(): table.delete(*table.get_children())
         if not e:
-            self.field = None; self.load_field(); self.element_note.configure(text='右の一覧で種類を選び、作成ボタンを押してください。' if self.kind=='PTSET' and self.definition() else ('まず「新しい PTSET を作る」で名前を登録してください。' if self.kind=='PTSET' else 'ライブラリから要素を追加してください。')); return
+            if getattr(self,'simple_layout',False):self.element_details.configure(text='')
+            self.field = None; self.load_field(); self.element_note.configure(text='左の「＋ 追加」から要素を作成してください。' if self.definition() else '「新しい '+self.kind+' を作る」から名前を登録してください。'); return
         if schema.known(e['type']):
             listed = set()
             for section, table in self.tables.items():
@@ -259,7 +312,21 @@ class ConstructionEditor(ttk.Frame):
             note = '旧仮要素・未対応要素です。追加属性で原文を確認できます。正式要素への変更時も原文を保持します。'
         note = schema.LABELS.get(e['type'],'負 '+schema.LABELS.get(schema.positive(e['type']),''))+' / '+note
         note += '\n' + schema.NOTES.get(schema.positive(e['type']),'')
+        if getattr(self,'simple_layout',False):
+            self.element_details.configure(text=note)
+            note=schema.LABELS.get(e['type'],'負 '+schema.LABELS.get(schema.positive(e['type']),'未対応'))
         self.element_note.configure(text=note)
+        if getattr(self,'simple_layout',False):
+            if 'negative' in self.tab_frames:
+                if e['type'] in schema.NEGATIVE_BASE:self.tabs.add(self.tab_frames['negative'])
+                else:
+                    if self.section=='negative':self.section='main';self.tabs.select(0)
+                    self.tabs.hide(self.tab_frames['negative'])
+            extra=self.tab_frames['extra']
+            if self.tables['extra'].get_children():self.tabs.add(extra)
+            else:
+                if self.section=='extra':self.section='main';self.tabs.select(0)
+                self.tabs.hide(extra)
         table = self.tables[self.section]
         keys = table.get_children()
         if self.field not in keys: self.field = keys[0] if keys else None
@@ -306,6 +373,10 @@ class ConstructionEditor(ttk.Frame):
         else: self.expression_entry.pack(fill='x', before=self.reference_frame)
         self.expression_entry.configure(state='normal' if e and self.field and schema.known(e['type']) and self.section != 'extra' else 'readonly')
         self.choice_entry.configure(state='normal' if e and self.field else 'disabled')
+        if getattr(self,'simple_layout',False):
+            available=bool(e and self.field and self.field not in ('NUMB','DESC','PURP','PSKEY','GTYP','LEVEL','OBST','CLFLA','TUFLA','TVISI','BVISI','NAPP') and self.section!='extra')
+            self.reference_button.configure(state='normal' if available else 'disabled')
+            if not available and self.references_open:self.toggle_references()
         self.update_role(); self.update_validation()
 
     def update_validation(self):
@@ -424,6 +495,7 @@ class ConstructionEditor(ttk.Frame):
         except ValueError as exc: messagebox.showerror('追加できません', str(exc), parent=self.host); return
         self.element_id = e['id']; self.section = 'main'; self.tabs.select(0); self.field = None
         self.host.mark();self.refresh();self.elements.see(e['id'])
+        if getattr(self,'simple_layout',False) and self.creating:self.toggle_create()
         self.host.status.configure(text=e['type']+' を作成しました。中央の属性行を選んで、値・式を入力してください。')
 
     def duplicate_element(self):
@@ -452,7 +524,7 @@ class ConstructionEditor(ttk.Frame):
 
     def refresh_values(self):
         s = project.get(self.data, 'scoms', self.preview_scom_id)
-        if self.kind=='PTSET':
+        if self.kind=='PTSET' or getattr(self,'simple_layout',False):
             self.values_label.configure(text=presets.label(self.data,s)+' / '+str(len(s['values']))+' 項目を確認に使用' if s else '確認用 SCOM を選択してください。')
             return
         self.values_label.configure(text=('読み取り専用 / ' + s['name'] + '\n'+presets.label(self.data,s)+'\n\n' + '\n'.join(p['id'] + ' ' + presets.caption(p) + '：' + str(s['values'].get(p['id'], '未入力')) + ' ' + p.get('unit', '') for p in presets.rules(self.data,s)[:6])) if s else '確認用 SCOM を選択してください。')

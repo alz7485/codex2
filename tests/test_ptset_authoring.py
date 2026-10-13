@@ -43,6 +43,9 @@ class PointAuthoringTests(unittest.TestCase):
         return self.app.geometry_editor
 
     def choose_type(self, editor, index):
+        if not editor.creating:
+            editor.add_button.invoke()
+            self.app.update()
         editor.library.selection_clear(0, 'end')
         editor.library.selection_set(index)
         editor.library.event_generate('<<ListboxSelect>>')
