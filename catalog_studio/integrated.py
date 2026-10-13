@@ -106,44 +106,42 @@ class IntegratedStudio(tk.Tk):
         ttk.Label(header,text='  E3D 4.0 / 統合モックアップ',style='Muted.TLabel').pack(side='left',padx=8)
         for text,command,style in [('保存',self.save_project,'Primary.TButton'),('読み込み',self.open_project,'TButton'),('新規',self.new_project,'TButton')]:
             ttk.Button(header,text=text,command=command,style=style).pack(side='right',padx=4)
+        menu_bar=tk.Frame(self,bg='white');menu_bar.pack(fill='x',padx=16,pady=(0,8))
+        self.nav={}
+        self.more_nav_menu=tk.Menu(menu_bar,tearoff=False)
+        for key,text in PAGES:
+            if key in ('ptset','gmset','catalog','specs','books'):
+                button=tk.Button(menu_bar,text=text,command=lambda k=key:self.switch(k),bg='#edf3fa',fg='#243448',activebackground=BLUE,activeforeground='white',relief='flat',highlightthickness=0,font=(self.ui_font,10),padx=16,pady=9)
+                button.pack(side='left',padx=(0,5));self.nav[key]=button
+            else:self.more_nav_menu.add_command(label=text,command=lambda k=key:self.switch(k))
+        self.more_nav_button=tk.Menubutton(menu_bar,text='その他の管理 ▾',menu=self.more_nav_menu,bg='#edf3fa',fg='#243448',relief='flat',font=(self.ui_font,10),padx=16,pady=9)
+        self.more_nav_button.pack(side='left')
         self.status=ttk.Label(self,text='サンプルを表示中 · E3D 実行用ではありません',background=BG,foreground=MUTED,padding=(18,7));self.status.pack(side='bottom',fill='x')
         body=ttk.Frame(self);body.pack(fill='both',expand=True)
-        nav=tk.Frame(body,bg=NAVY,width=185);nav.pack(side='left',fill='y');nav.pack_propagate(False)
-        tk.Label(nav,text='部品を作成',bg=NAVY,fg='#9eafc5',font=(self.ui_font,9),pady=16).pack(anchor='w',padx=16)
-        self.additional_nav=tk.Frame(nav,bg=NAVY)
-        self.additional_nav_open=False
-        self.nav={}
-        for key,text in PAGES:
-            parent=nav if key in ('ptset','gmset','catalog','specs','books') else self.additional_nav
-            button=tk.Button(parent,text=text,command=lambda k=key:self.switch(k),bg=NAVY,fg='white',activebackground=BLUE,activeforeground='white',relief='flat',highlightthickness=0,anchor='w',font=(self.ui_font,11),padx=12,pady=11)
-            button.pack(fill='x',padx=7,pady=3);self.nav[key]=button
-        self.more_nav_button=tk.Button(nav,text='その他の管理 ▸',command=self.toggle_additional_nav,bg=NAVY,fg='#a9b8cc',relief='flat',highlightthickness=0,anchor='w',font=(self.ui_font,10),padx=16,pady=12)
-        self.more_nav_button.pack(fill='x',pady=(14,0))
+        from .registered_ui import RegisteredBrowser
+        self.registered_browser=RegisteredBrowser(self,body)
         self.content=ttk.Frame(body,padding=16);self.content.pack(side='left',fill='both',expand=True)
 
     def mark(self,text='変更しました。Ctrl+S でプロジェクトを保存できます。'):
         self.dirty=True;self.title('Catalog Studio — '+self.data['name']+' *');self.status.configure(text=text)
+        self.registered_browser.refresh()
 
     def switch(self,page):
         self.commit_definition_name()
-        if page not in ('ptset','gmset','catalog','specs','books') and not self.additional_nav_open:self.toggle_additional_nav()
         if page=='catalog':
             s=project.get(self.data,'scoms',self.scom_id)
             if s:self.cate_id=s['cate_id']
         self.page=page;self.render_page()
 
-    def toggle_additional_nav(self):
-        self.additional_nav_open=not self.additional_nav_open
-        if self.additional_nav_open:self.additional_nav.pack(fill='x')
-        else:self.additional_nav.pack_forget()
-        self.more_nav_button.configure(text='その他の管理 ▾' if self.additional_nav_open else 'その他の管理 ▸')
-
     def render_page(self):
         self.busy=True;self.preview=None
         for child in self.content.winfo_children():child.destroy()
-        for key,button in self.nav.items():button.configure(bg=BLUE if key==self.page else NAVY)
+        for key,button in self.nav.items():button.configure(bg=BLUE if key==self.page else '#edf3fa',fg='white' if key==self.page else '#243448')
+        additional=self.page not in self.nav
+        self.more_nav_button.configure(text=(dict(PAGES).get(self.page,'その他の管理') if additional else 'その他の管理')+' ▾',bg=BLUE if additional else '#edf3fa',fg='white' if additional else '#243448')
         getattr(self,'build_'+self.page)()
         self.busy=False
+        self.registered_browser.refresh()
 
     def heading(self,title,subtitle='',actions=()):
         bar=ttk.Frame(self.content);bar.pack(fill='x',pady=(0,12))

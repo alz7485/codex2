@@ -235,12 +235,12 @@ class ConstructionEditor(ttk.Frame):
     def refresh(self):
         self.busy = True
         self.definition_names = {d['name']: d['id'] for d in self.data['definitions'] if d['kind'] == self.kind}
-        self.def_choice['values'] = list(self.definition_names)
+        if not getattr(self,'simple_layout',False):self.def_choice['values'] = list(self.definition_names)
         d=self.definition()
         self.describe_selected_type()
         if getattr(self,'simple_layout',False):
             self.add_button.configure(state='normal' if d else 'disabled')
-            self.preset_summary.configure(text='PARAM：'+presets.label(self.data,d) if d else '')
+            self.preset_choice.configure(state='readonly' if d else 'disabled')
         if hasattr(self,'create_part_button'):
             self.create_part_button.configure(state='normal' if d else 'disabled')
             pointset=project.get(self.data,'definitions',self.data.get('creation_draft',{}).get('ptset_id'))
@@ -299,7 +299,7 @@ class ConstructionEditor(ttk.Frame):
             for section, table in self.tables.items():
                 if section == 'extra': continue
                 for key in schema.fields(e['type'], section):
-                    listed.add(key); table.insert('', 'end', iid=key, values=(key, schema.meaning(e['type'],key), schema.value(e, key)))
+                    listed.add(key); table.insert('', 'end', iid=key, values=(key, schema.meaning(e['type'],key), self.display_field_value(e,key)))
             for key, value in e['attrs'].items():
                 if key not in listed and not (key == 'PTCD' and 'PTCDIR' in listed):
                     self.tables['extra'].insert('', 'end', iid=key, values=(key, '元データを保持', str(value)))
@@ -380,6 +380,7 @@ class ConstructionEditor(ttk.Frame):
         self.update_role(); self.update_validation()
 
     def update_validation(self):
+        self.update_expression_caption()
         if not self.field or not self.element(): self.validation_note.configure(text=''); return
         e = self.element(); key = self.field; expr = schema.value(e,key)
         if key == 'NUMB':
@@ -403,12 +404,29 @@ class ConstructionEditor(ttk.Frame):
             except ValueError as exc: text=str(exc)
         self.validation_note.configure(text=text)
 
+    def display_field_value(self,element,key):
+        raw=schema.value(element,key)
+        literal={'NUMB','DESC','PURP','PSKEY','GTYP','SKEY','PKEY','LEVEL','OBST','NAPP','CLFLA','TUFLA','TVISI','BVISI'}
+        return raw if key in literal else presets.display_expression(self.data,self.definition(),raw)
+
+    def update_expression_caption(self):
+        if not getattr(self,'simple_layout',False):return
+        element=self.element()
+        raw=schema.value(element,self.field) if element and self.field else ''
+        text=self.display_field_value(element,self.field) if element and self.field and self.section!='extra' else raw
+        if text==raw:
+            self.expression_caption.configure(text='');self.expression_caption.pack_forget()
+        else:
+            self.expression_caption.configure(text=text)
+            options={'before':self.reference_controls} if self.reference_controls.winfo_manager() else {}
+            self.expression_caption.pack(anchor='w',fill='x',pady=(0,4),**options)
+
     def edit_expression(self, *_):
         if self.busy or not self.element() or not self.field or self.section == 'extra' or not schema.known(self.element()['type']): return
         value = self.expression.get()
         if self.field == 'OBST': value = schema.OBST_CHOICES.get(value, value)
         schema.set_value(self.element(), self.field, value)
-        self.tables[self.section].item(self.field, values=(self.field, schema.meaning(self.element()['type'],self.field), value))
+        self.tables[self.section].item(self.field, values=(self.field, schema.meaning(self.element()['type'],self.field), self.display_field_value(self.element(),self.field)))
         if self.kind=='PTSET' and self.field=='NUMB':self.elements.item(self.element_id,values=(value,self.element()['type']))
         self.host.mark(); self.update_validation()
 
@@ -442,7 +460,7 @@ class ConstructionEditor(ttk.Frame):
         kind = self.ref_kind.get()
         pid = 'P' + self.ref_number.get()
         param = next((p for p in presets.rules(self.data,self.definition()) if p['id']==pid),None) if kind == 'PARAM' else None
-        self.role_label.configure(text=schema.REFERENCE_LABELS.get(kind, kind) + ' / 役割：' + ((param.get('description') or param['role']) if param else presets.reference_roles(self.data,self.definition()).get(kind,{}).get(pid,'未設定（参照種類ごとに区別）')))
+        self.role_label.configure(text=kind+' '+self.ref_number.get()+' / '+(presets.caption(param) if param else presets.reference_roles(self.data,self.definition()).get(kind,{}).get(pid,'設定名未登録（参照種類ごとに区別）')))
 
     def commit_name(self):
         d = self.definition()
@@ -453,7 +471,8 @@ class ConstructionEditor(ttk.Frame):
             self.host.status.configure(text='定義名が空か重複しています。'); self.def_name.set(d['name']); return
         d['name'] = name; self.host.mark()
         self.definition_names = {x['name']: x['id'] for x in self.data['definitions'] if x['kind'] == self.kind}
-        self.def_choice['values'] = list(self.definition_names); self.def_choice.set(name)
+        if not getattr(self,'simple_layout',False):self.def_choice['values'] = list(self.definition_names)
+        self.def_choice.set(name)
 
     def create_part(self):
         d=self.definition()

@@ -69,6 +69,7 @@ class PointAuthoringTests(unittest.TestCase):
         self.app.update()
         editor = self.app.geometry_editor
         self.assertEqual(editor.definition()['name'], '/NAMED-SET')
+        self.assertTrue(self.app.registered_browser.tree.exists('definitions:' + editor.definition_id))
         self.assertEqual(editor.definition()['elements'], [])
         self.assertEqual(editor.elements.get_children(), ())
         self.assertIsNone(editor.element())

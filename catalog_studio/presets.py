@@ -38,6 +38,31 @@ def caption(parameter):
     return parameter['role'] + ('：'+description if description else '')
 
 
+_DISPLAY_REFERENCE = re.compile(
+    r"(?P<quoted>\"[^\"\n]*\"|'[^'\n]*')|"
+    r'(?<!\w)(?P<reference>(?P<family>DES\s+(?:APARAM|OPARAM|PARAM|APARA|OPARA|PARA)|'
+    r'IPARAM|APARAM|OPARAM|PARAM|IPARA|APARA|OPARA|PARA|DESP|DESA|DESO)'
+    r'\b(?:\s*\[\s*(?P<bracket>[1-9]\d*)\s*\]|\s+(?P<number>[1-9]\d*)\b)|'
+    r'P(?P<short>[1-9]\d*)\b)', re.IGNORECASE)
+
+
+def display_expression(data, record, text):
+    """Add preset names for display only, keeping spelling and stored text intact."""
+    from .expressions import ALIASES
+    names={p['id']:p['role'] for p in rules(data,record)}
+    others=reference_roles(data,record)
+    def annotate(match):
+        if match.group('quoted') is not None:return match[0]
+        raw_family=' '.join((match.group('family') or 'PARAM').upper().split())
+        if raw_family.startswith('DES '):
+            family='DES '+ALIASES.get(raw_family[4:],raw_family[4:])
+        else:family=ALIASES.get(raw_family,raw_family)
+        pid='P'+(match.group('bracket') or match.group('number') or match.group('short'))
+        name=names.get(pid) if family=='PARAM' else others.get(family,{}).get(pid)
+        return match['reference']+'（'+(name or '設定名未登録')+'）'
+    return _DISPLAY_REFERENCE.sub(annotate,str(text))
+
+
 def choices(data):
     return {'既存規則（従来データ）':'', **{p['name']:p['id'] for p in data.get('parameter_presets',[])}}
 

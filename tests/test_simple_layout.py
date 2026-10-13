@@ -80,10 +80,11 @@ class SimpleAuthoringTests(unittest.TestCase):
         self.assertEqual(e.definition()['name'], '/RENAMED-SIMPLE-POINTS')
         self.assertEqual(e.def_choice.get(), '/RENAMED-SIMPLE-POINTS')
         self.assertEqual(e.element()['attrs'], attrs)
-        self.assertFalse(self.app.additional_nav.winfo_ismapped())
-        self.app.switch('rules')
+        menu=self.app.more_nav_menu
+        index=next(i for i in range(menu.index('end')+1) if menu.entrycget(i,'label')=='PARAM プリセット')
+        menu.invoke(index)
         self.app.update()
-        self.assertTrue(self.app.nav['rules'].winfo_ismapped())
+        self.assertEqual(self.app.page,'rules')
         self.assertEqual(self.errors, [])
 
     def test_geometry_options_follow_element_and_preview_closes_on_navigation(self):
