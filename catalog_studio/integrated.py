@@ -429,6 +429,7 @@ class IntegratedStudio(tk.Tk):
             if kind=='PTSET':self.data['creation_draft']={'ptset_id':definition['id']}
             elif ptset_id is not None:self.data['creation_draft']={'ptset_id':ptset_id,'gmset_id':definition['id']}
             self.page='ptset' if kind=='PTSET' else 'gmset'
+            self.registered_browser.search.set('')
         return self.form('新しい '+kind+' を作成',fields,apply)
 
     def component_from_ptset(self,ptset_id):

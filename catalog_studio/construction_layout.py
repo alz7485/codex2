@@ -15,10 +15,6 @@ def build_simple(editor):
     top.pack(fill='x', pady=(0, 16))
     ttk.Label(top, text=e.kind, style='Heading.TLabel').pack(side='left')
     ttk.Label(top, text='ポイントを作成' if point else '形状を作成', style='Muted.TLabel').pack(side='left', padx=12)
-    e.new_set_button = ttk.Button(top, text='新しい ' + e.kind + ' を作る', command=e.add_definition)
-    e.new_set_button.pack(side='right')
-    e.settings_button = ttk.Button(top, text='設定・確認', command=e.toggle_settings)
-    e.settings_button.pack(side='right', padx=8)
 
     e.settings_frame = ttk.LabelFrame(e, text='セットの設定・確認', padding=12)
     row = ttk.Frame(e.settings_frame)
@@ -110,10 +106,14 @@ def build_simple(editor):
     e.elements.bind('<<TreeviewSelect>>', e.select_element)
     row = ttk.Frame(left)
     row.pack(side='bottom', fill='x', pady=(8, 0), before=e.tree_holder)
-    more = ttk.Menubutton(row, text='要素の操作 ▾')
+    more = ttk.Menubutton(row, text='操作 ▾')
     menu = tk.Menu(more, tearoff=False)
     for label, command in [('複製', e.duplicate_element), ('削除', e.delete_element), ('上へ移動', lambda: e.move_element(-1)), ('下へ移動', lambda: e.move_element(1))]:
         menu.add_command(label=label, command=command)
+    menu.add_separator()
+    menu.add_command(label='セットの設定・確認',command=e.toggle_settings)
+    e.operations_menu=menu
+    e.settings_menu_index=menu.index('end')
     more.configure(menu=menu)
     more.pack(side='left')
     e.child_button = ttk.Button(row, text='子要素を追加', command=e.add_child)

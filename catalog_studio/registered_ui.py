@@ -13,8 +13,10 @@ class RegisteredBrowser(ttk.Frame):
         self.refreshing = False
         self.pack(side='left', fill='y')
         self.pack_propagate(False)
-        self.heading=ttk.Label(self, text='登録データ', style='Heading.TLabel')
-        self.heading.pack(anchor='w')
+        toolbar=ttk.Frame(self);toolbar.pack(fill='x')
+        self.heading=ttk.Label(toolbar, text='登録データ', style='Heading.TLabel')
+        self.heading.pack(side='left')
+        self.add_button=ttk.Button(toolbar,text='＋ 追加',command=self.add_definition,style='Primary.TButton')
         self.search = tk.StringVar()
         entry = ttk.Entry(self, textvariable=self.search)
         entry.pack(fill='x', pady=(10, 4))
@@ -49,6 +51,8 @@ class RegisteredBrowser(ttk.Frame):
             self.search.set('')
         categories={'ptset':('PTSET','definitions'), 'gmset':('GMSET','definitions'), 'catalog':('SCOM','scoms'), 'specs':('スペック','specs'), 'structural':('構造材・NGMSET','definitions'), 'texts':('説明・材質','texts'), 'tables':('共通テーブル','tables'), 'books':('カタログ本','books'), 'rules':('PARAM プリセット','parameter_presets')}
         label,collection=categories.get(host.page,('確認・マクロ',None))
+        if host.page in ('ptset','gmset'):self.add_button.pack(side='right')
+        else:self.add_button.pack_forget()
         records=[r for r in data.get(collection,[]) if isinstance(r,dict) and 'id' in r] if collection else []
         if host.page in ('ptset','gmset'):records=[r for r in records if r['kind']==host.page.upper()]
         elif host.page=='structural':records=[r for r in records if r['kind'] not in ('PTSET','GMSET')]
@@ -80,6 +84,11 @@ class RegisteredBrowser(ttk.Frame):
             if self.tree.selection() != (target,):
                 self.tree.selection_set(target)
                 self.tree.see(target)
+
+    def add_definition(self):
+        if self.host.page not in ('ptset','gmset'):return
+        self.host.commit_definition_name()
+        self.host.definition_form(self.host.page.upper())
 
     def select(self, _=None):
         if self.host.busy:

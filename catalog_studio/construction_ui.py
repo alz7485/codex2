@@ -207,7 +207,7 @@ class ConstructionEditor(ttk.Frame):
         self.settings_open=not self.settings_open
         if self.settings_open:self.settings_frame.pack(fill='x',pady=(0,14),before=self.main_split)
         else:self.commit_name();self.settings_frame.pack_forget()
-        self.settings_button.configure(text='設定を閉じる' if self.settings_open else '設定・確認')
+        self.operations_menu.entryconfigure(self.settings_menu_index,label='設定・確認を閉じる' if self.settings_open else 'セットの設定・確認')
 
     def toggle_references(self):
         self.references_open=not self.references_open
@@ -293,7 +293,7 @@ class ConstructionEditor(ttk.Frame):
         for table in self.tables.values(): table.delete(*table.get_children())
         if not e:
             if getattr(self,'simple_layout',False):self.element_details.configure(text='')
-            self.field = None; self.load_field(); self.element_note.configure(text='左の「＋ 追加」から要素を作成してください。' if self.definition() else '「新しい '+self.kind+' を作る」から名前を登録してください。'); return
+            self.field = None; self.load_field(); self.element_note.configure(text='ポイント・形状欄の「＋ 追加」から要素を作成してください。' if self.definition() else '左端の '+self.kind+' 一覧の「＋ 追加」で名前を登録してください。'); return
         if schema.known(e['type']):
             listed = set()
             for section, table in self.tables.items():

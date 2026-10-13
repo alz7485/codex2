@@ -70,11 +70,11 @@ class SimpleAuthoringTests(unittest.TestCase):
         e = self.app.geometry_editor
         attrs = copy.deepcopy(e.element()['attrs'])
         self.assertFalse(e.settings_frame.winfo_ismapped())
-        e.settings_button.invoke()
+        e.operations_menu.invoke(e.settings_menu_index)
         self.app.update()
         self.assertTrue(e.preset_choice.winfo_ismapped())
         e.def_name.set('/RENAMED-SIMPLE-POINTS')
-        e.settings_button.invoke()
+        e.operations_menu.invoke(e.settings_menu_index)
         self.app.update()
         self.assertFalse(e.settings_frame.winfo_ismapped())
         self.assertEqual(e.definition()['name'], '/RENAMED-SIMPLE-POINTS')

@@ -30,7 +30,7 @@ class PointAuthoringTests(unittest.TestCase):
             yield from self.descendants(child)
 
     def new_set_dialog(self):
-        self.app.geometry_editor.new_set_button.invoke()
+        self.app.registered_browser.add_button.invoke()
         self.app.update()
         return next(w for w in self.app.winfo_children() if isinstance(w, tk.Toplevel))
 
