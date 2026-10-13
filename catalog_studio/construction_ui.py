@@ -39,9 +39,10 @@ class ConstructionEditor(ttk.Frame):
         top = ttk.Frame(self); top.pack(fill='x', pady=(0, 10))
         block = ttk.Frame(top); block.pack(side='left', fill='x', expand=True)
         ttk.Label(block, text=({'PTSET':'1. PTSET','GMSET':'2. GMSET'}.get(self.kind,self.kind)) + ' を作成・編集', style='Heading.TLabel').pack(anchor='w')
-        ttk.Label(block, text='要素・属性・式を編集します。プレビューは構成模式図です。', style='Muted.TLabel', wraplength=690).pack(anchor='w', pady=4)
+        ttk.Label(block, text='1. 名前を付けて PTSET を作成 → 2. 種類を選んで要素を作成 → 3. 属性を入力' if self.kind=='PTSET' else '要素・属性・式を編集します。プレビューは構成模式図です。', style='Muted.TLabel', wraplength=690).pack(anchor='w', pady=4)
         for text, command in [('保存', self.host.save_project), ('出力を確認', self.review), ('新しい '+self.kind+' を作る', self.add_definition)]:
-            ttk.Button(top, text=text, command=command).pack(side='right', padx=3)
+            button=ttk.Button(top,text=text,command=command);button.pack(side='right',padx=3)
+            if command==self.add_definition:self.new_set_button=button
         metadata = ttk.Frame(self); metadata.pack(fill='x', pady=(0, 10))
         ttk.Label(metadata, text=self.kind + ' 名').pack(side='left')
         self.def_name = tk.StringVar()
@@ -56,47 +57,57 @@ class ConstructionEditor(ttk.Frame):
         self.preset_choice.bind('<<ComboboxSelected>>',self.assign_preset)
         ttk.Button(preset_bar,text='プリセットを管理',command=lambda:self.host.switch('rules')).pack(side='left')
         if self.kind in ('PTSET','GMSET'):
-            flow=ttk.Frame(self);flow.pack(fill='x',pady=(0,8))
-            self.workflow_label=ttk.Label(flow,text='PTSET → GMSET → SCOM → スペック',style='Muted.TLabel',wraplength=600);self.workflow_label.pack(side='left')
-            self.create_part_button=ttk.Button(flow,text='この PTSET で部品をつくる → GMSET' if self.kind=='PTSET' else '次へ：この GMSET で SCOM を登録',style='Primary.TButton',command=self.create_part)
+            flow=ttk.Frame(preset_bar if self.kind=='PTSET' else self)
+            if self.kind=='PTSET':flow.pack(side='right')
+            else:flow.pack(fill='x',pady=(0,8))
+            self.workflow_label=ttk.Label(flow,text='PTSET → GMSET → SCOM → スペック',style='Muted.TLabel',wraplength=600)
+            if self.kind!='PTSET':self.workflow_label.pack(side='left')
+            self.create_part_button=ttk.Button(flow,text='PTSET の編集を終えて GMSET へ' if self.kind=='PTSET' else '次へ：この GMSET で SCOM を登録',style='TButton' if self.kind=='PTSET' else 'Primary.TButton',command=self.create_part)
             self.create_part_button.pack(side='right')
         split = ttk.Panedwindow(self, orient='horizontal'); split.pack(fill='both', expand=True)
         left = ttk.Frame(split, padding=8); center = ttk.Frame(split, padding=10); right = ttk.Frame(split, padding=10)
         for frame, weight in ((left, 2), (center, 5), (right, 3)): split.add(frame, weight=weight)
-        self.host.balance(split, (.23, .71))
+        self.host.balance(split,(.24,.70) if self.kind=='PTSET' else (.23,.71))
         ttk.Label(left, text='定義を選択', style='Heading.TLabel').pack(anchor='w', pady=4)
         self.def_choice = ttk.Combobox(left, state='readonly'); self.def_choice.pack(fill='x', pady=5)
         self.def_choice.bind('<<ComboboxSelected>>', self.select_definition)
-        ttk.Label(left, text='ポイント構成' if self.kind == 'PTSET' else '形状の構成', style='Heading.TLabel').pack(anchor='w', pady=(12, 5))
-        self.elements = ttk.Treeview(left, columns=('type',), show='tree headings', selectmode='browse', height=5)
+        ttk.Label(left, text='作成済みのポイント' if self.kind == 'PTSET' else '形状の構成', style='Heading.TLabel').pack(anchor='w', pady=(12, 5))
+        self.elements = ttk.Treeview(left, columns=('number','type') if self.kind=='PTSET' else ('type',), show='tree headings', selectmode='browse', height=5)
         self.elements.heading('#0', text='要素名'); self.elements.heading('type', text='種類')
         self.elements.column('#0', width=130, minwidth=70); self.elements.column('type', width=75, minwidth=60)
+        if self.kind=='PTSET':
+            self.elements.heading('number',text='番号');self.elements.column('number',width=45,minwidth=40)
         self.elements.pack(fill='both', expand=True); self.elements.bind('<<TreeviewSelect>>', self.select_element)
         buttons = ttk.Frame(left); buttons.pack(fill='x', pady=8)
         for text, fn in [('複製', self.duplicate_element), ('削除', self.delete_element)]: ttk.Button(buttons, text=text, command=fn).pack(side='left', padx=2)
         outline = ttk.Frame(left); outline.pack(fill='x')
-        for text,fn in [('子を追加',self.add_child),('↑',lambda:self.move_element(-1)),('↓',lambda:self.move_element(1))]: ttk.Button(outline,text=text,command=fn,width=7).pack(side='left',padx=2)
+        for text,fn in (([('子を追加',self.add_child)] if self.kind!='PTSET' else [])+[('↑',lambda:self.move_element(-1)),('↓',lambda:self.move_element(1))]): ttk.Button(outline,text=text,command=fn,width=7).pack(side='left',padx=2)
         p0=None
         if self.kind == 'PTSET':
             p0=ttk.Label(left,text='P0：原点 / +Z（自動生成・編集不可）',style='Muted.TLabel',wraplength=250);p0.pack(anchor='w',pady=5)
-        library = ttk.LabelFrame(left, text='要素ライブラリ', padding=8); library.pack(fill='x', pady=6)
+        if self.kind=='PTSET':ttk.Label(right,text='2. 種類を選んで要素を作成',style='Heading.TLabel').pack(anchor='w',pady=(0,6))
+        library = ttk.LabelFrame(right if self.kind=='PTSET' else left,text='ポイントの種類' if self.kind=='PTSET' else '要素ライブラリ',padding=8);library.pack(fill='x',pady=6)
         self.negative = tk.BooleanVar(value=False)
         if self.kind == 'GMSET':
             ttk.Checkbutton(library, text='ネガティブ（15種類）', variable=self.negative, command=self.populate_library).pack(anchor='w')
             ttk.Label(library, text='ポジティブ：18種類', style='Muted.TLabel').pack(anchor='w')
-        elif self.kind == 'PTSET': ttk.Label(library, text='PTAXI / PTCAR / PTMIX / PTPOS', style='Muted.TLabel', wraplength=240).pack(anchor='w')
+        elif self.kind=='PTSET':ttk.Label(library,text='選択すると、指定方法を下に表示します。',style='Muted.TLabel',wraplength=310).pack(anchor='w')
         else: ttk.Label(library,text=' / '.join(schema.TYPES_BY_SET[self.kind]),style='Muted.TLabel').pack(anchor='w')
         library_list=ttk.Frame(library);library_list.pack(fill='x',pady=5)
         self.library = tk.Listbox(library_list, height=4 if self.kind=='PTSET' else 3, exportselection=False, font=(self.host.ui_font, 10), relief='flat', selectbackground='#e4efff', selectforeground=BLUE)
         self.library.pack(side='left',fill='x',expand=True)
         scroll=ttk.Scrollbar(library_list,orient='vertical',command=self.library.yview);scroll.pack(side='right',fill='y');self.library.configure(yscrollcommand=scroll.set)
-        self.library.bind('<Double-1>', lambda _: self.add_element())
-        ttk.Button(library, text='＋ 選択した要素を追加', command=self.add_element).pack(fill='x')
+        if self.kind=='PTSET':
+            self.library.bind('<<ListboxSelect>>',self.describe_selected_type)
+            self.type_help=ttk.Label(library,text='',wraplength=310,justify='left');self.type_help.pack(anchor='w',fill='x',pady=(6,8))
+        else:self.library.bind('<Double-1>',lambda _:self.add_element())
+        self.create_element_button=ttk.Button(library,text='作成' if self.kind=='PTSET' else '＋ 選択した要素を追加',command=self.add_element,style='Primary.TButton' if self.kind=='PTSET' else 'TButton');self.create_element_button.pack(fill='x')
         self.populate_library()
-        library.pack(side='bottom',fill='x',pady=6,before=self.elements)
+        if self.kind!='PTSET':library.pack(side='bottom',fill='x',pady=6,before=self.elements)
         if p0:p0.pack(side='bottom',anchor='w',pady=5,before=self.elements)
         outline.pack(side='bottom',fill='x',before=self.elements)
         buttons.pack(side='bottom',fill='x',pady=8,before=self.elements)
+        if self.kind=='PTSET':ttk.Label(center,text='3. ポイントを選んで属性を入力',style='Heading.TLabel').pack(anchor='w',pady=(0,6))
         title = ttk.Frame(center); title.pack(fill='x')
         self.element_name = tk.StringVar(); self.element_name_entry = ttk.Entry(title, textvariable=self.element_name)
         self.element_name_entry.pack(side='left', fill='x', expand=True, padx=(0, 8))
@@ -111,7 +122,8 @@ class ConstructionEditor(ttk.Frame):
         for key, label in sections:
             frame = ttk.Frame(self.tabs, padding=3); self.tabs.add(frame, text=label)
             table = self.host.table(frame, [('attr', '属性', 90), ('meaning', '説明', 180), ('value', '設定値・式', 260)], height=4)
-            table.bind('<<TreeviewSelect>>', lambda event, s=key: self.select_field(s))
+            table.bind('<<TreeviewSelect>>',lambda event,s=key:self.select_field(s))
+            table.bind('<Double-1>',lambda _:self.focus_value_input())
             self.tables[key] = table
         self.section_order = [s[0] for s in sections]
         self.tabs.bind('<<NotebookTabChanged>>', self.tab_changed)
@@ -129,20 +141,24 @@ class ConstructionEditor(ttk.Frame):
         ttk.Button(reference, text='式へ挿入', command=self.insert_reference).pack(side='left', padx=3)
         ttk.Button(reference, text='÷ 2', command=self.half).pack(side='left')
         self.role_label = ttk.Label(editor, text='', style='Muted.TLabel'); self.role_label.pack(anchor='w')
-        helpers=ttk.Frame(editor);helpers.pack(fill='x',pady=4)
-        for text,fn in [('式を読みやすく整理',self.normalize_expression),('NAPP 適用先',self.edit_napp),('直径／半径',self.edit_sizes),('LINE の点列',self.edit_points)]: ttk.Button(helpers,text=text,command=fn).pack(side='left',padx=2)
+        if self.kind=='PTSET':ttk.Button(reference,text='式を整理',command=self.normalize_expression).pack(side='left',padx=3)
+        else:
+            helpers=ttk.Frame(editor);helpers.pack(fill='x',pady=4)
+            for text,fn in [('式を読みやすく整理',self.normalize_expression),('NAPP 適用先',self.edit_napp),('直径／半径',self.edit_sizes),('LINE の点列',self.edit_points)]:ttk.Button(helpers,text=text,command=fn).pack(side='left',padx=2)
         ttk.Label(editor,text='四則演算・SUM・TIMES・TAN に対応。ANGL は度。',style='Muted.TLabel',wraplength=520).pack(anchor='w',pady=5)
         self.validation_note = ttk.Label(editor, text='', foreground='#bb6440', wraplength=520); self.validation_note.pack(anchor='w')
-        ttk.Label(right, text='構成プレビュー', style='Heading.TLabel').pack(anchor='w')
-        ttk.Label(right, text='模式図：寸法・式・方向は未反映', style='Muted.TLabel', wraplength=310).pack(anchor='w', pady=5)
-        self.canvas = tk.Canvas(right, width=320, height=235, bg='#f2f6fc', highlightthickness=0); self.canvas.pack(fill='both', expand=True, pady=8)
-        self.canvas.bind('<Configure>', lambda _: self.draw())
-        ttk.Label(right, text='確認用 SCOM', style='Heading.TLabel').pack(anchor='w', pady=(8, 3))
+        self.canvas=None
+        if self.kind!='PTSET':
+            ttk.Label(right,text='構成プレビュー',style='Heading.TLabel').pack(anchor='w')
+            ttk.Label(right,text='模式図：寸法・式・方向は未反映',style='Muted.TLabel',wraplength=310).pack(anchor='w',pady=5)
+            self.canvas=tk.Canvas(right,width=320,height=235,bg='#f2f6fc',highlightthickness=0);self.canvas.pack(fill='both',expand=True,pady=8)
+            self.canvas.bind('<Configure>',lambda _:self.draw())
+        ttk.Label(right,text='確認用 SCOM（任意）' if self.kind=='PTSET' else '確認用 SCOM',style='Heading.TLabel').pack(anchor='w',pady=(8,3))
         self.scom_choice = ttk.Combobox(right, state='readonly'); self.scom_choice.pack(fill='x', pady=5)
         self.scom_choice.bind('<<ComboboxSelected>>', self.select_scom)
         self.values_label = ttk.Label(right, text='', style='Muted.TLabel', wraplength=300); self.values_label.pack(anchor='w', pady=8)
         ttk.Button(right, text='SCOM の値・ANGL を編集', command=self.open_scom).pack(fill='x', pady=8)
-        ttk.Label(right, text='読み取り専用。点・形状の定義には保存されません。\n設計側のコンテキストを推測せず、未設定参照は計算不可と表示します。', style='Muted.TLabel', wraplength=310).pack(anchor='w')
+        ttk.Label(right, text='確認値は PTSET に保存されません。' if self.kind=='PTSET' else '読み取り専用。点・形状の定義には保存されません。\n設計側のコンテキストを推測せず、未設定参照は計算不可と表示します。', style='Muted.TLabel', wraplength=310).pack(anchor='w')
 
     def assign_preset(self,_=None):
         if self.busy or not self.definition():return
@@ -157,13 +173,30 @@ class ConstructionEditor(ttk.Frame):
         for kind in items:
             label=schema.LABELS.get(kind,'負 '+schema.LABELS.get(schema.positive(kind),'未確認'))
             self.library.insert('end',kind+'  '+label)
-        if items: self.library.selection_set(0)
+        if items:self.library.selection_set(0)
+        self.describe_selected_type()
+
+    def describe_selected_type(self,_=None):
+        if self.kind!='PTSET':return
+        selection=self.library.curselection()
+        if not selection:
+            self.type_help.configure(text='作成するポイントの種類を選んでください。')
+            self.create_element_button.configure(text='種類を選択して作成',state='disabled');return
+        kind=self.library.get(selection[0]).split()[0];guide=schema.PT_GUIDES[kind]
+        self.type_help.configure(text=kind+'：'+guide['name']+'\n\n'+guide['position']+'\n'+guide['direction']+'\n\n'+guide['usage'])
+        self.create_element_button.configure(text=kind+' を作成',state='normal' if self.definition() else 'disabled')
+
+    def focus_value_input(self):
+        if not self.element() or not self.field:return
+        entry=self.choice_entry if self.choice_entry.winfo_ismapped() else self.expression_entry
+        entry.focus_set();entry.selection_range(0,'end')
 
     def refresh(self):
         self.busy = True
         self.definition_names = {d['name']: d['id'] for d in self.data['definitions'] if d['kind'] == self.kind}
         self.def_choice['values'] = list(self.definition_names)
-        d = self.definition()
+        d=self.definition()
+        self.describe_selected_type()
         if hasattr(self,'create_part_button'):
             self.create_part_button.configure(state='normal' if d else 'disabled')
             pointset=project.get(self.data,'definitions',self.data.get('creation_draft',{}).get('ptset_id'))
@@ -179,7 +212,7 @@ class ConstructionEditor(ttk.Frame):
             self.host.definition_id = d['id']
             def insert(items,parent=''):
                 for e in items:
-                    self.elements.insert(parent,'end',iid=e['id'],text=e['name'],values=(e['type'],),open=True)
+                    self.elements.insert(parent,'end',iid=e['id'],text=e['name'],values=(e['attrs'].get('NUMB',''),e['type']) if self.kind=='PTSET' else (e['type'],),open=True)
                     insert(e.get('children',[]),e['id'])
             insert(d['elements'])
             if not any(e['id'] == self.element_id for e in schema.walk(d['elements'])): self.element_id = next((e['id'] for e in d['elements']), None)
@@ -202,10 +235,12 @@ class ConstructionEditor(ttk.Frame):
         if self.kind == 'GMSET': available += list(schema.NEGATIVE_BASE)
         if e and e['type'] in schema.CHILD_TYPES: available = [e['type']]
         if e and e['type'] not in available: available += [e['type']]
-        self.type_choice['values'] = available; self.type_choice.set(e['type'] if e else '')
+        self.type_choice['values']=available;self.type_choice.set(e['type'] if e else '')
+        self.type_choice.configure(state='readonly' if e else 'disabled')
+        self.element_name_entry.configure(state='normal' if e else 'disabled')
         for table in self.tables.values(): table.delete(*table.get_children())
         if not e:
-            self.field = None; self.load_field(); self.element_note.configure(text='ライブラリから要素を追加してください。'); return
+            self.field = None; self.load_field(); self.element_note.configure(text='右の一覧で種類を選び、作成ボタンを押してください。' if self.kind=='PTSET' and self.definition() else ('まず「新しい PTSET を作る」で名前を登録してください。' if self.kind=='PTSET' else 'ライブラリから要素を追加してください。')); return
         if schema.known(e['type']):
             listed = set()
             for section, table in self.tables.items():
@@ -303,6 +338,7 @@ class ConstructionEditor(ttk.Frame):
         if self.field == 'OBST': value = schema.OBST_CHOICES.get(value, value)
         schema.set_value(self.element(), self.field, value)
         self.tables[self.section].item(self.field, values=(self.field, schema.meaning(self.element()['type'],self.field), value))
+        if self.kind=='PTSET' and self.field=='NUMB':self.elements.item(self.element_id,values=(value,self.element()['type']))
         self.host.mark(); self.update_validation()
 
     def rename_element(self, *_):
@@ -387,7 +423,8 @@ class ConstructionEditor(ttk.Frame):
         try: e = schema.add_element(d, self.library.get(selected[0]).split()[0])
         except ValueError as exc: messagebox.showerror('追加できません', str(exc), parent=self.host); return
         self.element_id = e['id']; self.section = 'main'; self.tabs.select(0); self.field = None
-        self.host.mark(); self.refresh()
+        self.host.mark();self.refresh();self.elements.see(e['id'])
+        self.host.status.configure(text=e['type']+' を作成しました。中央の属性行を選んで、値・式を入力してください。')
 
     def duplicate_element(self):
         e, d = self.element(), self.definition()
@@ -415,6 +452,9 @@ class ConstructionEditor(ttk.Frame):
 
     def refresh_values(self):
         s = project.get(self.data, 'scoms', self.preview_scom_id)
+        if self.kind=='PTSET':
+            self.values_label.configure(text=presets.label(self.data,s)+' / '+str(len(s['values']))+' 項目を確認に使用' if s else '確認用 SCOM を選択してください。')
+            return
         self.values_label.configure(text=('読み取り専用 / ' + s['name'] + '\n'+presets.label(self.data,s)+'\n\n' + '\n'.join(p['id'] + ' ' + presets.caption(p) + '：' + str(s['values'].get(p['id'], '未入力')) + ' ' + p.get('unit', '') for p in presets.rules(self.data,s)[:6])) if s else '確認用 SCOM を選択してください。')
 
     def open_scom(self):
@@ -509,6 +549,7 @@ class ConstructionEditor(ttk.Frame):
         self.host.form('LINE：点の順序',fields,apply)
 
     def draw(self):
+        if self.canvas is None:return
         c = self.canvas; c.delete('all'); w, h = max(c.winfo_width(), 100), max(c.winfo_height(), 120)
         d = self.definition()
         if not d or not d['elements']:

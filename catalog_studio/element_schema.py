@@ -10,6 +10,12 @@ PT_TYPES = {
     'PTMIX': ('PX', 'PY', 'PZ', 'PAXI'),
     'PTPOS': ('PTCPOS', 'PTCDIR'),
 }
+PT_GUIDES = {
+    'PTAXI': {'name':'軸と距離で定義する点', 'position':'位置：PAXI の軸に沿う距離を PDIS で指定します。', 'direction':'方向：PAXI の軸方向を使います。', 'usage':'軸上の接続点や基準点を作るときに選びます。'},
+    'PTCAR': {'name':'XYZ 座標と方向式で定義する点', 'position':'位置：PX・PY・PZ を個別に指定します。', 'direction':'方向：PTCDIR の方向式で指定します。', 'usage':'位置と向きをそれぞれ明示したいときに選びます。'},
+    'PTMIX': {'name':'XYZ 座標と軸で定義する点', 'position':'位置：PX・PY・PZ を個別に指定します。', 'direction':'方向：PAXI の軸指定を使います。', 'usage':'座標で置き、向きは軸で指定したいときに選びます。'},
+    'PTPOS': {'name':'位置式と方向式で定義する点', 'position':'位置：PTCPOS に位置式を指定します。', 'direction':'方向：PTCDIR（PTCD と同じ）の方向式を指定します。', 'usage':'位置を一つの位置式で表したいときに選びます。'},
+}
 GM_TYPES = {
     'SBOX': ('PXLE', 'PYLE', 'PZLE', 'PX', 'PY', 'PZ'),
     'BOXI': ('PXLE', 'PZLE', 'PAXI', 'TVISI', 'BVISI'),

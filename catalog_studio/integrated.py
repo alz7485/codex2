@@ -404,7 +404,7 @@ class IntegratedStudio(tk.Tk):
         options=presets.choices(self.data)
         if source and source not in options.values():raise ValueError('PARAM プリセットが見つかりません。')
         initial=next(name for name,ident in options.items() if ident==source)
-        fields=[('name',kind+' 名','/NEW-'+kind,None)]
+        fields=[('name',kind+' 名','' if kind=='PTSET' else '/NEW-'+kind,None)]
         if ptset_id is None:fields.append(('preset','PARAM プリセット',initial,list(options)))
         else:fields.append(('preset','PTSET から引き継ぐプリセット',initial,[initial]))
         def apply(v):
@@ -421,7 +421,7 @@ class IntegratedStudio(tk.Tk):
             if kind=='PTSET':self.data['creation_draft']={'ptset_id':definition['id']}
             elif ptset_id is not None:self.data['creation_draft']={'ptset_id':ptset_id,'gmset_id':definition['id']}
             self.page='ptset' if kind=='PTSET' else 'gmset'
-        self.form('新しい '+kind+' を作成',fields,apply)
+        return self.form('新しい '+kind+' を作成',fields,apply)
 
     def component_from_ptset(self,ptset_id):
         self.commit_definition_name()
