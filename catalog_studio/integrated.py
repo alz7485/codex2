@@ -16,7 +16,7 @@ BLUE = '#2269de'
 NAVY = '#233951'
 BG = '#f3f6fa'
 MUTED = '#738499'
-PAGES = [('catalog', 'カタログ構成'), ('ptset', 'PTSET 作成'), ('gmset', 'GMSET 作成'), ('structural', '構造材・NGMSET'), ('texts','説明・材質'), ('tables','共通テーブル'), ('specs', 'SPEC 登録'), ('books', 'カタログ本・PDF'), ('rules', 'PARAM プリセット'), ('checks', '確認・マクロ')]
+PAGES = [('ptset', '1. PTSET 作成'), ('gmset', '2. GMSET 作成'), ('catalog', '3. SCOM 登録'), ('specs', '4. スペック登録'), ('structural', '構造材・NGMSET'), ('texts','説明・材質'), ('tables','共通テーブル'), ('books', 'カタログ本・PDF'), ('rules', 'PARAM プリセット'), ('checks', '確認・マクロ')]
 
 
 class Preview:
@@ -106,7 +106,7 @@ class IntegratedStudio(tk.Tk):
         ttk.Label(header,text='  E3D 4.0 / 統合モックアップ',style='Muted.TLabel').pack(side='left',padx=8)
         for text,command,style in [('構成確認出力',lambda:self.switch('checks'),'Primary.TButton'),('保存',self.save_project,'TButton'),('読み込み',self.open_project,'TButton'),('新規',self.new_project,'TButton')]:
             ttk.Button(header,text=text,command=command,style=style).pack(side='right',padx=4)
-        tk.Label(self,text='SCOM に寸法・文字列、GMSET・PTSET に参照・式を登録。SPEC の選択条件と E3D 登録構文は仮仕様です。',bg='#eaf1fb',fg='#5d7390',anchor='w',padx=20,pady=8).pack(fill='x')
+        tk.Label(self,text='作成順：PTSET（ポイント） → GMSET（形状） → SCOM（部品の値） → スペック（選択条件）',bg='#eaf1fb',fg='#5d7390',anchor='w',padx=20,pady=8).pack(fill='x')
         self.status=ttk.Label(self,text='サンプルを表示中 · E3D 実行用ではありません',background=BG,foreground=MUTED,padding=(18,7));self.status.pack(side='bottom',fill='x')
         body=ttk.Frame(self);body.pack(fill='both',expand=True)
         nav=tk.Frame(body,bg=NAVY,width=185);nav.pack(side='left',fill='y');nav.pack_propagate(False)
@@ -115,7 +115,7 @@ class IntegratedStudio(tk.Tk):
         for key,text in PAGES:
             button=tk.Button(nav,text=text,command=lambda k=key:self.switch(k),bg=NAVY,fg='white',activebackground=BLUE,activeforeground='white',relief='flat',anchor='w',font=(self.ui_font,11),padx=16,pady=14)
             button.pack(fill='x',padx=7,pady=3);self.nav[key]=button
-        tk.Label(nav,text='入力 → 参照 → SPEC\n→ カタログ本',bg=NAVY,fg='#a9b8cc',font=(self.ui_font,10),justify='left').pack(side='bottom',anchor='w',padx=18,pady=22)
+        tk.Label(nav,text='PTSET → GMSET\n→ SCOM → スペック',bg=NAVY,fg='#a9b8cc',font=(self.ui_font,10),justify='left').pack(side='bottom',anchor='w',padx=18,pady=22)
         self.content=ttk.Frame(body,padding=16);self.content.pack(side='left',fill='both',expand=True)
 
     def mark(self,text='変更しました。Ctrl+S でプロジェクトを保存できます。'):
@@ -194,7 +194,7 @@ class IntegratedStudio(tk.Tk):
         return {item['name']:item['id'] for item in self.data[collection] if kind is None or item.get('kind')==kind}
 
     def build_catalog(self):
-        self.heading('カタログ構成 / CATE・SCOM','SCOM のパラメータ値を入力し、形状・ポイント定義へ結び付けます。', [('SCOM を追加',self.add_scom),('CATE を追加',self.add_cate)])
+        self.heading('3. SCOM 登録 / CATE・SCOM','SCOM のパラメータ値を入力し、形状・ポイント定義へ結び付けます。', [('SCOM を追加',self.add_scom),('CATE を追加',self.add_cate),('次へ：スペック登録',self.component_to_spec)])
         split=ttk.Panedwindow(self.content,orient='horizontal');split.pack(fill='both',expand=True)
         left=ttk.Frame(split,padding=8);middle=ttk.Frame(split,padding=10);right=ttk.Frame(split,padding=10)
         split.add(left,weight=1);split.add(middle,weight=4);split.add(right,weight=2)
@@ -290,9 +290,10 @@ class IntegratedStudio(tk.Tk):
         if messagebox.askyesno('削除','空の CATE を削除しますか？',parent=self):
             self.data['cates']=[c for c in self.data['cates'] if c['id']!=self.cate_id];self.cate_id=next((c['id'] for c in self.data['cates']),None);self.mark();self.render_page()
 
-    def scom_form(self,scom=None):
+    def scom_form(self,scom=None,*,seed=None):
         cate_choices=self.choices('cates');gm=self.choices('definitions','GMSET');pt=self.choices('definitions','PTSET')
-        if not cate_choices:messagebox.showinfo('CATE が必要','先に CATE を追加してください。',parent=self);return
+        create_cate=not cate_choices
+        if create_cate:cate_choices['新しい CATE を作成']='__new_cate__'
         for mapping in (cate_choices,gm,pt):mapping['未設定']=''
         if scom:
             for mapping,key in ((cate_choices,'cate_id'),(gm,'gmset_id'),(pt,'ptset_id')):
@@ -300,9 +301,11 @@ class IntegratedStudio(tk.Tk):
                 if ident and ident not in mapping.values():mapping['参照先不明：'+ident]=ident
         def display(mapping,ident):
             return next((name for name,key in mapping.items() if key==ident),next(iter(mapping)))
-        fields=[('name','SCOM 名',scom['name'] if scom else '',None),('size','サイズ表記',scom['size'] if scom else '',None),('cate','CATE',display(cate_choices,scom['cate_id'] if scom else self.cate_id),list(cate_choices)),('revision','改訂',scom['revision'] if scom else '01',None),('gm','GMRE / GMSET',display(gm,scom.get('gmset_id') if scom else None),list(gm)),('pt','PTRE / PTSET',display(pt,scom.get('ptset_id') if scom else None),list(pt))]
-        parameters=presets.rules(self.data,scom)
-        fields.append(('preset_label','PARAM プリセット',presets.label(self.data,scom),[presets.label(self.data,scom)]))
+        fields=[('name','SCOM 名',scom['name'] if scom else '',None),('size','サイズ表記',scom['size'] if scom else '',None),('cate','CATE',display(cate_choices,scom['cate_id'] if scom else self.cate_id),list(cate_choices)),('revision','改訂',scom['revision'] if scom else '01',None),('gm','GMRE / GMSET',display(gm,scom.get('gmset_id') if scom else (seed or {}).get('gmset_id')),list(gm)),('pt','PTRE / PTSET',display(pt,scom.get('ptset_id') if scom else (seed or {}).get('ptset_id')),list(pt))]
+        rule_source=scom if scom is not None else seed
+        parameters=presets.rules(self.data,rule_source)
+        if create_cate:fields.append(('new_cate_name','新しい CATE 名','/NEW-CATE',None))
+        fields.append(('preset_label','PARAM プリセット',presets.label(self.data,rule_source),[presets.label(self.data,rule_source)]))
         for p in parameters:fields.append((p['id'],p['id']+'：'+presets.caption(p)+' ['+p.get('unit','mm')+']',scom['values'].get(p['id'],'') if scom else '',None))
         fields.append(('angl','ANGL：部品の角度（度、空欄は未設定）',(scom or {}).get('component_attrs',{}).get('ANGL',''),None))
         for kind,key in (('NGMSET','ngmset_id'),('GMSSET','gmsset_id'),('PTSSET','ptsset_id')):
@@ -322,13 +325,27 @@ class IntegratedStudio(tk.Tk):
             if v['angl']:
                 component['ANGL']=project.parse_value({'id':'ANGL'},v['angl'])
             else:component.pop('ANGL',None)
-            obj=scom or project.add_scom(self.data,cate_choices[v['cate']],v['name'])
-            obj.update(name=v['name'],size=v['size'],cate_id=cate_choices[v['cate']],revision=v['revision'],gmset_id=gm.get(v['gm'],''),ptset_id=pt.get(v['pt'],''),values=values)
+            if not scom and len(self.data['scoms'])>=project.LIMITS['scoms']:raise ValueError('SCOM 数の上限です。')
+            if seed is not None:
+                for key,mapping,kind in (('gm',gm,'GMSET'),('pt',pt,'PTSET')):
+                    definition=project.get(self.data,'definitions',mapping.get(v[key],''))
+                    if not definition or definition['kind']!=kind:raise ValueError(kind+' を選択してください。')
+                    presets.require_compatible(self.data,seed,definition)
+            cate_id=cate_choices[v['cate']]
+            if seed is not None and not cate_id:raise ValueError('所属 CATE を選択してください。')
+            if cate_id=='__new_cate__':
+                name=self.required(v['new_cate_name'],'CATE 名')
+                if any(c['name']==name for c in self.data['cates']):raise ValueError('CATE 名が重複しています。')
+                cate_id=project.add_cate(self.data,name)['id']
+            obj=scom or project.add_scom(self.data,cate_id,v['name'])
+            obj.update(name=v['name'],size=v['size'],cate_id=cate_id,revision=v['revision'],gmset_id=gm.get(v['gm'],''),ptset_id=pt.get(v['pt'],''),values=values)
             obj['component_attrs']=component
+            if seed is not None:obj['parameter_preset_id']=presets.selected_id(self.data,seed)
             for kind,key in (('NGMSET','ngmset_id'),('GMSSET','gmsset_id'),('PTSSET','ptsset_id')):
                 mapping=self.choices('definitions',kind);mapping['未設定']=''
                 obj[key]=mapping.get(v[key],obj.get(key,''))
             self.scom_id=obj['id'];self.cate_id=obj['cate_id']
+            if seed is not None:self.data['creation_draft']={key:obj[key] for key in ('ptset_id','gmset_id')} | {'scom_id':obj['id']}
         self.form('SCOM の値を登録',fields,apply)
 
     def add_scom(self):self.scom_form()
@@ -379,6 +396,65 @@ class IntegratedStudio(tk.Tk):
     def goto_definition(self,key):
         s=project.get(self.data,'scoms',self.scom_id)
         if s and s.get(key):self.definition_id=s[key];self.switch('gmset' if key=='gmset_id' else 'ptset')
+
+    def definition_form(self,kind,*,preset_id=None,ptset_id=None):
+        """Create an empty set; numerical component data is entered later."""
+        import uuid
+        source=presets.selected_id(self.data) if preset_id is None else preset_id
+        options=presets.choices(self.data)
+        if source and source not in options.values():raise ValueError('PARAM プリセットが見つかりません。')
+        initial=next(name for name,ident in options.items() if ident==source)
+        fields=[('name',kind+' 名','/NEW-'+kind,None)]
+        if ptset_id is None:fields.append(('preset','PARAM プリセット',initial,list(options)))
+        else:fields.append(('preset','PTSET から引き継ぐプリセット',initial,[initial]))
+        def apply(v):
+            name=self.required(v['name'],kind+' 名')
+            if any(d['name']==name for d in self.data['definitions']):raise ValueError('定義名が重複しています。')
+            if len(self.data['definitions'])>=project.LIMITS['definitions']:raise ValueError('定義数の上限です。')
+            ident=options[v['preset']]
+            if ptset_id is not None:
+                pointset=project.get(self.data,'definitions',ptset_id)
+                if not pointset or pointset['kind']!='PTSET':raise ValueError('引き継ぐ PTSET が見つかりません。')
+                if presets.selected_id(self.data,pointset)!=ident:raise ValueError('PTSET のプリセットが変更されています。作成をやり直してください。')
+            definition={'id':uuid.uuid4().hex,'name':name,'kind':kind,'revision':'01','elements':[],'parameter_preset_id':ident}
+            self.data['definitions'].append(definition);self.definition_id=definition['id']
+            if kind=='PTSET':self.data['creation_draft']={'ptset_id':definition['id']}
+            elif ptset_id is not None:self.data['creation_draft']={'ptset_id':ptset_id,'gmset_id':definition['id']}
+            self.page='ptset' if kind=='PTSET' else 'gmset'
+        self.form('新しい '+kind+' を作成',fields,apply)
+
+    def component_from_ptset(self,ptset_id):
+        self.commit_definition_name()
+        pt=project.get(self.data,'definitions',ptset_id)
+        if not pt or pt['kind']!='PTSET':return
+        self.definition_form('GMSET',preset_id=presets.selected_id(self.data,pt),ptset_id=pt['id'])
+
+    def component_from_gmset(self,gmset_id):
+        self.commit_definition_name()
+        gm=project.get(self.data,'definitions',gmset_id)
+        if not gm or gm['kind']!='GMSET':return
+        draft=self.data.get('creation_draft',{})
+        pt=project.get(self.data,'definitions',draft.get('ptset_id'))
+        if not pt or pt['kind']!='PTSET':
+            options=self.choices('definitions','PTSET')
+            if not options:messagebox.showinfo('PTSET が必要','1. PTSET 作成でポイントを登録してください。',parent=self);self.switch('ptset');return
+            def choose(v):
+                pointset=project.get(self.data,'definitions',options[v['pt']]);presets.require_compatible(self.data,gm,pointset)
+                self.data['creation_draft']={'ptset_id':pointset['id'],'gmset_id':gm['id']}
+                self.after_idle(lambda:self.component_from_gmset(gm['id']))
+            self.form('SCOM に使用する PTSET を選択',[('pt','PTSET',next(iter(options)),list(options))],choose);return
+        try:presets.require_compatible(self.data,gm,pt)
+        except ValueError as exc:messagebox.showinfo('プリセットの確認',str(exc),parent=self);return
+        seed={'ptset_id':pt['id'],'gmset_id':gm['id'],'parameter_preset_id':presets.selected_id(self.data,pt)}
+        self.switch('catalog');self.scom_form(seed=seed)
+
+    def component_to_spec(self):
+        scom=project.get(self.data,'scoms',self.scom_id)
+        if not scom:messagebox.showinfo('SCOM が必要','先に SCOM を登録してください。',parent=self);return
+        ident=scom['id'];self.switch('specs')
+        if not self.spec():
+            self.spec_form(after_create=lambda:self.entry_form(scom_id=ident))
+        else:self.entry_form(scom_id=ident)
 
     def build_ptset(self):
         from .construction_ui import ConstructionEditor
@@ -594,7 +670,7 @@ class IntegratedStudio(tk.Tk):
         if e and messagebox.askyesno('削除','要素を削除しますか？ 共通定義の使用先に影響します。',parent=self):d['elements'].remove(e);self.element_id=None;self.mark();self.render_page()
 
     def build_specs(self):
-        self.heading('SPEC 登録','部品種別・口径条件と参照 SCOM を選択表で管理します。E3D の SELE・SPCO 構文への変換は未対応です。',[('SPEC を追加',self.add_spec)])
+        self.heading('4. スペック登録','部品種別・口径条件と参照 SCOM を選択表で管理します。E3D の SELE・SPCO 構文への変換は未対応です。',[('SPEC を追加',self.add_spec)])
         split=ttk.Panedwindow(self.content,orient='horizontal');split.pack(fill='both',expand=True)
         left=ttk.Frame(split,padding=8);middle=ttk.Frame(split,padding=12);right=ttk.Frame(split,padding=12)
         split.add(left,weight=1);split.add(middle,weight=4);split.add(right,weight=2)
@@ -641,11 +717,12 @@ class IntegratedStudio(tk.Tk):
     def goto_spec_scom(self):
         entry=self.spec_entry();s=project.get(self.data,'scoms',entry['scom_id']) if entry else None
         if s:self.scom_id=s['id'];self.cate_id=s['cate_id'];self.switch('catalog')
-    def spec_form(self,spec=None):
+    def spec_form(self,spec=None,*,after_create=None):
         def apply(v):
             self.required(v['name'],'SPEC 名')
             if any(x['name']==v['name'] and (not spec or x['id']!=spec['id']) for x in self.data['specs']):raise ValueError('SPEC 名が重複しています。')
             item=spec or project.add_spec(self.data,v['name']);item.update(v);self.spec_id=item['id']
+            if after_create is not None:self.after_idle(after_create)
         self.form('SPEC 情報',[('name','SPEC 名',spec['name'] if spec else '',None),('description','説明',spec['description'] if spec else '',None),('revision','改訂',spec['revision'] if spec else '01',None)],apply)
     def add_spec(self):self.spec_form()
     def edit_spec(self):
@@ -662,13 +739,13 @@ class IntegratedStudio(tk.Tk):
     def delete_spec(self):
         spec=self.spec()
         if spec and messagebox.askyesno('削除','SPEC を削除しますか？ 発行済み冊子の内容は変わりません。',parent=self):self.data['specs'].remove(spec);self.spec_id=next((x['id'] for x in self.data['specs']),None);self.mark();self.render_page()
-    def entry_form(self,entry=None):
+    def entry_form(self,entry=None,*,scom_id=None):
         spec=self.spec();scoms=self.choices('scoms')
         if not spec or not scoms:messagebox.showinfo('SCOM が必要','先に参照する SCOM を作成してください。',parent=self);return
         scoms['未設定']=''
         if entry and entry['scom_id'] and entry['scom_id'] not in scoms.values():scoms['参照先不明：'+entry['scom_id']]=entry['scom_id']
-        selected=next((name for name,ident in scoms.items() if ident==(entry['scom_id'] if entry else self.scom_id)),next(iter(scoms)))
-        fields=[('type','部品種別（仮の選択項目）',entry['type'] if entry else 'REDU',None),('bore1','口径条件 1',entry['bore1'] if entry else '',None),('bore2','口径条件 2',entry['bore2'] if entry else '',None),('scom','参照 SCOM',selected,list(scoms)),('description','説明',entry['description'] if entry else '',None)]
+        selected=next((name for name,ident in scoms.items() if ident==(entry['scom_id'] if entry else (scom_id or self.scom_id))),next(iter(scoms)))
+        fields=[('type','部品種別（仮の選択項目）',entry['type'] if entry else ('' if scom_id else 'REDU'),None),('bore1','口径条件 1',entry['bore1'] if entry else '',None),('bore2','口径条件 2',entry['bore2'] if entry else '',None),('scom','参照 SCOM',selected,list(scoms)),('description','説明',entry['description'] if entry else '',None)]
         mappings={}
         for key,kind in (('sdte_id','SDTE'),('smte_id','SMTE')):
             mapping={r['name']:r['id'] for r in self.data.get('texts',[]) if r['type']==kind};mapping['未設定']=''
@@ -681,6 +758,7 @@ class IntegratedStudio(tk.Tk):
             record=entry or project.add_spec_entry(self.data,spec,scoms[v['scom']])
             record.update(type=v['type'],bore1=v['bore1'],bore2=v['bore2'],scom_id=scoms[v['scom']],description=v['description'])
             for key,mapping in mappings.items():record[key]=mapping[v[key]]
+            if scom_id:self.data.setdefault('creation_draft',{}).update(scom_id=record['scom_id'],spec_id=spec['id'])
         self.form('SPEC の登録行',fields,apply)
     def add_spec_entry(self):self.entry_form()
     def edit_spec_entry(self):
@@ -821,7 +899,7 @@ class IntegratedStudio(tk.Tk):
         def apply(v):
             self.required(v['name'],'プロジェクト名');self.data=project.sample();self.data['name']=v['name']
             for key in ('cates','scoms','definitions','specs','books','texts','tables'):self.data[key]=[]
-            self.path=None;self.reset_selection();self.page='catalog'
+            self.path=None;self.reset_selection();self.page='ptset'
         self.form('新規プロジェクト',[('name','プロジェクト名','新規カタログ',None)],apply)
     def destroy(self):
         # Tcl keeps scheduled layout callbacks after widget commands disappear.

@@ -136,6 +136,8 @@ def validate(data):
         raise ValueError('対応する統合プロジェクト JSON ではありません。')
     if not isinstance(data.get('name'), str):
         raise ValueError('プロジェクト名がありません。')
+    draft=data.get('creation_draft',{})
+    if not isinstance(draft,dict) or any(key in draft and not isinstance(draft[key],str) for key in ('ptset_id','gmset_id','scom_id','spec_id')):raise ValueError('作成中の部品の参照形式を確認してください。')
     validate_parameters(data.get('parameters'))
     validate_reference_roles(data.get('reference_roles',{}))
     _records(data.get('parameter_presets',[]),'PARAM プリセット',('name','period','component','description'),1000)

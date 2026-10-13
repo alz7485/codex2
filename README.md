@@ -20,6 +20,17 @@ python -m pip install -r requirements.txt
 
 Windows 用 `install.bat` も同梱しています。Linux のシステム Python は `python3-tk` が必要な場合があります。
 
+## 作成順と部品作成ボタン
+
+画面と左メニューの順序は **PTSET → GMSET → SCOM → スペック** です。新しいプロジェクトも PTSET 画面から始まります。
+
+1. **新しい PTSET を作る**：名前と PARAM プリセットを選び、ポイントを追加します。
+2. **この PTSET で部品をつくる → GMSET**：選択した PTSET のプリセットを引き継いで、空の GMSET を作成。形状と式を登録します。
+3. **次へ：この GMSET で SCOM を登録**：使用する PTSET・GMSET・プリセットを入力画面へ引き継ぎ、部品の数値・文字列を登録します。CATE がない場合は同じ画面で新しい所属 CATE を作成できます。
+4. **次へ：スペック登録**：選択した SCOM を参照する登録行を作成。SPEC がない場合は先に SPEC の名前を登録します。
+
+SCOM を作る前に実数値を定義へ登録しません。各段階は確定時に作成し、入力ダイアログのキャンセルでは新しい部品を追加しません。作成中に選んだ PTSET・GMSET の組み合わせも JSON に保存し、再読込後に GMSET 画面で続きを作成できます。通常の個別編集も利用できます。
+
 ## 今回反映した操作
 
 - **PTSET**：PTAXI・PTCAR・PTMIX・PTPOS の属性編集。PTCD と PTCDIR は表示を統一し、保存時は元の属性名を維持。セットの DESC・GTYP・SKEY・PURP は「親属性」から設定。P0 は自動生成される編集不可の基準点として案内します。PSKEY・DESC・PURP は詳細タブで新規値 unset。
@@ -89,4 +100,4 @@ python -m pip install -r requirements.txt pypdf
 python -m unittest discover -s tests -v
 ```
 
-GUI は表示環境、PDF 内容の検証は pypdf が必要です。クラウドの仮想ディスプレイで、GUI・PDF を含む77件を検証しています。Windows 実機は未確認です。
+GUI は表示環境、PDF 内容の検証は pypdf が必要です。クラウドの仮想ディスプレイで、GUI・PDF を含む83件を検証しています。Windows 実機は未確認です。

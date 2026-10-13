@@ -21,8 +21,11 @@ class ConstructionEditor(ttk.Frame):
         self.pack(fill='both', expand=True)
         definitions = [d for d in host.data['definitions'] if d['kind'] == kind]
         preferred = project.get(host.data, 'definitions', host.definition_id)
+        draft=host.data.get('creation_draft',{})
+        staged=project.get(host.data,'definitions',draft.get('ptset_id' if kind=='PTSET' else 'gmset_id'))
+        if staged and staged['kind']!=kind:staged=None
         demo = next((d for d in definitions if d['id'] == ('ui-ptset' if kind == 'PTSET' else 'ui-gmset')), None)
-        self.definition_id = preferred['id'] if preferred and preferred['kind'] == kind else (demo or (definitions[0] if definitions else {})).get('id')
+        self.definition_id = preferred['id'] if preferred and preferred['kind'] == kind else (staged or demo or (definitions[0] if definitions else {})).get('id')
         self.build()
         self.refresh()
         self.busy = False
@@ -35,9 +38,9 @@ class ConstructionEditor(ttk.Frame):
     def build(self):
         top = ttk.Frame(self); top.pack(fill='x', pady=(0, 10))
         block = ttk.Frame(top); block.pack(side='left', fill='x', expand=True)
-        ttk.Label(block, text=self.kind + ' を作成・編集', style='Heading.TLabel').pack(anchor='w')
-        ttk.Label(block, text='要素・属性・式を保存できる UI のたたき台です。式の評価・輪郭・適用先を編集できます。CAD 表示は構成模式図です。', style='Muted.TLabel', wraplength=690).pack(anchor='w', pady=4)
-        for text, command in [('保存', self.host.save_project), ('出力を確認', self.review), ('定義を追加', self.add_definition)]:
+        ttk.Label(block, text=({'PTSET':'1. PTSET','GMSET':'2. GMSET'}.get(self.kind,self.kind)) + ' を作成・編集', style='Heading.TLabel').pack(anchor='w')
+        ttk.Label(block, text='要素・属性・式を編集します。プレビューは構成模式図です。', style='Muted.TLabel', wraplength=690).pack(anchor='w', pady=4)
+        for text, command in [('保存', self.host.save_project), ('出力を確認', self.review), ('新しい '+self.kind+' を作る', self.add_definition)]:
             ttk.Button(top, text=text, command=command).pack(side='right', padx=3)
         metadata = ttk.Frame(self); metadata.pack(fill='x', pady=(0, 10))
         ttk.Label(metadata, text=self.kind + ' 名').pack(side='left')
@@ -52,6 +55,11 @@ class ConstructionEditor(ttk.Frame):
         self.preset_choice=ttk.Combobox(preset_bar,state='readonly',width=36);self.preset_choice.pack(side='left',padx=8)
         self.preset_choice.bind('<<ComboboxSelected>>',self.assign_preset)
         ttk.Button(preset_bar,text='プリセットを管理',command=lambda:self.host.switch('rules')).pack(side='left')
+        if self.kind in ('PTSET','GMSET'):
+            flow=ttk.Frame(self);flow.pack(fill='x',pady=(0,8))
+            self.workflow_label=ttk.Label(flow,text='PTSET → GMSET → SCOM → スペック',style='Muted.TLabel',wraplength=600);self.workflow_label.pack(side='left')
+            self.create_part_button=ttk.Button(flow,text='この PTSET で部品をつくる → GMSET' if self.kind=='PTSET' else '次へ：この GMSET で SCOM を登録',style='Primary.TButton',command=self.create_part)
+            self.create_part_button.pack(side='right')
         split = ttk.Panedwindow(self, orient='horizontal'); split.pack(fill='both', expand=True)
         left = ttk.Frame(split, padding=8); center = ttk.Frame(split, padding=10); right = ttk.Frame(split, padding=10)
         for frame, weight in ((left, 2), (center, 5), (right, 3)): split.add(frame, weight=weight)
@@ -68,7 +76,9 @@ class ConstructionEditor(ttk.Frame):
         for text, fn in [('複製', self.duplicate_element), ('削除', self.delete_element)]: ttk.Button(buttons, text=text, command=fn).pack(side='left', padx=2)
         outline = ttk.Frame(left); outline.pack(fill='x')
         for text,fn in [('子を追加',self.add_child),('↑',lambda:self.move_element(-1)),('↓',lambda:self.move_element(1))]: ttk.Button(outline,text=text,command=fn,width=7).pack(side='left',padx=2)
-        if self.kind == 'PTSET': ttk.Label(left,text='P0：原点 / +Z（自動生成・編集不可）',style='Muted.TLabel',wraplength=250).pack(anchor='w',pady=5)
+        p0=None
+        if self.kind == 'PTSET':
+            p0=ttk.Label(left,text='P0：原点 / +Z（自動生成・編集不可）',style='Muted.TLabel',wraplength=250);p0.pack(anchor='w',pady=5)
         library = ttk.LabelFrame(left, text='要素ライブラリ', padding=8); library.pack(fill='x', pady=6)
         self.negative = tk.BooleanVar(value=False)
         if self.kind == 'GMSET':
@@ -83,6 +93,10 @@ class ConstructionEditor(ttk.Frame):
         self.library.bind('<Double-1>', lambda _: self.add_element())
         ttk.Button(library, text='＋ 選択した要素を追加', command=self.add_element).pack(fill='x')
         self.populate_library()
+        library.pack(side='bottom',fill='x',pady=6,before=self.elements)
+        if p0:p0.pack(side='bottom',anchor='w',pady=5,before=self.elements)
+        outline.pack(side='bottom',fill='x',before=self.elements)
+        buttons.pack(side='bottom',fill='x',pady=8,before=self.elements)
         title = ttk.Frame(center); title.pack(fill='x')
         self.element_name = tk.StringVar(); self.element_name_entry = ttk.Entry(title, textvariable=self.element_name)
         self.element_name_entry.pack(side='left', fill='x', expand=True, padx=(0, 8))
@@ -150,6 +164,10 @@ class ConstructionEditor(ttk.Frame):
         self.definition_names = {d['name']: d['id'] for d in self.data['definitions'] if d['kind'] == self.kind}
         self.def_choice['values'] = list(self.definition_names)
         d = self.definition()
+        if hasattr(self,'create_part_button'):
+            self.create_part_button.configure(state='normal' if d else 'disabled')
+            pointset=project.get(self.data,'definitions',self.data.get('creation_draft',{}).get('ptset_id'))
+            self.workflow_label.configure(text=('使用する PTSET：'+pointset['name']) if self.kind=='GMSET' and pointset else 'PTSET → GMSET → SCOM → スペック')
         self.def_choice.set(d['name'] if d else '')
         self.def_name.set(d['name'] if d else '')
         self.elements.delete(*self.elements.get_children())
@@ -330,15 +348,23 @@ class ConstructionEditor(ttk.Frame):
         self.definition_names = {x['name']: x['id'] for x in self.data['definitions'] if x['kind'] == self.kind}
         self.def_choice['values'] = list(self.definition_names); self.def_choice.set(name)
 
+    def create_part(self):
+        d=self.definition()
+        if not d:return
+        self.commit_name()
+        if self.kind=='PTSET':self.host.component_from_ptset(d['id'])
+        elif self.kind=='GMSET':self.host.component_from_gmset(d['id'])
+
     def add_definition(self):
+        if self.kind in ('PTSET','GMSET'):
+            self.host.definition_form(self.kind);return
         def apply(values):
-            name = self.host.required(values['name'], '定義名')
-            if any(d['name'] == name for d in self.data['definitions']): raise ValueError('定義名が重複しています。')
-            if len(self.data['definitions']) >= 1000: raise ValueError('定義数の上限です。')
-            d = {'id': uuid.uuid4().hex, 'name': name, 'kind': self.kind, 'revision': '01', 'elements': []}
-            presets.stamp(self.data,d)
-            self.data['definitions'].append(d); self.host.definition_id = d['id']
-        self.host.form(self.kind + ' を追加', [('name', '定義名', '/NEW-' + self.kind, None)], apply)
+            name=self.host.required(values['name'],'定義名')
+            if any(d['name']==name for d in self.data['definitions']):raise ValueError('定義名が重複しています。')
+            if len(self.data['definitions'])>=1000:raise ValueError('定義数の上限です。')
+            d={'id':uuid.uuid4().hex,'name':name,'kind':self.kind,'revision':'01','elements':[]}
+            presets.stamp(self.data,d);self.data['definitions'].append(d);self.host.definition_id=d['id']
+        self.host.form(self.kind+' を追加',[('name','定義名','/NEW-'+self.kind,None)],apply)
 
     def duplicate_definition(self):
         d = self.definition()
