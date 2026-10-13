@@ -9,14 +9,14 @@ import sys
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, font, messagebox, ttk
-from . import model, project, element_schema, expressions
+from . import model, project, element_schema, expressions, presets
 from .app import Studio as LegacyPreview
 
 BLUE = '#2269de'
 NAVY = '#233951'
 BG = '#f3f6fa'
 MUTED = '#738499'
-PAGES = [('catalog', 'カタログ構成'), ('ptset', 'PTSET 作成'), ('gmset', 'GMSET 作成'), ('structural', '構造材・NGMSET'), ('texts','説明・材質'), ('tables','共通テーブル'), ('specs', 'SPEC 登録'), ('books', 'カタログ本・PDF'), ('rules', 'パラメータ規則'), ('checks', '確認・マクロ')]
+PAGES = [('catalog', 'カタログ構成'), ('ptset', 'PTSET 作成'), ('gmset', 'GMSET 作成'), ('structural', '構造材・NGMSET'), ('texts','説明・材質'), ('tables','共通テーブル'), ('specs', 'SPEC 登録'), ('books', 'カタログ本・PDF'), ('rules', 'PARAM プリセット'), ('checks', '確認・マクロ')]
 
 
 class Preview:
@@ -44,6 +44,7 @@ class Preview:
                 for key in ('gmset_id', 'ptset_id'):
                     definition = project.get(data, 'definitions', scom.get(key))
                     if definition:
+                        presets.require_compatible(data,scom,definition)
                         if any(e['type'] not in model.SCHEMAS for e in definition['elements']):
                             raise ValueError('未対応の要素型があります。原文を保持し、概略表示は行いません。')
                         self.project['elements'].extend(definition['elements'])
@@ -212,12 +213,15 @@ class IntegratedStudio(tk.Tk):
         top=ttk.Frame(middle);top.pack(fill='x',pady=(0,10))
         ttk.Label(top,text='SCOM の寸法・文字列',style='Heading.TLabel').pack(side='left')
         for text,cmd in [('編集',self.edit_scom),('複製',self.duplicate_scom),('削除',self.delete_scom)]:ttk.Button(top,text=text,command=cmd).pack(side='right',padx=2)
-        columns=[('name','SCOM 名',170),('size','サイズ',100),('rev','改訂',65)]+[(p['id'],p['role']+' ['+p['id']+' / '+p.get('unit','mm')+']',150) for p in self.data['parameters']]
+        members=[r for r in self.data['scoms'] if r['cate_id']==self.cate_id]
+        self.catalog_parameter_ids=sorted({p['id'] for r in members for p in presets.rules(self.data,r)} or {p['id'] for p in presets.rules(self.data)},key=lambda pid:int(pid[1:]))
+        columns=[('name','SCOM 名',170),('size','サイズ',100),('rev','改訂',65),('preset','PARAM プリセット',190)]+[(pid,pid+'（説明は選択行の右欄）',160) for pid in self.catalog_parameter_ids]
         self.scom_table=self.table(middle,columns,height=10);self.fill_scom_table()
         ttk.Label(middle,text='行をダブルクリックして、数値・文字列・参照先を編集できます。',style='Muted.TLabel').pack(anchor='w',pady=5)
         self.scom_table.bind('<<TreeviewSelect>>',self.scom_select);self.scom_table.bind('<Double-1>',lambda _:self.edit_scom())
         tools=ttk.Frame(middle);tools.pack(fill='x',pady=10)
         ttk.Button(tools,text='表からまとめて貼り付け',command=self.paste_scoms).pack(side='left',padx=3)
+        ttk.Button(tools,text='PARAM プリセットを割り当て',command=self.assign_scom_preset).pack(side='left',padx=3)
         ttk.Button(tools,text='確認用の参照コンテキスト',command=self.edit_contexts).pack(side='left',padx=3)
         references=ttk.LabelFrame(middle,text='選択 SCOM の参照先',padding=12);references.pack(fill='x',pady=6)
         self.reference_label=ttk.Label(references,text='',wraplength=520);self.reference_label.pack(anchor='w')
@@ -232,7 +236,7 @@ class IntegratedStudio(tk.Tk):
     def fill_scom_table(self):
         self.scom_table.delete(*self.scom_table.get_children())
         for s in self.data['scoms']:
-            if s['cate_id']==self.cate_id:self.scom_table.insert('','end',iid=s['id'],values=[s['name'],s['size'],s['revision']]+[s['values'].get(p['id'],'未入力') for p in self.data['parameters']])
+            if s['cate_id']==self.cate_id:self.scom_table.insert('','end',iid=s['id'],values=[s['name'],s['size'],s['revision'],presets.label(self.data,s)]+[s['values'].get(pid,'未入力') for pid in self.catalog_parameter_ids])
         if self.scom_table.exists(str(self.scom_id)):self.scom_table.selection_set(self.scom_id)
 
     def catalog_select(self,_=None):
@@ -261,7 +265,7 @@ class IntegratedStudio(tk.Tk):
         if not s:self.reference_label.configure(text='SCOM を追加・選択してください。');self.scom_detail.configure(text='');return
         g=project.get(self.data,'definitions',s['gmset_id']);p=project.get(self.data,'definitions',s['ptset_id'])
         self.reference_label.configure(text='GMRE → '+(g['name'] if g else '未設定')+'\nPTRE  → '+(p['name'] if p else '未設定'))
-        self.scom_detail.configure(text=s['name']+' / Rev.'+s['revision']+'\n'+s['size']+'\n\n'+'\n'.join(p['id']+' '+p['role']+'：'+str(s['values'].get(p['id'],'未入力'))+' '+p.get('unit','mm') for p in self.data['parameters']))
+        self.scom_detail.configure(text=s['name']+' / Rev.'+s['revision']+'\n'+s['size']+'\nPARAM 規則：'+presets.label(self.data,s)+'\n\n'+'\n'.join(p['id']+' '+presets.caption(p)+'：'+str(s['values'].get(p['id'],'未入力'))+' '+p.get('unit','mm') for p in presets.rules(self.data,s)))
 
     def add_cate(self):
         def apply(v):
@@ -297,7 +301,9 @@ class IntegratedStudio(tk.Tk):
         def display(mapping,ident):
             return next((name for name,key in mapping.items() if key==ident),next(iter(mapping)))
         fields=[('name','SCOM 名',scom['name'] if scom else '',None),('size','サイズ表記',scom['size'] if scom else '',None),('cate','CATE',display(cate_choices,scom['cate_id'] if scom else self.cate_id),list(cate_choices)),('revision','改訂',scom['revision'] if scom else '01',None),('gm','GMRE / GMSET',display(gm,scom.get('gmset_id') if scom else None),list(gm)),('pt','PTRE / PTSET',display(pt,scom.get('ptset_id') if scom else None),list(pt))]
-        for p in self.data['parameters']:fields.append((p['id'],p['id']+'：'+p['role']+' ['+p.get('unit','mm')+']',scom['values'].get(p['id'],'') if scom else '',None))
+        parameters=presets.rules(self.data,scom)
+        fields.append(('preset_label','PARAM プリセット',presets.label(self.data,scom),[presets.label(self.data,scom)]))
+        for p in parameters:fields.append((p['id'],p['id']+'：'+presets.caption(p)+' ['+p.get('unit','mm')+']',scom['values'].get(p['id'],'') if scom else '',None))
         fields.append(('angl','ANGL：部品の角度（度、空欄は未設定）',(scom or {}).get('component_attrs',{}).get('ANGL',''),None))
         for kind,key in (('NGMSET','ngmset_id'),('GMSSET','gmsset_id'),('PTSSET','ptsset_id')):
             mapping=self.choices('definitions',kind);mapping['未設定']=''
@@ -307,9 +313,9 @@ class IntegratedStudio(tk.Tk):
         def apply(v):
             self.required(v['name'],'SCOM 名')
             if any(s['name']==v['name'] and (scom is None or s['id']!=scom['id']) for s in self.data['scoms']):raise ValueError('SCOM 名が重複しています。')
-            known={p['id'] for p in self.data['parameters']}
+            known={p['id'] for p in parameters}
             values={key:value for key,value in scom['values'].items() if key not in known} if scom else {}
-            for p in self.data['parameters']:
+            for p in parameters:
                 if not v[p['id']]:continue
                 values[p['id']]=project.parse_value(p,v[p['id']])
             component=copy.deepcopy((scom or {}).get('component_attrs',{}))
@@ -342,8 +348,9 @@ class IntegratedStudio(tk.Tk):
     def paste_scoms(self):
         if not project.get(self.data,'cates',self.cate_id):return
         win=tk.Toplevel(self);win.title('表から SCOM を追加');win.transient(self);win.grab_set()
-        names=['SCOM名','サイズ']+[p['id'] for p in self.data['parameters']]
-        ttk.Label(win,text='見出しを含めず、次の順序でタブ区切りの行を貼り付けてください。\n'+' / '.join(names)+'\n参照定義は選択中の SCOM から引き継ぎます。',padding=12,wraplength=700).pack()
+        base=project.get(self.data,'scoms',self.scom_id)
+        names=['SCOM名','サイズ']+[p['id'] for p in presets.rules(self.data,base)]
+        ttk.Label(win,text='見出しを含めず、次の順序でタブ区切りの行を貼り付けてください。\n'+' / '.join(names)+'\nPARAM プリセットと参照定義は選択中の SCOM から引き継ぎます。',padding=12,wraplength=700).pack()
         text=tk.Text(win,width=90,height=15);text.pack(padx=12)
         error=ttk.Label(win,text='',foreground='#bb4949',padding=10);error.pack()
         def apply():
@@ -355,17 +362,18 @@ class IntegratedStudio(tk.Tk):
 
     def parse_scom_paste(self,text):
         candidate=copy.deepcopy(self.data);base=project.get(candidate,'scoms',self.scom_id)
+        parameters=presets.rules(candidate,base)
         rows=list(csv.reader(io.StringIO(text.strip()),delimiter='\t'))
         if not text.strip() or len(rows)>200:raise ValueError('1〜200 行を貼り付けてください。')
         for rownum,row in enumerate(rows,1):
-            if len(row)!=2+len(candidate['parameters']):raise ValueError(f'{rownum} 行目の列数を確認してください。')
+            if len(row)!=2+len(parameters):raise ValueError(f'{rownum} 行目の列数を確認してください。')
             if not row[0].strip() or any(s['name']==row[0].strip() for s in candidate['scoms']):raise ValueError(f'{rownum} 行目の SCOM 名が空か重複しています。')
             values={}
-            for p,raw in zip(candidate['parameters'],row[2:]):
+            for p,raw in zip(parameters,row[2:]):
                 value=project.parse_value(p,raw)
                 values[p['id']]=value
             s=project.add_scom(candidate,self.cate_id,row[0].strip());s.update(size=row[1],values=values)
-            if base:s.update(gmset_id=base['gmset_id'],ptset_id=base['ptset_id'])
+            if base:s.update(gmset_id=base['gmset_id'],ptset_id=base['ptset_id'],parameter_preset_id=presets.selected_id(candidate,base))
         project.validate(candidate);return candidate
 
     def goto_definition(self,key):
@@ -442,8 +450,8 @@ class IntegratedStudio(tk.Tk):
         self.formula_entry=ttk.Entry(formula,textvariable=self.formula,font=(self.ui_font,14));self.formula_entry.pack(fill='x')
         self.direction=ttk.Combobox(formula,values=model.DIRECTIONS,state='readonly');self.direction.bind('<<ComboboxSelected>>',self.direction_changed)
         self.parambar=ttk.Frame(formula);self.parambar.pack(fill='x',pady=8)
-        self.param_choice=ttk.Combobox(self.parambar,values=[p['id']+'：'+p['role'] for p in self.data['parameters']],state='readonly');self.param_choice.pack(side='left',fill='x',expand=True)
-        if self.data['parameters']:self.param_choice.current(0)
+        self.param_choice=ttk.Combobox(self.parambar,values=[p['id']+'：'+p['role'] for p in presets.rules(self.data,self.definition())],state='readonly');self.param_choice.pack(side='left',fill='x',expand=True)
+        if presets.rules(self.data,self.definition()):self.param_choice.current(0)
         ttk.Button(self.parambar,text='挿入',command=self.insert_parameter).pack(side='left',padx=3)
         ttk.Button(self.parambar,text='÷ 2',command=self.half_formula).pack(side='left')
         self.formula_result=ttk.Label(formula,text='',wraplength=450);self.formula_result.pack(anchor='w')
@@ -481,7 +489,7 @@ class IntegratedStudio(tk.Tk):
     def populate_attrs(self):
         self.busy=True;self.attr_table.delete(*self.attr_table.get_children());e=self.element()
         if e:
-            for k in model.SCHEMAS.get(e['type'],('',tuple(e['attrs'])))[1]:self.attr_table.insert('','end',iid=k,values=(k,e['attrs'][k],', '.join(model.references(str(e['attrs'][k]),self.data['parameters'])) or '—'))
+            for k in model.SCHEMAS.get(e['type'],('',tuple(e['attrs'])))[1]:self.attr_table.insert('','end',iid=k,values=(k,e['attrs'][k],', '.join(model.references(str(e['attrs'][k]),presets.rules(self.data,self.definition()))) or '—'))
             if self.field not in e['attrs']:self.field=next(iter(model.SCHEMAS.get(e['type'],('',tuple(e['attrs'])))[1]),None)
             if self.field:self.attr_table.selection_set(self.field)
         else:self.field=None
@@ -508,7 +516,7 @@ class IntegratedStudio(tk.Tk):
     def formula_changed(self,*_):
         if self.busy or not self.element() or self.element()['type'] not in model.SCHEMAS or not self.field or self.field=='方向':return
         self.element()['attrs'][self.field]=self.formula.get()
-        self.attr_table.item(self.field,values=(self.field,self.formula.get(),', '.join(model.references(self.formula.get(),self.data['parameters'])) or '—'))
+        self.attr_table.item(self.field,values=(self.field,self.formula.get(),', '.join(model.references(self.formula.get(),presets.rules(self.data,self.definition()))) or '—'))
         self.mark();self.calc_formula();self.update_definition_preview()
     def direction_changed(self,_=None):
         if self.element():self.element()['attrs']['方向']=self.direction.get();self.mark();self.populate_attrs();self.update_definition_preview()
@@ -519,13 +527,13 @@ class IntegratedStudio(tk.Tk):
         s=project.get(self.data,'scoms',self.preview_choices.get(self.preview_choice.get())) if hasattr(self,'preview_choice') and self.preview_choice.winfo_exists() else None
         try:
             if not s:raise ValueError('参照 SCOM を選ぶと計算結果を確認できます。')
-            val=model.evaluate(self.formula.get(),project.parameters_for(self.data,s));self.formula_result.configure(text='選択 SCOM での計算結果：'+f'{val:g}',foreground='#168168')
+            presets.require_compatible(self.data,s,self.definition());val=model.evaluate(self.formula.get(),project.parameters_for(self.data,s));self.formula_result.configure(text='選択 SCOM での計算結果：'+f'{val:g}',foreground='#168168')
         except ValueError as exc:self.formula_result.configure(text=str(exc),foreground='#b94c44')
     def insert_parameter(self):
         if not self.element() or self.element()['type'] not in model.SCHEMAS or self.field=='方向':return
         i=self.param_choice.current()
         if i<0:return
-        name=self.data['parameters'][i]['role'];entry=self.formula_entry
+        name=presets.rules(self.data,self.definition())[i]['role'];entry=self.formula_entry
         try:a,b=entry.index('sel.first'),entry.index('sel.last')
         except tk.TclError:a=b=entry.index('insert')
         text=self.formula.get();self.formula.set(text[:a]+name+text[b:]);entry.focus_set();entry.icursor(a+len(name))
@@ -544,7 +552,7 @@ class IntegratedStudio(tk.Tk):
         if not self.preview:return
         s=project.get(self.data,'scoms',self.preview_choices.get(self.preview_choice.get()))
         self.preview.load(self.data,s,self.element_id)
-        self.preview_values.configure(text='読み取り専用 / '+(s['name'] if s else 'SCOM 未選択')+'\n'+('\n'.join(p['id']+' '+p['role']+'：'+str(s['values'].get(p['id'],'未入力'))+' '+p.get('unit','mm') for p in self.data['parameters']) if s else ''))
+        self.preview_values.configure(text='読み取り専用 / '+(s['name'] if s else 'SCOM 未選択')+'\n'+('\n'.join(p['id']+' '+presets.caption(p)+'：'+str(s['values'].get(p['id'],'未入力'))+' '+p.get('unit','mm') for p in presets.rules(self.data,s)) if s else ''))
     def add_definition(self):
         def apply(v):
             self.required(v['name'],'定義名')
@@ -754,47 +762,21 @@ class IntegratedStudio(tk.Tk):
         if book and messagebox.askyesno('冊子を削除','プロジェクト内の冊子固定データを削除しますか？ 出力済みの PDF は削除しません。',parent=self):self.data['books'].remove(book);self.selected_book=None;self.mark();self.render_page()
 
     def build_rules(self):
-        self.heading('パラメータ規則','番号ごとに役割と単位を定義します。実数値は各 SCOM の編集画面で登録します。',[('パラメータを追加',self.add_parameter),('参照種類別の役割',self.edit_reference_roles)])
-        self.param_table=self.table(self.content,[('id','番号',100),('role','役割・表示名',360),('unit','単位',100),('value_type','値型',100)],height=15)
-        for p in self.data['parameters']:self.param_table.insert('','end',iid=p['id'],values=(p['id'],p['role'],p.get('unit','mm'),p.get('value_type','number')))
-        self.param_table.bind('<Double-1>',lambda _:self.edit_parameter())
-        actions=ttk.Frame(self.content);actions.pack(fill='x',pady=10)
-        ttk.Button(actions,text='役割・単位を編集',command=self.edit_parameter).pack(side='left',padx=3)
-        ttk.Button(actions,text='未使用のパラメータを削除',command=self.remove_parameter).pack(side='left',padx=3)
-        ttk.Label(self.content,text='役割名を変更すると共通定義の式も更新します。発行済み冊子の役割名は変更しません。番号の並べ替え・再採番は行いません。',style='Muted.TLabel',wraplength=1000).pack(anchor='w',pady=8)
-    def edit_reference_roles(self):
-        from .companion_ui import json_dialog
-        def apply(value):
-            candidate=copy.deepcopy(self.data);candidate['reference_roles']=value;project.validate(candidate)
-            self.data['reference_roles']=value
-        json_dialog(self,'参照種類別の役割：例 IPARAM → P1 → 断熱材厚さ（値は含めません）',self.data.get('reference_roles',{}),apply)
+        from .preset_ui import PresetEditor
+        self.preset_editor=PresetEditor(self)
 
-    def parameter_form(self,param=None):
-        next_id='P'+str(max([int(p['id'][1:]) for p in self.data['parameters']]+[0])+1)
-        fields=([('id','番号',next_id,None)] if param is None else [])+[('role','役割・表示名',param['role'] if param else '',None),('unit','単位',param.get('unit','mm') if param else 'mm',None),('value_type','値型',param.get('value_type','number') if param else 'number',['number','word'])]
-        def apply(v):
-            if not model.valid_role(v['role']):raise ValueError('役割名に空白や演算記号は使用できません。')
-            if any(p['role']==v['role'] and (param is None or p['id']!=param['id']) for p in self.data['parameters']):raise ValueError('役割名が重複しています。')
-            if param and param.get('value_type','number') != v['value_type'] and any(param['id'] in r['values'] for r in self.data['scoms']):raise ValueError('値型を変更する前に、この番号の SCOM 値を編集・解除してください。')
-            if param:project.rename_parameter(self.data,param['id'],v['role']);param['unit']=v['unit'];param['value_type']=v['value_type']
-            else:
-                if not re.fullmatch(r'P[1-9]\d*',v['id']) or any(p['id']==v['id'] for p in self.data['parameters']):raise ValueError('P1 のような未使用の番号を指定してください。')
-                self.data['parameters'].append({'id':v['id'],'role':v['role'],'unit':v['unit'],'value_type':v['value_type']})
-        self.form('パラメータ規則',fields,apply)
-    def add_parameter(self):self.parameter_form()
-    def edit_parameter(self):
-        selection=self.param_table.selection()
-        if selection:self.parameter_form(project.get(self.data,'parameters',selection[0]))
-    def remove_parameter(self):
-        selection=self.param_table.selection()
-        if not selection:return
-        pid=selection[0]
-        def referenced(expr):
-            if pid in model.references(expr,self.data['parameters']):return True
-            try:return ('PARAM',pid) in expressions.refs(expressions.parse(expr,self.data['parameters']))
-            except ValueError:return False
-        if any(referenced(expr) for d in self.data['definitions'] for e in element_schema.walk(d['elements']) for expr in e['attrs'].values() if isinstance(expr,str)) or any(pid in s['values'] for s in self.data['scoms']):messagebox.showinfo('削除できません','定義の式または SCOM の値で使用されています。',parent=self);return
-        if messagebox.askyesno('削除',pid+' を削除しますか？',parent=self):self.data['parameters']=[p for p in self.data['parameters'] if p['id']!=pid];self.mark();self.render_page()
+    def add_parameter(self):self.preset_editor.parameter_form()
+    def edit_parameter(self):self.preset_editor.edit_parameter()
+    def remove_parameter(self):self.preset_editor.remove_parameter()
+
+    def assign_scom_preset(self):
+        scom=project.get(self.data,'scoms',self.scom_id)
+        if not scom:return
+        options=presets.choices(self.data)
+        ident=presets.selected_id(self.data,scom)
+        if ident and ident not in options.values():options['参照先不明：'+ident]=ident
+        def apply(v):presets.bind(self.data,scom,options[v['preset']])
+        self.form('SCOM の PARAM プリセットを割り当て（番号・値は変更しません）',[('preset','プリセット',presets.label(self.data,scom),list(options))],apply)
 
     @staticmethod
     def set_text(widget,text):widget.configure(state='normal');widget.delete('1.0','end');widget.insert('1.0',text);widget.configure(state='disabled')

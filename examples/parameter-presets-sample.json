@@ -1,0 +1,386 @@
+{
+  "format": "catalog-studio-integrated",
+  "version": 2,
+  "name": "PARAM プリセット管理サンプル（架空データ）",
+  "parameters": [
+    {
+      "id": "P1",
+      "role": "大径側外径",
+      "unit": "mm"
+    },
+    {
+      "id": "P2",
+      "role": "小径側外径",
+      "unit": "mm"
+    },
+    {
+      "id": "P3",
+      "role": "全長",
+      "unit": "mm"
+    },
+    {
+      "id": "P4",
+      "role": "大径側呼び径",
+      "unit": "mm"
+    },
+    {
+      "id": "P5",
+      "role": "小径側呼び径",
+      "unit": "mm"
+    }
+  ],
+  "cates": [
+    {
+      "id": "cate-reducer",
+      "name": "/REDUCER-CATE",
+      "description": "同心レデューサー（モックアップ参考値）",
+      "revision": "01"
+    }
+  ],
+  "definitions": [
+    {
+      "id": "gm-reducer",
+      "name": "/REDUCER-GEOM",
+      "kind": "GMSET",
+      "revision": "01",
+      "elements": [
+        {
+          "id": "cone-body",
+          "type": "cone",
+          "name": "円錐台 本体",
+          "attrs": {
+            "大径": "P1",
+            "小径": "P2",
+            "長さ": "P3",
+            "位置": "P3 / 2",
+            "方向": "Z"
+          }
+        }
+      ],
+      "parameter_preset_history": [
+        {
+          "preset_id": "",
+          "elements": [
+            {
+              "id": "cone-body",
+              "type": "cone",
+              "name": "円錐台 本体",
+              "attrs": {
+                "大径": "大径側外径",
+                "小径": "小径側外径",
+                "長さ": "全長",
+                "位置": "全長 / 2",
+                "方向": "Z"
+              }
+            }
+          ]
+        }
+      ],
+      "parameter_preset_id": "523947ee4cdc42289af81ecd6c5e8897"
+    },
+    {
+      "id": "pt-reducer",
+      "name": "/REDUCER-POINTS",
+      "kind": "PTSET",
+      "revision": "01",
+      "elements": [
+        {
+          "id": "point-large",
+          "type": "point",
+          "name": "接続点 1",
+          "attrs": {
+            "位置": "0",
+            "方向": "-Z",
+            "接続口径": "P4"
+          }
+        },
+        {
+          "id": "point-small",
+          "type": "point",
+          "name": "接続点 2",
+          "attrs": {
+            "位置": "P3",
+            "方向": "Z",
+            "接続口径": "P5"
+          }
+        }
+      ],
+      "parameter_preset_history": [
+        {
+          "preset_id": "",
+          "elements": [
+            {
+              "id": "point-large",
+              "type": "point",
+              "name": "接続点 1",
+              "attrs": {
+                "位置": "0",
+                "方向": "-Z",
+                "接続口径": "大径側呼び径"
+              }
+            },
+            {
+              "id": "point-small",
+              "type": "point",
+              "name": "接続点 2",
+              "attrs": {
+                "位置": "全長",
+                "方向": "Z",
+                "接続口径": "小径側呼び径"
+              }
+            }
+          ]
+        }
+      ],
+      "parameter_preset_id": "523947ee4cdc42289af81ecd6c5e8897"
+    },
+    {
+      "id": "3c149c8392c647278f0bf77c1b4658b6",
+      "name": "/SAMPLE-CYLINDER-GEOM",
+      "kind": "GMSET",
+      "revision": "01",
+      "elements": [
+        {
+          "id": "44c4eff14a404a1fb1d3f23179f46b9b",
+          "type": "cylinder",
+          "name": "円筒の本体",
+          "attrs": {
+            "直径": "P1",
+            "長さ": "P3",
+            "位置": "P3 / 2",
+            "方向": "Z"
+          }
+        }
+      ],
+      "parameter_preset_id": "0d125538623344c5b7e39b382a2eff47"
+    },
+    {
+      "id": "592c14ad9b6d4663a274df9e7865ca91",
+      "name": "/SAMPLE-CYLINDER-POINTS",
+      "kind": "PTSET",
+      "revision": "01",
+      "elements": [
+        {
+          "id": "a459eb4c48f048b390707afb71bd0fe6",
+          "type": "point",
+          "name": "接続点 1",
+          "attrs": {
+            "位置": "0",
+            "方向": "-Z",
+            "接続口径": "大径側呼び径"
+          }
+        },
+        {
+          "id": "17d93cc1a8a04682b1df6071291d047a",
+          "type": "point",
+          "name": "接続点 2",
+          "attrs": {
+            "位置": "胴部長さ",
+            "方向": "Z",
+            "接続口径": "小径側呼び径"
+          }
+        }
+      ],
+      "parameter_preset_id": "0d125538623344c5b7e39b382a2eff47"
+    }
+  ],
+  "scoms": [
+    {
+      "id": "scom-65-40",
+      "name": "/REDUCER-65X40",
+      "cate_id": "cate-reducer",
+      "size": "65 × 40",
+      "revision": "01",
+      "gmset_id": "gm-reducer",
+      "ptset_id": "pt-reducer",
+      "values": {
+        "P1": 76.3,
+        "P2": 48.6,
+        "P3": 89,
+        "P4": 65,
+        "P5": 40
+      },
+      "parameter_preset_history": [
+        {
+          "preset_id": ""
+        }
+      ],
+      "parameter_preset_id": "523947ee4cdc42289af81ecd6c5e8897"
+    },
+    {
+      "id": "scom-80-50",
+      "name": "/REDUCER-80X50",
+      "cate_id": "cate-reducer",
+      "size": "80 × 50",
+      "revision": "01",
+      "gmset_id": "gm-reducer",
+      "ptset_id": "pt-reducer",
+      "values": {
+        "P1": 89.1,
+        "P2": 60.5,
+        "P3": 89,
+        "P4": 80,
+        "P5": 50
+      },
+      "parameter_preset_history": [
+        {
+          "preset_id": ""
+        }
+      ],
+      "parameter_preset_id": "523947ee4cdc42289af81ecd6c5e8897"
+    },
+    {
+      "id": "scom-100-65",
+      "name": "/REDUCER-100X65",
+      "cate_id": "cate-reducer",
+      "size": "100 × 65",
+      "revision": "01",
+      "gmset_id": "gm-reducer",
+      "ptset_id": "pt-reducer",
+      "values": {
+        "P1": 114.3,
+        "P2": 76.3,
+        "P3": 102,
+        "P4": 100,
+        "P5": 65
+      },
+      "parameter_preset_history": [
+        {
+          "preset_id": ""
+        }
+      ],
+      "parameter_preset_id": "523947ee4cdc42289af81ecd6c5e8897"
+    },
+    {
+      "id": "b4127436888e416d9d53f2a1be828724",
+      "name": "/SAMPLE-CYLINDER",
+      "cate_id": "cate-reducer",
+      "size": "円筒の架空例",
+      "revision": "01",
+      "gmset_id": "3c149c8392c647278f0bf77c1b4658b6",
+      "ptset_id": "592c14ad9b6d4663a274df9e7865ca91",
+      "values": {
+        "P1": 80,
+        "P2": 70,
+        "P3": 120,
+        "P4": 50,
+        "P5": 50
+      },
+      "parameter_preset_id": "0d125538623344c5b7e39b382a2eff47"
+    }
+  ],
+  "specs": [
+    {
+      "id": "spec-cs150",
+      "name": "/CS-150-SPEC",
+      "description": "炭素鋼クラスの選択表（仮データ・E3D選択構文は未検証）",
+      "revision": "01",
+      "entries": [
+        {
+          "id": "entry-65-40",
+          "type": "REDU",
+          "bore1": "65",
+          "bore2": "40",
+          "scom_id": "scom-65-40",
+          "description": "同心レデューサー"
+        },
+        {
+          "id": "entry-80-50",
+          "type": "REDU",
+          "bore1": "80",
+          "bore2": "50",
+          "scom_id": "scom-80-50",
+          "description": "同心レデューサー"
+        },
+        {
+          "id": "entry-100-65",
+          "type": "REDU",
+          "bore1": "100",
+          "bore2": "65",
+          "scom_id": "scom-100-65",
+          "description": "同心レデューサー"
+        }
+      ]
+    }
+  ],
+  "books": [],
+  "texts": [],
+  "tables": [],
+  "parameter_presets": [
+    {
+      "id": "523947ee4cdc42289af81ecd6c5e8897",
+      "name": "例：旧登録のレデューサー",
+      "period": "旧登録",
+      "component": "レデューサー",
+      "description": "架空の説明です。実際の番号規則は利用者が登録してください。",
+      "parameters": [
+        {
+          "id": "P1",
+          "role": "大径側外径",
+          "unit": "mm",
+          "description": "大径側の外径を表す番号"
+        },
+        {
+          "id": "P2",
+          "role": "小径側外径",
+          "unit": "mm"
+        },
+        {
+          "id": "P3",
+          "role": "全長",
+          "unit": "mm"
+        },
+        {
+          "id": "P4",
+          "role": "大径側呼び径",
+          "unit": "mm"
+        },
+        {
+          "id": "P5",
+          "role": "小径側呼び径",
+          "unit": "mm"
+        }
+      ],
+      "reference_roles": {}
+    },
+    {
+      "id": "0d125538623344c5b7e39b382a2eff47",
+      "name": "例：現行登録の円筒部品",
+      "period": "現行登録",
+      "component": "円筒部品",
+      "description": "同じ番号に別の日本語説明を登録する例です。",
+      "parameters": [
+        {
+          "id": "P1",
+          "role": "胴部外径",
+          "unit": "mm",
+          "description": "円筒部品の胴部の外径"
+        },
+        {
+          "id": "P2",
+          "role": "端部外径",
+          "unit": "mm",
+          "description": "円筒部品の端部の外径"
+        },
+        {
+          "id": "P3",
+          "role": "胴部長さ",
+          "unit": "mm",
+          "description": "胴部の軸方向の長さ"
+        },
+        {
+          "id": "P4",
+          "role": "大径側呼び径",
+          "unit": "mm"
+        },
+        {
+          "id": "P5",
+          "role": "小径側呼び径",
+          "unit": "mm"
+        }
+      ],
+      "reference_roles": {}
+    }
+  ],
+  "active_parameter_preset_id": "0d125538623344c5b7e39b382a2eff47"
+}

@@ -3,7 +3,7 @@ import copy
 import tkinter as tk
 import uuid
 from tkinter import messagebox, ttk
-from . import element_schema as schema, project, expressions, catalogue
+from . import element_schema as schema, project, expressions, catalogue, presets
 
 BLUE = '#2269de'
 MUTED = '#738499'
@@ -47,6 +47,11 @@ class ConstructionEditor(ttk.Frame):
         if schema.PARENT_FIELDS[self.kind]:ttk.Button(metadata, text='親属性・中立軸', command=self.edit_parent).pack(side='left', padx=4)
         self.usage_label = ttk.Label(metadata, text='', style='Muted.TLabel'); self.usage_label.pack(side='left', padx=10)
         ttk.Button(metadata, text='複製して作成', command=self.duplicate_definition).pack(side='right')
+        preset_bar=ttk.Frame(self);preset_bar.pack(fill='x',pady=(0,8))
+        ttk.Label(preset_bar,text='PARAM プリセット').pack(side='left')
+        self.preset_choice=ttk.Combobox(preset_bar,state='readonly',width=36);self.preset_choice.pack(side='left',padx=8)
+        self.preset_choice.bind('<<ComboboxSelected>>',self.assign_preset)
+        ttk.Button(preset_bar,text='プリセットを管理',command=lambda:self.host.switch('rules')).pack(side='left')
         split = ttk.Panedwindow(self, orient='horizontal'); split.pack(fill='both', expand=True)
         left = ttk.Frame(split, padding=8); center = ttk.Frame(split, padding=10); right = ttk.Frame(split, padding=10)
         for frame, weight in ((left, 2), (center, 5), (right, 3)): split.add(frame, weight=weight)
@@ -125,6 +130,12 @@ class ConstructionEditor(ttk.Frame):
         ttk.Button(right, text='SCOM の値・ANGL を編集', command=self.open_scom).pack(fill='x', pady=8)
         ttk.Label(right, text='読み取り専用。点・形状の定義には保存されません。\n設計側のコンテキストを推測せず、未設定参照は計算不可と表示します。', style='Muted.TLabel', wraplength=310).pack(anchor='w')
 
+    def assign_preset(self,_=None):
+        if self.busy or not self.definition():return
+        try:presets.bind(self.data,self.definition(),self.preset_options[self.preset_choice.get()])
+        except ValueError as exc:self.validation_note.configure(text=str(exc));self.refresh();return
+        self.host.mark();self.refresh()
+
     def populate_library(self):
         items = schema.TYPES_BY_SET[self.kind]
         if self.kind == 'GMSET' and self.negative.get(): items = schema.NEGATIVE_BASE
@@ -142,6 +153,10 @@ class ConstructionEditor(ttk.Frame):
         self.def_choice.set(d['name'] if d else '')
         self.def_name.set(d['name'] if d else '')
         self.elements.delete(*self.elements.get_children())
+        self.preset_options=presets.choices(self.data)
+        current=presets.selected_id(self.data,self.definition()) if self.definition() else ''
+        if current and current not in self.preset_options.values():self.preset_options['参照先不明：'+current]=current
+        self.preset_choice['values']=list(self.preset_options);self.preset_choice.set(presets.label(self.data,self.definition()) if self.definition() else '')
         if d:
             self.host.definition_id = d['id']
             def insert(items,parent=''):
@@ -254,11 +269,12 @@ class ConstructionEditor(ttk.Frame):
         elif key in ('PAXI','PAAX','PBAX','PCAX','PLAXI','PTCDIR','PTCPOS','PTSPOS','PTEPOS','PTS','DESC','PURP','PSKEY','GTYP','PKEY'):
             text='原文を保持。複合方向・位置式の座標計算は未対応です。' if key in ('PAXI','PAAX','PBAX','PCAX','PLAXI','PTCDIR','PTCPOS','PTSPOS','PTEPOS') else schema.meaning(e['type'],key)
         elif not expr.strip(): text='未入力'
-        elif key=='PCON' and expr.isidentifier() and expr not in {p['role'] for p in self.data['parameters']} and expr.upper() not in ('PARAM','PARA','ANGL'):text='固定の接続コード：'+expr
+        elif key=='PCON' and expr.isidentifier() and expr not in {p['role'] for p in presets.rules(self.data,self.definition())} and expr.upper() not in ('PARAM','PARA','ANGL'):text='固定の接続コード：'+expr
         else:
             try:
                 scom=project.get(self.data,'scoms',self.preview_scom_id)
-                value=expressions.evaluate(expr,expressions.contexts_for(scom or {}),(scom or {}).get('component_attrs',{}),self.data['parameters'])
+                if scom:presets.require_compatible(self.data,scom,self.definition())
+                value=expressions.evaluate(expr,expressions.contexts_for(scom or {}),(scom or {}).get('component_attrs',{}),presets.rules(self.data,self.definition()))
                 text='確認結果：' + str(value) + ('（選択 SCOM）' if scom else '（定数）')
             except ValueError as exc: text=str(exc)
         self.validation_note.configure(text=text)
@@ -300,8 +316,8 @@ class ConstructionEditor(ttk.Frame):
     def update_role(self):
         kind = self.ref_kind.get()
         pid = 'P' + self.ref_number.get()
-        param = project.get(self.data, 'parameters', pid) if kind == 'PARAM' else None
-        self.role_label.configure(text=schema.REFERENCE_LABELS.get(kind, kind) + ' / 役割：' + (param['role'] if param else self.data.get('reference_roles',{}).get(kind,{}).get(pid,'未設定（参照種類ごとに区別）')))
+        param = next((p for p in presets.rules(self.data,self.definition()) if p['id']==pid),None) if kind == 'PARAM' else None
+        self.role_label.configure(text=schema.REFERENCE_LABELS.get(kind, kind) + ' / 役割：' + ((param.get('description') or param['role']) if param else presets.reference_roles(self.data,self.definition()).get(kind,{}).get(pid,'未設定（参照種類ごとに区別）')))
 
     def commit_name(self):
         d = self.definition()
@@ -320,6 +336,7 @@ class ConstructionEditor(ttk.Frame):
             if any(d['name'] == name for d in self.data['definitions']): raise ValueError('定義名が重複しています。')
             if len(self.data['definitions']) >= 1000: raise ValueError('定義数の上限です。')
             d = {'id': uuid.uuid4().hex, 'name': name, 'kind': self.kind, 'revision': '01', 'elements': []}
+            presets.stamp(self.data,d)
             self.data['definitions'].append(d); self.host.definition_id = d['id']
         self.host.form(self.kind + ' を追加', [('name', '定義名', '/NEW-' + self.kind, None)], apply)
 
@@ -372,7 +389,7 @@ class ConstructionEditor(ttk.Frame):
 
     def refresh_values(self):
         s = project.get(self.data, 'scoms', self.preview_scom_id)
-        self.values_label.configure(text=('読み取り専用 / ' + s['name'] + '\n\n' + '\n'.join(p['id'] + ' ' + p['role'] + '：' + str(s['values'].get(p['id'], '未入力')) + ' ' + p.get('unit', '') for p in self.data['parameters'][:6])) if s else '確認用 SCOM を選択してください。')
+        self.values_label.configure(text=('読み取り専用 / ' + s['name'] + '\n'+presets.label(self.data,s)+'\n\n' + '\n'.join(p['id'] + ' ' + presets.caption(p) + '：' + str(s['values'].get(p['id'], '未入力')) + ' ' + p.get('unit', '') for p in presets.rules(self.data,s)[:6])) if s else '確認用 SCOM を選択してください。')
 
     def open_scom(self):
         s = project.get(self.data, 'scoms', self.preview_scom_id)
@@ -420,7 +437,7 @@ class ConstructionEditor(ttk.Frame):
     def normalize_expression(self):
         e=self.element()
         if not e or not self.field or self.section == 'extra': return
-        try: value=expressions.normalized(self.expression.get(),self.data['parameters'])
+        try: value=expressions.normalized(self.expression.get(),presets.rules(self.data,self.definition()))
         except ValueError as exc: self.validation_note.configure(text=str(exc));return
         e.setdefault('expression_sources',{}).setdefault(self.field,self.expression.get())
         self.expression.set(value)

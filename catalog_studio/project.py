@@ -12,7 +12,7 @@ import re
 import uuid
 from pathlib import Path
 
-from . import model, element_schema, expressions, catalogue
+from . import model, element_schema, expressions, catalogue, presets
 
 FORMAT = 'catalog-studio-integrated'
 VERSION = 2
@@ -110,6 +110,22 @@ def validate_elements(elements, depth=0, identifiers=None):
         validate_elements(element.get('children',[]),depth+1,identifiers)
 
 
+def validate_parameters(parameters):
+    _records(parameters,'パラメータ',('role','unit'),LIMITS['parameters'])
+    roles=set()
+    for p in parameters:
+        if not re.fullmatch(r'P[1-9]\d*',p['id']) or not model.valid_role(p['role']) or p['role'] in roles or 'value' in p:raise ValueError('パラメータ番号・役割を確認してください。値は SCOM に保存します。')
+        if p.get('value_type','number') not in ('number','word'):raise ValueError('パラメータの値型を確認してください。')
+        if 'description' in p and not isinstance(p['description'],str):raise ValueError('日本語説明は文字列です。')
+        roles.add(p['role'])
+
+
+def validate_reference_roles(reference_roles):
+    if not isinstance(reference_roles,dict):raise ValueError('参照種類の役割は辞書です。')
+    for family,roles in reference_roles.items():
+        if family not in expressions.FAMILIES or family=='PARAM' or not isinstance(roles,dict) or any(not isinstance(pid,str) or not re.fullmatch(r'P[1-9]\d*',pid) or not isinstance(role,str) for pid,role in roles.items()):raise ValueError('参照種類・番号・役割を確認してください。')
+
+
 def validate(data):
     """Validate storage structure, while allowing incomplete editing drafts.
 
@@ -120,18 +136,22 @@ def validate(data):
         raise ValueError('対応する統合プロジェクト JSON ではありません。')
     if not isinstance(data.get('name'), str):
         raise ValueError('プロジェクト名がありません。')
-    _records(data.get('parameters'), 'パラメータ', ('role', 'unit'), LIMITS['parameters'])
-    roles = set()
-    for p in data['parameters']:
-        if (not re.fullmatch(r'P[1-9]\d*', p['id']) or not model.valid_role(p['role'])
-                or p['role'] in roles or 'value' in p):
-            raise ValueError('パラメータ番号・役割を確認してください。実数値は SCOM に保存します。')
-        if p.get('value_type','number') not in ('number','word'): raise ValueError('パラメータの値型を確認してください。')
-        roles.add(p['role'])
-    reference_roles=data.get('reference_roles',{})
-    if not isinstance(reference_roles,dict):raise ValueError('参照種類の役割は辞書です。')
-    for family,roles in reference_roles.items():
-        if family not in expressions.FAMILIES or family=='PARAM' or not isinstance(roles,dict) or any(not isinstance(pid,str) or not re.fullmatch(r'P[1-9]\d*',pid) or not isinstance(role,str) for pid,role in roles.items()):raise ValueError('参照種類・番号・役割を確認してください。')
+    validate_parameters(data.get('parameters'))
+    validate_reference_roles(data.get('reference_roles',{}))
+    _records(data.get('parameter_presets',[]),'PARAM プリセット',('name','period','component','description'),1000)
+    preset_names=set()
+    for preset in data.get('parameter_presets',[]):
+        if not preset['name'].strip() or preset['name']=='既存規則（従来データ）' or preset['name'].casefold() in preset_names:raise ValueError('プリセット名が空か重複しています。')
+        preset_names.add(preset['name'].casefold())
+        validate_parameters(preset.get('parameters'))
+        validate_reference_roles(preset.get('reference_roles',{}))
+    active=data.get('active_parameter_preset_id','')
+    if not isinstance(active,str) or (active and not presets.get(data,active)):raise ValueError('新規作成用のプリセットが見つかりません。')
+    for collection in ('scoms','definitions'):
+        records=data.get(collection,[])
+        if not isinstance(records,list):continue
+        for record in records:
+            if isinstance(record,dict) and not isinstance(record.get('parameter_preset_id',''),str):raise ValueError('プリセットの参照は識別子です。')
     _records(data.get('cates'), 'CATE', ('name', 'description', 'revision'), LIMITS['cates'])
     _records(data.get('definitions'), '共通定義', ('name', 'kind', 'revision'), LIMITS['definitions'])
     for definition in data['definitions']:
@@ -151,7 +171,7 @@ def validate(data):
         if (not isinstance(scom.get('values'), dict) or
                 any(not isinstance(key, str) or not (_finite(value) or isinstance(value,str)) for key, value in scom['values'].items())):
             raise ValueError('SCOM のパラメータ値は有限の数値または文字列で保存してください。')
-        for param in data['parameters']:
+        for param in presets.rules(data,scom):
             if param['id'] in scom['values']:
                 v=scom['values'][param['id']]
                 if param.get('value_type','number') == 'number' and not _finite(v): raise ValueError(param['id'] + ' は有限の数値で保存してください。')
@@ -189,6 +209,7 @@ def validate(data):
         frozen={key:book.get(key) for key in ('parameters','cates','definitions','scoms','specs')}
         for collection in ('texts','tables'): frozen[collection]=book.get(collection,[])
         frozen['reference_roles']=book.get('reference_roles',{})
+        frozen['parameter_presets']=book.get('parameter_presets',[])
         frozen.update(format=FORMAT,version=VERSION,name=book['project_name'],books=[])
         validate(frozen)
     return data
@@ -205,7 +226,7 @@ def parameters_for(data, scom):
     if not scom:
         raise ValueError('表示する SCOM を選択してください。')
     parameters = []
-    for p in data['parameters']:
+    for p in presets.rules(data,scom):
         if p.get('value_type','number') == 'word': continue
         if p['id'] not in scom['values']:
             raise ValueError(scom['name'] + '：' + p['id'] + ' ' + p['role'] + 'の実数値がありません。')
@@ -242,13 +263,13 @@ def add_cate(data, name=None):
 
 
 def add_scom(data, cate_id=None, name=None):
-    gm = next((d for d in data['definitions'] if d['kind'] == 'GMSET'), None)
-    pt = next((d for d in data['definitions'] if d['kind'] == 'PTSET'), None)
-    return _append(data, 'scoms', {
+    gm = next((d for d in data['definitions'] if d['kind'] == 'GMSET' and presets.selected_id(data,d)==presets.selected_id(data)), None)
+    pt = next((d for d in data['definitions'] if d['kind'] == 'PTSET' and presets.selected_id(data,d)==presets.selected_id(data)), None)
+    return presets.stamp(data,_append(data, 'scoms', {
         'id': _id(), 'name': _name(data['scoms'], name or '/NEW-SCOM'),
         'cate_id': cate_id if cate_id is not None else (data['cates'][0]['id'] if data['cates'] else ''),
         'size': '', 'revision': '01', 'gmset_id': gm['id'] if gm else '',
-        'ptset_id': pt['id'] if pt else '', 'values': {}})
+        'ptset_id': pt['id'] if pt else '', 'values': {}}))
 
 
 def _role(data, names, fallback_index=0):
@@ -271,6 +292,7 @@ def add_element(data, definition, kind):
         raise ValueError('形状は GMSET、ポイントは PTSET に追加してください。')
     if len(definition['elements']) >= 200:
         raise ValueError('要素数は最大 200 です。')
+    data={**data,'parameters':presets.rules(data,definition)}
     outer = _role(data, ('外径', '大径側外径', '幅'))
     inner = _role(data, ('小径側外径', '奥行き'), 1)
     length = _role(data, ('全長', '長さ', '高さ'), 2)
@@ -292,6 +314,8 @@ def add_definition(data, kind='GMSET', name=None):
     definition = _append(data, 'definitions', {
         'id': _id(), 'name': _name(data['definitions'], name or '/NEW-' + kind),
         'kind': kind, 'revision': '01', 'elements': []})
+    presets.stamp(data,definition)
+    dictionary={**data,'parameters':presets.rules(data,definition)}
     if kind == 'GMSET':
         add_element(data, definition, 'cone')
     else:
@@ -300,8 +324,8 @@ def add_definition(data, kind='GMSET', name=None):
         start['attrs']['方向'] = '-Z'
         end = add_element(data, definition, 'point')
         end['name'] = '接続点 2'
-        end['attrs']['位置'] = _role(data, ('全長', '長さ'), 2)
-        end['attrs']['接続口径'] = _role(data, ('小径側呼び径', '接続口径', '呼び径'), 1)
+        end['attrs']['位置'] = _role(dictionary, ('全長', '長さ'), 2)
+        end['attrs']['接続口径'] = _role(dictionary, ('小径側呼び径', '接続口径', '呼び径'), 1)
     return definition
 
 
@@ -319,7 +343,7 @@ def add_spec_entry(data, spec, scom_id=None):
         raise ValueError('SPEC の選択行数は最大 5000 です。')
     scom = get(data, 'scoms', scom_id) if scom_id else (data['scoms'][0] if data['scoms'] else None)
     def bore_value(roles):
-        parameter = next((p for p in data['parameters'] if p['role'] in roles), None)
+        parameter = next((p for p in presets.rules(data,scom) if p['role'] in roles), None)
         return str(scom['values'].get(parameter['id'], '')) if scom and parameter else ''
     # Numbers have catalogue-specific roles; do not assume P4/P5 are bores.
     bore1 = bore_value(('大径側呼び径', '呼び径', '接続口径'))
@@ -340,22 +364,8 @@ def duplicate_scom(data, scom):
     return _append(data, 'scoms', duplicate)
 
 
-def rename_parameter(data, pid, new_role):
-    if not model.valid_role(new_role) or any(p['id'] != pid and p['role'] == new_role for p in data['parameters']):
-        raise ValueError('役割名は重複や空白、演算記号を含めずに入力してください。')
-    parameter = get(data, 'parameters', pid)
-    if not parameter:
-        raise ValueError('変更するパラメータがありません。')
-    old = parameter['role']
-    for definition in data['definitions']:
-        for element in element_schema.walk(definition['elements']):
-            for key, value in element['attrs'].items():
-                literal_fields={'方向','PAXI','PAAX','PBAX','PCAX','PLAXI','PTCDIR','PTCD','DESC','PURP','PSKEY','GTYP','SKEY','NUMB','NAPP','PKEY','LEVEL','PTS','CLFLA','TUFLA','TVISI','BVISI','OBST'}
-                editable_fields=set(model.SCHEMAS.get(element['type'],('',()))[1]) | set(element_schema.fields(element['type']))
-                if isinstance(value,str) and key in editable_fields and key not in literal_fields:
-                    element['attrs'][key] = re.sub(
-                        r'[^\s+*/()\-]+', lambda match: new_role if match[0] == old else match[0], value)
-    parameter['role'] = new_role
+def rename_parameter(data,pid,new_role):
+    presets.rename(data,pid,new_role,'')
 
 
 def _expression_issue(expression, parameters):
@@ -395,7 +405,10 @@ def issues(data):
             else:
                 names[record['name'].casefold()] = collection
     for definition in data['definitions']:
-        result.extend(catalogue.definition_issues(definition,data['parameters']))
+        parameters=presets.rules(data,definition)
+        ident=presets.selected_id(data,definition)
+        if ident and not presets.get(data,ident):result.append(definition['name']+'：PARAM プリセットが見つかりません。')
+        result.extend(catalogue.definition_issues(definition,parameters))
         local_names = set()
         if not definition['elements']:
             result.append(definition['name'] + '：要素がありません。')
@@ -419,15 +432,18 @@ def issues(data):
                         result.append(prefix + '：方向が不正です。')
                 else:
                     try:
-                        _expression_issue(expr, data['parameters'])
+                        _expression_issue(expr, parameters)
                     except ValueError as exc:
                         result.append(prefix + ' / ' + attr + '：' + str(exc))
-    defined_ids = {p['id'] for p in data['parameters']}
     for scom in data['scoms']:
+        own_parameters=presets.rules(data,scom)
+        defined_ids={p['id'] for p in own_parameters}
+        ident=presets.selected_id(data,scom)
+        if ident and not presets.get(data,ident):result.append(scom['name']+'：PARAM プリセットが見つかりません。')
         if not get(data, 'cates', scom['cate_id']):
             result.append(scom['name'] + '：所属 CATE が未選択または見つかりません。')
         for pid in sorted(defined_ids - scom['values'].keys()):
-            p = get(data, 'parameters', pid)
+            p = next(p for p in own_parameters if p['id']==pid)
             result.append(scom['name'] + '：' + pid + ' ' + p['role'] + 'の実数値がありません。')
         for pid in sorted(scom['values'].keys() - defined_ids):
             result.append(scom['name'] + '：未定義のパラメータ値：' + pid)
@@ -436,9 +452,12 @@ def issues(data):
             if not definition or definition['kind'] != kind:
                 result.append(scom['name'] + '：' + kind + 'の参照先が未選択または不正です。')
                 continue
-            result.extend(catalogue.definition_issues(definition,data['parameters'],scom))
+            try:presets.require_compatible(data,scom,definition)
+            except ValueError as exc:result.append(scom['name']+'：'+str(exc));continue
+            definition_parameters=presets.rules(data,definition)
+            result.extend(catalogue.definition_issues(definition,definition_parameters,scom))
             # Evaluate only with supplied values. Missing values remain missing.
-            parameters = [{**p, 'value': scom['values'][p['id']]} for p in data['parameters']
+            parameters = [{**p, 'value': scom['values'][p['id']]} for p in definition_parameters
                           if p['id'] in scom['values']]
             for e in definition['elements']:
                 if e['type'] not in model.SCHEMAS:
@@ -457,7 +476,10 @@ def issues(data):
             if not ident:continue
             definition=get(data,'definitions',ident)
             if not definition or definition['kind'] != kind:result.append(scom['name']+'：'+kind+' の参照が不正です。')
-            else:result.extend(catalogue.definition_issues(definition,data['parameters'],scom))
+            else:
+                try:presets.require_compatible(data,scom,definition)
+                except ValueError as exc:result.append(scom['name']+'：'+str(exc));continue
+                result.extend(catalogue.definition_issues(definition,presets.rules(data,definition),scom))
     for spec in data['specs']:
         selections = set()
         for entry in spec['entries']:
@@ -547,7 +569,8 @@ def macro_text(data):
             for key, kind in (('gmset_id', 'GMRE'), ('ptset_id', 'PTRE')):
                 definition = get(data, 'definitions', scom[key])
                 comment('    ' + kind + ' → ' + (definition['name'] if definition else '[未設定]'))
-            for p in data['parameters']:
+            comment('    PARAM 規則：'+presets.label(data,scom))
+            for p in presets.rules(data,scom):
                 comment('    ' + p['id'] + ' ' + p['role'] + ' = ' + str(scom['values'].get(p['id'], '[未入力]')))
     for definition in data['definitions']:
         comment(definition['kind'] + ' ' + definition['name'])

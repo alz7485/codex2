@@ -12,6 +12,7 @@ import math
 from pathlib import Path
 import uuid
 from xml.sax.saxutils import escape
+from . import presets
 
 JST = timezone(timedelta(hours=9), name="JST")
 
@@ -88,6 +89,10 @@ def snapshot(data, scom_ids=None, spec_ids=None, title="カタログ本", editio
     owners={r.get('parent_id') for r in book['texts']+book['tables']}
     for cate in data.get('cates',[]):
         if cate['id'] in owners and cate['id'] not in cate_ids:book['cates'].append(copy.deepcopy(cate))
+    used_presets={presets.selected_id(data,r) for key in ('scoms','definitions') for r in book[key]} - {''}
+    for ident in used_presets:
+        if not presets.get(data,ident):raise ValueError('掲載データの PARAM プリセットが見つかりません：'+ident)
+    book['parameter_presets']=copy.deepcopy([p for p in data.get('parameter_presets',[]) if p['id'] in used_presets])
     return book
 
 
@@ -192,25 +197,30 @@ def generate_pdf(book, path):
         story.extend([PageBreak(), p(cate.get("name", "CATE"), "h1"),
                       p(f"CATE　改訂：{cate.get('revision', '')}", "small"),
                       p(cate.get("description", "")), p("サイズ別寸法表", "h2")])
-        chunks = [parameters[n:n + 4] for n in range(0, len(parameters), 4)] or [[]]
-        for chunk in chunks:
-            header = ["SCOM", "呼び径", "改訂"] + [
-                f"{parameter['id']}\n{parameter.get('role', '')}\n{parameter.get('unit', '')}" for parameter in chunk]
-            rows = [header] + [[scom.get("name", ""), scom.get("size", ""), scom.get("revision", "")] + [
-                number(scom.get("values", {}).get(parameter["id"])) for parameter in chunk] for scom in members]
-            col_widths = [130, 55, 42]
-            if chunk:
-                col_widths += [(width - sum(col_widths)) / len(chunk)] * len(chunk)
-            else:
-                col_widths[0] += width - sum(col_widths)
-            story.extend([table(rows, col_widths), Spacer(1, 12)])
+        groups={}
+        for member in members:groups.setdefault(presets.selected_id(book,member),[]).append(member)
+        for ident,group in groups.items():
+            rules=presets.rules(book,group[0])
+            story.append(p('PARAM プリセット：'+presets.label(book,group[0]),'h2'))
+            chunks=[rules[n:n+4] for n in range(0,len(rules),4)] or [[]]
+            for chunk in chunks:
+                header=['SCOM','呼び径','改訂']+[f"{parameter['id']}\n{parameter.get('role','')}\n{parameter.get('unit','')}" for parameter in chunk]
+                rows=[header]+[[scom.get('name',''),scom.get('size',''),scom.get('revision','')]+[number(scom.get('values',{}).get(parameter['id'])) for parameter in chunk] for scom in group]
+                col_widths=[130,55,42]
+                if chunk:col_widths += [(width-sum(col_widths))/len(chunk)]*len(chunk)
+                else:col_widths[0] += width-sum(col_widths)
+                story.extend([table(rows,col_widths),Spacer(1,12)])
         for scom in members:
             gmset = definitions.get(scom.get("gmset_id"), {})
             ptset = definitions.get(scom.get("ptset_id"), {})
+            preset_problem=''
+            try:
+                for d in (gmset,ptset):presets.require_compatible(book,scom,d)
+            except ValueError as exc:preset_problem=str(exc)
             summary = [p(f"{scom.get('name', '')}　／　{ scom.get('size', '')}", "h2"),
                        p(f"GMSET：{gmset.get('name', '')}（改訂 {gmset.get('revision', '')}）\n"
                          f"PTSET：{ptset.get('name', '')}（改訂 {ptset.get('revision', '')}）", "small"),
-                       _schematic(scom, gmset, ptset, parameters, font, width)]
+                       _schematic(scom, gmset, ptset, presets.rules(book,scom), font, width,preset_problem)]
             story.extend([KeepTogether(summary), Spacer(1, 8)])
     for spec in specs:
         story.extend([PageBreak(), p(spec.get("name", "SPEC"), "h1"),
@@ -225,15 +235,24 @@ def generate_pdf(book, path):
     if definitions:
         story.extend([PageBreak(), p("共通定義とパラメータ", "h1"),
                       p("GMSET・PTSET は式として保存し、実数値は SCOM の寸法表に掲載しています。")])
-        rows = [["番号", "役割", "単位"]] + [[parameter["id"], parameter.get("role", ""),
+        story.append(p("既存規則（従来データ）", "h2"))
+        rows = [["番号", "役割・日本語説明", "単位"]] + [[parameter["id"], presets.caption(parameter),
                                                      parameter.get("unit", "")] for parameter in parameters]
         story.append(table(rows, [65, width - 130, 65]))
         if book.get('reference_roles'):
             story.append(table([['参照種類','番号','役割']]+[[family,pid,role] for family,roles in book['reference_roles'].items() for pid,role in roles.items()],[120,60,width-180]))
+        for preset in book.get('parameter_presets',[]):
+            story.append(p('PARAM プリセット：'+preset['name'],'h2'))
+            story.append(p('登録時期：'+preset['period']+' / コンポーネント：'+preset['component'],'small'))
+            story.append(p(preset['description']))
+            rows=[['番号','表示名・日本語説明','単位・値型']]+[[r['id'],r['role']+'\n'+r.get('description',''),r['unit']+' / '+r.get('value_type','number')] for r in preset['parameters']]
+            story.append(table(rows,[65,width-160,95]))
+            if preset.get('reference_roles'):story.append(table([['参照種類','番号','役割']]+[[family,pid,role] for family,roles in preset['reference_roles'].items() for pid,role in roles.items()],[120,60,width-180]))
         for definition in definitions.values():
             story.extend([p(definition.get("name", ""), "h2"),
                           p(f"{definition.get('kind', '')}　／　改訂：{definition.get('revision', '')}", "small")])
             from . import element_schema
+            story.append(p('PARAM プリセット：'+presets.label(book,definition),'small'))
             rows = [["要素 / 種類", "属性・役割", "設定式・値"]]
             for key,value in definition.get('attrs',{}).items():rows.append(['セットの親属性',key,value])
             for element in element_schema.walk(definition.get("elements", [])):
@@ -284,7 +303,7 @@ def generate_pdf(book, path):
     return path
 
 
-def _schematic(scom, gmset, ptset, parameters, font, width):
+def _schematic(scom, gmset, ptset, parameters, font, width,preset_problem=''):
     """A deliberately labelled axial schematic, evaluated with this SCOM only."""
     from reportlab.graphics.shapes import Drawing, Line, Polygon, Rect, Circle, String
     from reportlab.lib import colors
@@ -300,7 +319,7 @@ def _schematic(scom, gmset, ptset, parameters, font, width):
     numerical_parameters = [dict(parameter, value=values[parameter["id"]])
                             for parameter in parameters if parameter["id"] in values]
     shapes, points = [], []
-    errors = []
+    errors = [preset_problem] if preset_problem else []
 
     def value(element, key):
         attrs = element.get("attrs", {})
