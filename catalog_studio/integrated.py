@@ -16,7 +16,7 @@ BLUE = '#2269de'
 NAVY = '#233951'
 BG = '#f3f6fa'
 MUTED = '#738499'
-PAGES = [('catalog', 'カタログ構成'), ('definitions', 'GMSET・PTSET'), ('specs', 'SPEC 登録'), ('books', 'カタログ本・PDF'), ('rules', 'パラメータ規則'), ('checks', '確認・マクロ')]
+PAGES = [('catalog', 'カタログ構成'), ('ptset', 'PTSET 作成'), ('gmset', 'GMSET 作成'), ('specs', 'SPEC 登録'), ('books', 'カタログ本・PDF'), ('rules', 'パラメータ規則'), ('checks', '確認・マクロ')]
 
 
 class Preview:
@@ -86,9 +86,12 @@ class IntegratedStudio(tk.Tk):
         self.style.configure('Treeview',rowheight=31,background='white',fieldbackground='white')
         self.style.configure('Treeview.Heading',background='#edf3fa',padding=7)
         self.style.map('Treeview',background=[('selected','#e5efff')],foreground=[('selected',BLUE)])
-        self.data=project.sample();self.path=None;self.dirty=False;self.page='catalog';self.busy=False
+        self.data=project.sample()
+        from .element_schema import demo_definitions
+        self.data['definitions'].extend(demo_definitions())
+        self.path=None;self.dirty=False;self.page='ptset';self.busy=False
         self.cate_id=self.data['cates'][0]['id'];self.scom_id=self.data['scoms'][0]['id']
-        self.definition_id=self.data['definitions'][0]['id'];self.spec_id=self.data['specs'][0]['id']
+        self.definition_id='ui-ptset';self.spec_id=self.data['specs'][0]['id']
         self.element_id=None;self.selected_book=None;self.field=None;self.preview=None
         self.build_shell();self.render_page()
         self.protocol('WM_DELETE_WINDOW',self.close)
@@ -355,7 +358,15 @@ class IntegratedStudio(tk.Tk):
 
     def goto_definition(self,key):
         s=project.get(self.data,'scoms',self.scom_id)
-        if s and s.get(key):self.definition_id=s[key];self.switch('definitions')
+        if s and s.get(key):self.definition_id=s[key];self.switch('gmset' if key=='gmset_id' else 'ptset')
+
+    def build_ptset(self):
+        from .construction_ui import ConstructionEditor
+        self.geometry_editor=ConstructionEditor(self,'PTSET')
+
+    def build_gmset(self):
+        from .construction_ui import ConstructionEditor
+        self.geometry_editor=ConstructionEditor(self,'GMSET')
 
     def build_definitions(self):
         self.heading('GMSET・PTSET の共通定義','パラメータの役割を選び、式で定義します。実数値は選択 SCOM から読み取り専用で使用します。',[('定義を追加',self.add_definition),('定義情報',self.edit_definition_info)])
@@ -411,6 +422,9 @@ class IntegratedStudio(tk.Tk):
     def definition(self):return project.get(self.data,'definitions',self.definition_id)
     def element(self):return next((e for e in (self.definition() or {}).get('elements',[]) if e['id']==self.element_id),None)
     def commit_definition_name(self):
+        if self.page in ('ptset','gmset') and hasattr(self,'geometry_editor') and self.geometry_editor.winfo_exists():
+            self.geometry_editor.commit_name()
+            return
         if self.page!='definitions' or not hasattr(self,'def_name_entry') or not self.def_name_entry.winfo_exists():return
         d=self.definition();name=self.def_name.get().strip()
         if not d or name==d['name']:return

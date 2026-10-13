@@ -1,0 +1,343 @@
+{
+  "format": "catalog-studio-integrated",
+  "version": 2,
+  "name": "配管カタログ管理",
+  "parameters": [
+    {
+      "id": "P1",
+      "role": "大径側外径",
+      "unit": "mm"
+    },
+    {
+      "id": "P2",
+      "role": "小径側外径",
+      "unit": "mm"
+    },
+    {
+      "id": "P3",
+      "role": "全長",
+      "unit": "mm"
+    },
+    {
+      "id": "P4",
+      "role": "大径側呼び径",
+      "unit": "mm"
+    },
+    {
+      "id": "P5",
+      "role": "小径側呼び径",
+      "unit": "mm"
+    }
+  ],
+  "cates": [
+    {
+      "id": "cate-reducer",
+      "name": "/REDUCER-CATE",
+      "description": "同心レデューサー（モックアップ参考値）",
+      "revision": "01"
+    }
+  ],
+  "definitions": [
+    {
+      "id": "gm-reducer",
+      "name": "/REDUCER-GEOM",
+      "kind": "GMSET",
+      "revision": "01",
+      "elements": [
+        {
+          "id": "cone-body",
+          "type": "cone",
+          "name": "円錐台 本体",
+          "attrs": {
+            "大径": "大径側外径",
+            "小径": "小径側外径",
+            "長さ": "全長",
+            "位置": "全長 / 2",
+            "方向": "Z"
+          }
+        }
+      ]
+    },
+    {
+      "id": "pt-reducer",
+      "name": "/REDUCER-POINTS",
+      "kind": "PTSET",
+      "revision": "01",
+      "elements": [
+        {
+          "id": "point-large",
+          "type": "point",
+          "name": "接続点 1",
+          "attrs": {
+            "位置": "0",
+            "方向": "-Z",
+            "接続口径": "大径側呼び径"
+          }
+        },
+        {
+          "id": "point-small",
+          "type": "point",
+          "name": "接続点 2",
+          "attrs": {
+            "位置": "全長",
+            "方向": "Z",
+            "接続口径": "小径側呼び径"
+          }
+        }
+      ]
+    },
+    {
+      "id": "ui-ptset",
+      "kind": "PTSET",
+      "name": "/UI-POINTS",
+      "revision": "01",
+      "elements": [
+        {
+          "id": "20db00e38a7944db897db10b3a53730d",
+          "type": "PTAXI",
+          "name": "接続点 1",
+          "attrs": {
+            "NUMB": "1",
+            "PCON": "PARAM[5]",
+            "PBOR": "PARAM[1]",
+            "PAXI": "-X",
+            "PDIS": "PARAM[2] + 1.5 + DES PARAM[2]",
+            "PSKEY": "unset",
+            "DESC": "unset",
+            "PURP": "unset"
+          }
+        },
+        {
+          "id": "ac7df623bd544bcbad8a3ca5e91ba5fe",
+          "type": "PTCAR",
+          "name": "接続点 2",
+          "attrs": {
+            "NUMB": "2",
+            "PCON": "PARAM[5]",
+            "PBOR": "PARAM[1]",
+            "PX": "0",
+            "PY": "0.5 * APARAM[3]",
+            "PZ": "0",
+            "PTCDIR": "X",
+            "PSKEY": "unset",
+            "DESC": "unset",
+            "PURP": "unset"
+          }
+        },
+        {
+          "id": "6ffd5f903d15404c9d05ba5111ffadae",
+          "type": "PTMIX",
+          "name": "補助点",
+          "attrs": {
+            "NUMB": "3",
+            "PCON": "PARAM[5]",
+            "PBOR": "PARAM[1]",
+            "PX": "0",
+            "PY": "0",
+            "PZ": "0",
+            "PAXI": "X",
+            "PSKEY": "unset",
+            "DESC": "unset",
+            "PURP": "unset"
+          }
+        },
+        {
+          "id": "531bb3dc350f44ab88e2e9b3ce53d3d1",
+          "type": "PTPOS",
+          "name": "基準点",
+          "attrs": {
+            "NUMB": "4",
+            "PCON": "PARAM[5]",
+            "PBOR": "PARAM[1]",
+            "PTCPOS": "",
+            "PTCDIR": "X",
+            "PSKEY": "unset",
+            "DESC": "unset",
+            "PURP": "unset"
+          }
+        }
+      ]
+    },
+    {
+      "id": "ui-gmset",
+      "kind": "GMSET",
+      "name": "/UI-GEOMETRY",
+      "revision": "01",
+      "elements": [
+        {
+          "id": "0f9f2999197340fe99afb0b807b5d090",
+          "type": "SCYL",
+          "name": "胴部",
+          "attrs": {
+            "PAXI": "X",
+            "PHEI": "PARAM[3]",
+            "PDIA": "PARAM[1]",
+            "PDIS": "PARAM[2]",
+            "TVISI": "",
+            "BVISI": "",
+            "LEVEL": "",
+            "CLFLA": "",
+            "TUFLA": "",
+            "OBST": "2",
+            "DESC": "",
+            "GTYP": "",
+            "PURP": ""
+          }
+        },
+        {
+          "id": "4cdea5ece01447e989c4c852ea76b455",
+          "type": "SCYL",
+          "name": "フランジ",
+          "attrs": {
+            "PAXI": "X",
+            "PHEI": "PARAM[3]",
+            "PDIA": "PARAM[1]",
+            "PDIS": "PARAM[2]",
+            "TVISI": "",
+            "BVISI": "",
+            "LEVEL": "",
+            "CLFLA": "",
+            "TUFLA": "",
+            "OBST": "",
+            "DESC": "",
+            "GTYP": "",
+            "PURP": ""
+          }
+        },
+        {
+          "id": "df398019fdaf4d00b3bb41dd38157b00",
+          "type": "SBOX",
+          "name": "補助形状",
+          "attrs": {
+            "PXLE": "",
+            "PYLE": "",
+            "PZLE": "",
+            "PX": "",
+            "PY": "",
+            "PZ": "",
+            "LEVEL": "",
+            "CLFLA": "",
+            "TUFLA": "",
+            "OBST": "",
+            "DESC": "",
+            "GTYP": "",
+            "PURP": ""
+          }
+        },
+        {
+          "id": "b432543035884239920a1e5bd84389d0",
+          "type": "NSCY",
+          "name": "切り欠き",
+          "attrs": {
+            "PAXI": "X",
+            "PHEI": "PARAM[3]",
+            "PDIA": "PARAM[1]",
+            "PDIS": "PARAM[2]",
+            "TVISI": "",
+            "BVISI": "",
+            "LEVEL": "",
+            "CLFLA": "",
+            "TUFLA": "",
+            "OBST": "",
+            "DESC": "",
+            "GTYP": "",
+            "PURP": "",
+            "PJOI": "",
+            "SJOI": "",
+            "SUBJ": "",
+            "SCOJ": "",
+            "PFIT": "",
+            "COFI": "",
+            "FITT": "",
+            "FIXI": ""
+          }
+        }
+      ]
+    }
+  ],
+  "scoms": [
+    {
+      "id": "scom-65-40",
+      "name": "/REDUCER-65X40",
+      "cate_id": "cate-reducer",
+      "size": "65 × 40",
+      "revision": "01",
+      "gmset_id": "gm-reducer",
+      "ptset_id": "pt-reducer",
+      "values": {
+        "P1": 76.3,
+        "P2": 48.6,
+        "P3": 89,
+        "P4": 65,
+        "P5": 40
+      }
+    },
+    {
+      "id": "scom-80-50",
+      "name": "/REDUCER-80X50",
+      "cate_id": "cate-reducer",
+      "size": "80 × 50",
+      "revision": "01",
+      "gmset_id": "gm-reducer",
+      "ptset_id": "pt-reducer",
+      "values": {
+        "P1": 89.1,
+        "P2": 60.5,
+        "P3": 89,
+        "P4": 80,
+        "P5": 50
+      }
+    },
+    {
+      "id": "scom-100-65",
+      "name": "/REDUCER-100X65",
+      "cate_id": "cate-reducer",
+      "size": "100 × 65",
+      "revision": "01",
+      "gmset_id": "gm-reducer",
+      "ptset_id": "pt-reducer",
+      "values": {
+        "P1": 114.3,
+        "P2": 76.3,
+        "P3": 102,
+        "P4": 100,
+        "P5": 65
+      }
+    }
+  ],
+  "specs": [
+    {
+      "id": "spec-cs150",
+      "name": "/CS-150-SPEC",
+      "description": "炭素鋼クラスの選択表（仮データ・E3D選択構文は未検証）",
+      "revision": "01",
+      "entries": [
+        {
+          "id": "entry-65-40",
+          "type": "REDU",
+          "bore1": "65",
+          "bore2": "40",
+          "scom_id": "scom-65-40",
+          "description": "同心レデューサー"
+        },
+        {
+          "id": "entry-80-50",
+          "type": "REDU",
+          "bore1": "80",
+          "bore2": "50",
+          "scom_id": "scom-80-50",
+          "description": "同心レデューサー"
+        },
+        {
+          "id": "entry-100-65",
+          "type": "REDU",
+          "bore1": "100",
+          "bore2": "65",
+          "scom_id": "scom-100-65",
+          "description": "同心レデューサー"
+        }
+      ]
+    }
+  ],
+  "books": []
+}

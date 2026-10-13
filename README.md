@@ -4,6 +4,26 @@ Python デスクトップ上で **CATE・SCOM / GMSET・PTSET / SPEC / カタロ
 
 **実数値は SCOM に保存します。GMSET・PTSET は共通の要素・パラメータ参照・式として保持します。SPEC は SCOM を参照する仮の選択表です。**
 
+## 今回追加した PTSET・GMSET 作成画面
+
+起動時は新しい PTSET 作成画面を表示します。左メニューで GMSET 作成に切り替えられます。要素ライブラリから追加し、属性行を選んで値・原文式を編集できます。
+
+- PTSET：PTAXI、PTCAR、PTMIX、PTPOS。PSKEY・DESC・PURP は詳細タブにまとめ、新規作成時は unset。
+- GMSET：ユーザー提供のポジティブ18種類・ネガティブ15種類。固有属性・共通属性・ネガティブ属性を別タブで編集。
+- OBST は 0 対象外／1 ソフト／2 ハード。未設定・元の値も保持。
+- PARAM／IPARAM／APARAM／OPARAM／DES PARAM／DES APARAM／DES OPARAM の参照挿入。参照番号・役割を併記。
+- 原文の式、TIMES、TAN、複合方向表記もテキストとして編集・保存できます。**計算・変換は未対応**です。
+- PTCD は PTCDIR と同じとして表示し、元の属性名を保存します。
+- 要素型を変更しても元の属性と履歴を保持。追加属性は読み取り専用タブで確認可能。
+- 右側は**寸法・式・方向を反映しない構成模式図**です。SCOM の値は別欄で読み取り専用表示します。
+- ネガティブとポジティブの対応属性は UI 用の仮配置で、NSRU の固有属性は未確認です。
+
+![PTSET 作成画面](docs/ptset-create.png)
+
+![GMSET 作成画面](docs/gmset-create.png)
+
+これまでの共通定義編集画面は旧データ用にコード内へ残しています。SCOM から参照定義を開く操作は新画面へ移動します。初回の新しい作成例は /UI-POINTS と /UI-GEOMETRY で、元のサンプル SCOM とは未連携です。
+
 ## ダウンロードと起動
 
 [統合版 ZIP をダウンロード](https://github.com/alz7485/codex2/raw/refs/heads/main/catalog-studio-integrated.zip)して展開してください。
@@ -94,16 +114,22 @@ CATA は一つのプロジェクト表示、CATE はその下の管理単位と�
 
 Windows/macOS の実機起動は未確認です。開発環境の Tk 8.6 と Tk 9.0、および仮想ディスプレイ上で GUI 操作を確認しています。
 
+## onedir EXE 化
+
+Windows 用の `build_onedir.bat` と [手動コマンド・配布手順](BUILD_ONEDIR.md)を同梱しています。ビルド後は `dist\CatalogStudio\CatalogStudio.exe` を起動します。配布する場合は、そのフォルダー全体が必要です。Windows EXE 自体は未ビルド・未同梱です。
+
 ## 開発・検証
 
 ```sh
 python -m unittest discover -s tests -v
 ```
 
-PDF の内容検証にはテスト用に `pypdf` を使います。未インストールの場合 PDF 内容のテストはスキップします。GUI テストは表示が使える場合のみ実行します。開発環境では GUI・PDF を含む37件が成功しています。
+PDF の内容検証にはテスト用に `pypdf` を使います。未インストールの場合 PDF 内容のテストはスキップします。GUI テストは表示が使える場合のみ実行します。開発環境では GUI・PDF を含む44件が成功しています。
 
 - `catalog_studio/integrated.py`：統合画面
 - `catalog_studio/project.py`：統合データ・参照・保存・旧形式移行
 - `catalog_studio/booklet.py`：改訂固定・PDF
 - `catalog_studio/model.py`：式解析
 - `catalog_studio/app.py` / `index.html`：以前のモックアップ資料
+
+新画面の実装：`catalog_studio/construction_ui.py`、要素と属性一覧：`catalog_studio/element_schema.py`。提供いただいた仕様を基にした UI のがわで、実機用の登録マクロは生成しません。

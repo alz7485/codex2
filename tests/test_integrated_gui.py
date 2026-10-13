@@ -17,7 +17,7 @@ class IntegratedGuiTests(unittest.TestCase):
     def test_pages_expression_spec_link_and_empty_project(self):
         app=self.app
         for page,_ in PAGES:app.switch(page);app.update()
-        app.switch('definitions');app.field='長さ';app.populate_attrs();app.update()
+        app.definition_id=app.data['definitions'][0]['id'];app.switch('definitions');app.field='長さ';app.populate_attrs();app.update()
         app.formula.set('全長 / 2 + 3');app.update()
         self.assertIn('47.5',app.formula_result.cget('text'))
         app.formula.set('全長 / 0');app.update();self.assertIn('ゼロ',app.formula_result.cget('text'))
@@ -37,7 +37,7 @@ class IntegratedGuiTests(unittest.TestCase):
     def test_unknown_element_readonly_and_cate_follows_preview_scom(self):
         app=self.app;definition=app.data['definitions'][0]
         definition['elements'].append({'id':'future','type':'future','name':'原文','attrs':{'RAW':'未知の式'}})
-        app.switch('definitions');app.update();app.element_table.selection_set('future');app.update()
+        app.definition_id=definition['id'];app.switch('definitions');app.update();app.element_table.selection_set('future');app.update()
         self.assertEqual(str(app.formula_entry.cget('state')),'readonly')
         self.assertIn('未対応',app.preview.message)
         newcate=project.add_cate(app.data)
