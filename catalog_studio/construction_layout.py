@@ -13,7 +13,7 @@ def build_simple(editor):
 
     top = ttk.Frame(e)
     top.pack(fill='x', pady=(0, 16))
-    ttk.Label(top, text=('1. PTSET' if point else '2. GMSET'), style='Heading.TLabel').pack(side='left')
+    ttk.Label(top, text=e.kind, style='Heading.TLabel').pack(side='left')
     ttk.Label(top, text='ポイントを作成' if point else '形状を作成', style='Muted.TLabel').pack(side='left', padx=12)
     e.new_set_button = ttk.Button(top, text='新しい ' + e.kind + ' を作る', command=e.add_definition)
     e.new_set_button.pack(side='right')
@@ -52,13 +52,6 @@ def build_simple(editor):
     e.element_details = ttk.Label(e.settings_frame, text='', style='Muted.TLabel', wraplength=1000)
     e.element_details.pack(anchor='w', fill='x', pady=(8, 0))
     e.element_details.bind('<Configure>', lambda event: e.element_details.configure(wraplength=max(160, event.width - 8)))
-
-    footer = ttk.Frame(e)
-    footer.pack(side='bottom', fill='x', pady=(12, 0))
-    e.workflow_label = ttk.Label(footer, text='', style='Muted.TLabel')
-    e.workflow_label.pack(side='left')
-    e.create_part_button = ttk.Button(footer, text='次へ：GMSET を作成 →' if point else '次へ：SCOM を登録 →', command=e.create_part)
-    e.create_part_button.pack(side='right')
 
     e.main_split = ttk.Panedwindow(e, orient='horizontal')
     e.main_split.pack(fill='both', expand=True)

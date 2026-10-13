@@ -16,7 +16,7 @@ BLUE = '#2269de'
 NAVY = '#233951'
 BG = '#f3f6fa'
 MUTED = '#738499'
-PAGES = [('ptset', '1. PTSET 作成'), ('gmset', '2. GMSET 作成'), ('catalog', '3. SCOM 登録'), ('specs', '4. スペック登録'), ('structural', '構造材・NGMSET'), ('texts','説明・材質'), ('tables','共通テーブル'), ('books', 'カタログ本・PDF'), ('rules', 'PARAM プリセット'), ('checks', '確認・マクロ')]
+PAGES = [('ptset', 'PTSET 作成'), ('gmset', 'GMSET 作成'), ('catalog', 'SCOM 登録'), ('specs', 'スペック登録'), ('structural', '構造材・NGMSET'), ('texts','説明・材質'), ('tables','共通テーブル'), ('books', 'カタログ本・PDF'), ('rules', 'PARAM プリセット'), ('checks', '確認・マクロ')]
 
 
 class Preview:
@@ -202,7 +202,7 @@ class IntegratedStudio(tk.Tk):
         return {item['name']:item['id'] for item in self.data[collection] if kind is None or item.get('kind')==kind}
 
     def build_catalog(self):
-        self.heading('3. SCOM 登録 / CATE・SCOM','SCOM のパラメータ値を入力し、形状・ポイント定義へ結び付けます。', [('SCOM を追加',self.add_scom),('CATE を追加',self.add_cate),('次へ：スペック登録',self.component_to_spec)])
+        self.heading('SCOM 登録 / CATE・SCOM','SCOM のパラメータ値を入力し、形状・ポイント定義へ結び付けます。', [('SCOM を追加',self.add_scom),('CATE を追加',self.add_cate)])
         split=ttk.Panedwindow(self.content,orient='horizontal');split.pack(fill='both',expand=True)
         left=ttk.Frame(split,padding=8);middle=ttk.Frame(split,padding=10);right=ttk.Frame(split,padding=10)
         split.add(left,weight=1);split.add(middle,weight=4);split.add(right,weight=2)
@@ -445,7 +445,7 @@ class IntegratedStudio(tk.Tk):
         pt=project.get(self.data,'definitions',draft.get('ptset_id'))
         if not pt or pt['kind']!='PTSET':
             options=self.choices('definitions','PTSET')
-            if not options:messagebox.showinfo('PTSET が必要','1. PTSET 作成でポイントを登録してください。',parent=self);self.switch('ptset');return
+            if not options:messagebox.showinfo('PTSET が必要','PTSET 作成でポイントを登録してください。',parent=self);self.switch('ptset');return
             def choose(v):
                 pointset=project.get(self.data,'definitions',options[v['pt']]);presets.require_compatible(self.data,gm,pointset)
                 self.data['creation_draft']={'ptset_id':pointset['id'],'gmset_id':gm['id']}
@@ -678,7 +678,7 @@ class IntegratedStudio(tk.Tk):
         if e and messagebox.askyesno('削除','要素を削除しますか？ 共通定義の使用先に影響します。',parent=self):d['elements'].remove(e);self.element_id=None;self.mark();self.render_page()
 
     def build_specs(self):
-        self.heading('4. スペック登録','部品種別・口径条件と参照 SCOM を選択表で管理します。E3D の SELE・SPCO 構文への変換は未対応です。',[('SPEC を追加',self.add_spec)])
+        self.heading('スペック登録','部品種別・口径条件と参照 SCOM を選択表で管理します。E3D の SELE・SPCO 構文への変換は未対応です。',[('SPEC を追加',self.add_spec)])
         split=ttk.Panedwindow(self.content,orient='horizontal');split.pack(fill='both',expand=True)
         left=ttk.Frame(split,padding=8);middle=ttk.Frame(split,padding=12);right=ttk.Frame(split,padding=12)
         split.add(left,weight=1);split.add(middle,weight=4);split.add(right,weight=2)

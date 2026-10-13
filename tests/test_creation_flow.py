@@ -34,15 +34,15 @@ class CreationFlowTests(unittest.TestCase):
     def make_sets(self):
         with patch.object(self.app,'form',side_effect=self.confirm):self.app.geometry_editor.add_definition()
         self.app.update();pt=self.app.geometry_editor.definition();schema.add_element(pt,'PTAXI');self.app.geometry_editor.refresh()
-        with patch.object(self.app,'form',side_effect=self.confirm):self.app.geometry_editor.create_part_button.invoke()
+        with patch.object(self.app,'form',side_effect=self.confirm):self.app.geometry_editor.create_part()
         self.app.update();gm=self.app.geometry_editor.definition();schema.add_element(gm,'SCYL')['attrs'].update(PAXI='X',PDIA='PARAM 1',PHEI='PARAM 3',PDIS='0')
         self.app.geometry_editor.refresh();return pt,gm
     def test_order_and_empty_project_all_four_stages(self):
         self.assertEqual([key for key,label in PAGES[:4]],['ptset','gmset','catalog','specs'])
-        self.empty();self.assertEqual(str(self.app.geometry_editor.create_part_button['state']),'disabled')
+        self.empty();self.assertIsNone(self.app.geometry_editor.definition())
         pt,gm=self.make_sets();self.assertEqual(self.app.page,'gmset');self.assertEqual(self.app.data['scoms'],[])
         self.assertEqual(self.app.data['creation_draft'],{'ptset_id':pt['id'],'gmset_id':gm['id']})
-        with patch.object(self.app,'form',side_effect=self.confirm):self.app.geometry_editor.create_part_button.invoke()
+        with patch.object(self.app,'form',side_effect=self.confirm):self.app.geometry_editor.create_part()
         self.app.update();self.assertEqual(self.app.page,'catalog')
         scom=project.get(self.app.data,'scoms',self.app.scom_id)
         self.assertEqual((scom['ptset_id'],scom['gmset_id']),(pt['id'],gm['id']))

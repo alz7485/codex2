@@ -21,6 +21,11 @@ class RegisteredBrowserTests(unittest.TestCase):
             self.app.destroy()
 
     def select_record(self, collection, ident):
+        if collection=='definitions':
+            record=next(d for d in self.app.data['definitions'] if d['id']==ident)
+            page={'PTSET':'ptset','GMSET':'gmset'}.get(record['kind'],'structural')
+        else:page={'scoms':'catalog','specs':'specs'}[collection]
+        if self.app.page!=page:self.app.nav[page].invoke();self.app.update()
         self.browser.tree.selection_set(collection + ':' + ident)
         self.app.update()
 
@@ -41,13 +46,11 @@ class RegisteredBrowserTests(unittest.TestCase):
 
     def test_filter_and_name_changes_do_not_modify_other_records(self):
         data = copy.deepcopy(self.app.data)
-        self.browser.search.set('/UI-GEOMETRY')
+        pt = self.app.geometry_editor.definition()
+        self.browser.search.set(pt['name'])
         self.app.update()
-        # Search uses the registered record's actual name, not a page label.
-        gm = next(d for d in self.app.data['definitions'] if d['id'] == 'ui-gmset')
-        self.browser.search.set(gm['name'])
-        self.app.update()
-        self.assertTrue(self.browser.tree.exists('definitions:' + gm['id']))
+        self.assertTrue(self.browser.tree.exists('definitions:' + pt['id']))
+        self.assertFalse(self.browser.tree.exists('definitions:ui-gmset'))
         self.assertEqual(self.app.data, data)
         self.browser.search.set('')
         self.app.update()
@@ -88,7 +91,20 @@ class RegisteredBrowserTests(unittest.TestCase):
         self.app.data['definitions'].append(definition)
         self.app.mark()
         self.app.update()
-        self.assertTrue(self.browser.tree.exists('definitions:' + definition['id']))
+        self.assertFalse(self.browser.tree.exists('definitions:' + definition['id']))
         self.select_record('definitions', definition['id'])
         self.assertEqual(self.app.geometry_editor.definition_id, definition['id'])
         self.assertEqual(self.errors, [])
+
+    def test_top_category_limits_list_and_clears_previous_search(self):
+        before=copy.deepcopy(self.app.data)
+        self.browser.search.set('not-a-registered-name')
+        self.app.update()
+        self.assertEqual(self.browser.tree.get_children(),())
+        for page,collection,kind in (('gmset','definitions','GMSET'),('catalog','scoms',None),('specs','specs',None),('ptset','definitions','PTSET')):
+            self.app.nav[page].invoke();self.app.update()
+            self.assertEqual(self.browser.search.get(),'')
+            self.assertTrue(self.browser.items)
+            self.assertTrue(all(c==collection and (kind is None or r['kind']==kind) for c,r in self.browser.items.values()))
+        self.assertEqual(self.app.data,before)
+        self.assertEqual(self.errors,[])

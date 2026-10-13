@@ -1,4 +1,4 @@
-"""Persistent browser for named catalogue data, independent of page navigation."""
+"""Registered records for the currently selected category."""
 import tkinter as tk
 from tkinter import ttk
 
@@ -9,9 +9,12 @@ class RegisteredBrowser(ttk.Frame):
         self.host = host
         self.signature = None
         self.items = {}
+        self.category = None
+        self.refreshing = False
         self.pack(side='left', fill='y')
         self.pack_propagate(False)
-        ttk.Label(self, text='登録データ', style='Heading.TLabel').pack(anchor='w')
+        self.heading=ttk.Label(self, text='登録データ', style='Heading.TLabel')
+        self.heading.pack(anchor='w')
         self.search = tk.StringVar()
         entry = ttk.Entry(self, textvariable=self.search)
         entry.pack(fill='x', pady=(10, 4))
@@ -33,27 +36,35 @@ class RegisteredBrowser(ttk.Frame):
         self.refresh()
 
     def refresh(self):
+        if self.refreshing:return
+        self.refreshing=True
+        try:self._refresh()
+        finally:self.refreshing=False
+
+    def _refresh(self):
         host = self.host
         data = host.data
+        if self.category!=host.page:
+            self.category=host.page
+            self.search.set('')
+        categories={'ptset':('PTSET','definitions'), 'gmset':('GMSET','definitions'), 'catalog':('SCOM','scoms'), 'specs':('スペック','specs'), 'structural':('構造材・NGMSET','definitions'), 'texts':('説明・材質','texts'), 'tables':('共通テーブル','tables'), 'books':('カタログ本','books'), 'rules':('PARAM プリセット','parameter_presets')}
+        label,collection=categories.get(host.page,('確認・マクロ',None))
+        records=[r for r in data.get(collection,[]) if isinstance(r,dict) and 'id' in r] if collection else []
+        if host.page in ('ptset','gmset'):records=[r for r in records if r['kind']==host.page.upper()]
+        elif host.page=='structural':records=[r for r in records if r['kind'] not in ('PTSET','GMSET')]
+        elif host.page=='rules':records=[{'id':'legacy','name':'既存規則（従来データ）'}]+records
         query = self.search.get().strip().casefold()
-        signature = (query, tuple((collection, r['id'], r['name'], r.get('kind', '')) for collection in ('definitions', 'scoms', 'specs') for r in data[collection]))
+        visible=[r for r in records if query in (r.get('name',r.get('title',''))+' '+r.get('kind',r.get('type',''))+' '+label).casefold()]
+        self.heading.configure(text=label+' ('+str(len(visible))+')')
+        signature = (host.page, query, tuple((r['id'], r.get('name',r.get('title','')), r.get('kind',r.get('type',''))) for r in visible))
         if signature != self.signature:
-            opened = {key: self.tree.item(key, 'open') for key in self.tree.get_children()}
             self.tree.delete(*self.tree.get_children())
             self.items = {}
-            groups = [('PTSET', 'PTSET', 'definitions'), ('GMSET', 'GMSET', 'definitions'), ('SCOM', 'SCOM', 'scoms'), ('SPEC', 'スペック', 'specs'), ('structural', '構造材・NGMSET', 'definitions')]
-            for kind, label, collection in groups:
-                records = [r for r in data[collection] if collection != 'definitions' or (r['kind'] not in ('PTSET', 'GMSET') if kind == 'structural' else r['kind'] == kind)]
-                visible = [r for r in records if query in (r['name'] + ' ' + r.get('kind', kind) + ' ' + label).casefold()]
-                if query and not visible:
-                    continue
-                group = 'group:' + kind
-                self.tree.insert('', 'end', iid=group, text=label + ' (' + str(len(visible)) + ')', open=opened.get(group, True))
-                for record in visible:
-                    key = collection + ':' + record['id']
-                    text = record['name'] + (' [' + record['kind'] + ']' if kind == 'structural' else '')
-                    self.tree.insert(group, 'end', iid=key, text=text)
-                    self.items[key] = (collection, record)
+            for record in visible:
+                key = collection + ':' + record['id']
+                text = record.get('name',record.get('title','')) + (' [' + record['kind'] + ']' if host.page == 'structural' else '')
+                self.tree.insert('', 'end', iid=key, text=text)
+                self.items[key] = (collection, record)
             self.signature = signature
         target = None
         if host.page in ('ptset', 'gmset', 'structural'):
@@ -62,6 +73,9 @@ class RegisteredBrowser(ttk.Frame):
             target = 'scoms:' + str(host.scom_id)
         elif host.page == 'specs':
             target = 'specs:' + str(host.spec_id)
+        elif host.page=='rules':target='parameter_presets:'+str(data.get('active_parameter_preset_id') or 'legacy')
+        elif host.page=='books':target='books:'+str(host.selected_book)
+        elif host.page in ('texts','tables') and hasattr(host,'companion_editor'):target=host.page+':'+str(host.companion_editor.selected)
         if target and self.tree.exists(target):
             if self.tree.selection() != (target,):
                 self.tree.selection_set(target)
@@ -88,9 +102,18 @@ class RegisteredBrowser(ttk.Frame):
             if host.page == page and host.scom_id == record['id']:
                 return
             host.scom_id = record['id']
-        else:
+        elif collection=='specs':
             page = 'specs'
             if host.page == page and host.spec_id == record['id']:
                 return
             host.spec_id = record['id']
+        elif collection=='parameter_presets':
+            ident='' if record['id']=='legacy' else record['id']
+            if host.data.get('active_parameter_preset_id','')==ident:return
+            host.data['active_parameter_preset_id']=ident;host.mark();host.render_page();return
+        elif collection=='books':
+            host.selected_book=record['id'];host.books_table.selection_set(record['id']);host.update_book_info();return
+        elif collection in ('texts','tables'):
+            host.companion_editor.table.selection_set(record['id']);host.companion_editor.select();return
+        else:return
         host.switch(page)
