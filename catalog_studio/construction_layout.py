@@ -67,6 +67,7 @@ def build_simple(editor):
     ttk.Label(row, text='ポイント' if point else '形状の構成', style='Heading.TLabel').pack(side='left')
     e.add_button = ttk.Button(row, text='＋ 追加', command=e.toggle_create, style='Primary.TButton')
     e.add_button.pack(side='right')
+    if point:ttk.Button(row,text='3D',command=e.open_point_canvas,width=4).pack(side='right',padx=5)
 
     e.creation_frame = ttk.LabelFrame(left, text='種類を選んで作成', padding=10)
     e.negative = tk.BooleanVar(value=False)

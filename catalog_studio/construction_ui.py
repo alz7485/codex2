@@ -18,6 +18,7 @@ class ConstructionEditor(ttk.Frame):
         self.element_id = None
         self.section = 'main'
         self.preview_scom_id = host.scom_id
+        self.point_canvas=None
         self.pack(fill='both', expand=True)
         definitions = [d for d in host.data['definitions'] if d['kind'] == kind]
         preferred = project.get(host.data, 'definitions', host.definition_id)
@@ -232,6 +233,18 @@ class ConstructionEditor(ttk.Frame):
         entry=self.choice_entry if self.choice_entry.winfo_ismapped() else self.expression_entry
         entry.focus_set();entry.selection_range(0,'end')
 
+    def open_point_canvas(self):
+        if self.kind!='PTSET' or not self.definition():return
+        if self.point_canvas and self.point_canvas.winfo_exists():self.point_canvas.lift();return
+        from .point_canvas import PointCanvas
+        self.point_canvas=PointCanvas(self)
+        self.bind('<Destroy>',lambda event:self.point_canvas.close() if event.widget is self and self.point_canvas else None,add='+')
+
+    def redraw_points(self,options=False):
+        if self.point_canvas and self.point_canvas.winfo_exists():
+            if options:self.point_canvas.refresh_options()
+            else:self.point_canvas.redraw()
+
     def refresh(self):
         self.busy = True
         self.definition_names = {d['name']: d['id'] for d in self.data['definitions'] if d['kind'] == self.kind}
@@ -270,7 +283,7 @@ class ConstructionEditor(ttk.Frame):
         self.scom_choice.set(current['name'] if current else '')
         self.refresh_element()
         self.busy = False
-        self.refresh_values(); self.draw()
+        self.refresh_values(); self.draw();self.redraw_points(options=True)
 
     def refresh_element(self):
         e = self.element()
@@ -343,7 +356,7 @@ class ConstructionEditor(ttk.Frame):
         selected = self.elements.selection()
         if selected and selected[0] != self.element_id:
             self.element_id = selected[0]; self.field = None
-            self.busy = True; self.refresh_element(); self.busy = False; self.draw()
+            self.busy = True; self.refresh_element(); self.busy = False; self.draw();self.redraw_points()
 
     def select_field(self, section):
         if self.busy or section != self.section: return
@@ -428,7 +441,7 @@ class ConstructionEditor(ttk.Frame):
         schema.set_value(self.element(), self.field, value)
         self.tables[self.section].item(self.field, values=(self.field, schema.meaning(self.element()['type'],self.field), self.display_field_value(self.element(),self.field)))
         if self.kind=='PTSET' and self.field=='NUMB':self.elements.item(self.element_id,values=(value,self.element()['type']))
-        self.host.mark(); self.update_validation()
+        self.host.mark(); self.update_validation();self.redraw_points()
 
     def rename_element(self, *_):
         if not self.busy and self.element():
@@ -540,6 +553,7 @@ class ConstructionEditor(ttk.Frame):
 
     def select_scom(self, _=None):
         self.preview_scom_id = self.scom_names.get(self.scom_choice.get()); self.refresh_values(); self.update_validation()
+        self.redraw_points(options=True)
 
     def refresh_values(self):
         s = project.get(self.data, 'scoms', self.preview_scom_id)
