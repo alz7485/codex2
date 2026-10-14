@@ -2,6 +2,7 @@
 import tkinter as tk
 from tkinter import ttk
 from . import element_schema as schema
+from .attribute_table import AttributeTable
 
 
 def build_simple(editor):
@@ -46,12 +47,19 @@ def build_simple(editor):
     e.main_split.pack(fill='both', expand=True)
     left = ttk.Frame(e.main_split, padding=(0, 0, 8, 0))
     center = ttk.Frame(e.main_split, padding=(8, 0, 8, 0))
-    right = ttk.Frame(e.main_split, padding=(8, 0, 0, 0))
+    right = ttk.Frame(e.main_split, padding=(8, 0, 0, 0),width=330)
+    right.pack_propagate(False)
     e.element_pane,e.preview_pane,e.attribute_pane=left,center,right
     e.main_split.add(left, weight=1)
-    e.main_split.add(center, weight=3)
-    e.main_split.add(right, weight=2)
-    e.host.balance(e.main_split, (.19,.63))
+    e.main_split.add(center, weight=4)
+    e.main_split.add(right, weight=0)
+    e.panes_initialized=False
+    def initialize_panes(event):
+        if e.panes_initialized or event.width<600:return
+        e.panes_initialized=True
+        e.main_split.sashpos(0,max(160,min(230,int(event.width*.19))))
+        e.main_split.sashpos(1,event.width-336)
+    e.main_split.bind('<Configure>',initialize_panes)
     e.def_choice = tk.StringVar()
     name=ttk.Label(left, textvariable=e.def_name, style='Heading.TLabel', wraplength=210)
     name.pack(anchor='w',fill='x',pady=(0,4))
@@ -94,7 +102,7 @@ def build_simple(editor):
     e.elements.column('type', width=65, minwidth=50)
     if point:
         e.elements.heading('number', text='番号')
-        e.elements.column('number', width=34, minwidth=28)
+        e.elements.column('number', width=45, minwidth=40)
     e.elements.grid(row=0, column=0, sticky='nsew')
     scroll = ttk.Scrollbar(e.tree_holder, command=e.elements.yview)
     scroll.grid(row=0, column=1, sticky='ns')
@@ -139,9 +147,11 @@ def build_simple(editor):
         frame = ttk.Frame(e.tabs, padding=8)
         e.tab_frames[key] = frame
         e.tabs.add(frame, text=label)
-        table = e.host.table(frame, [('attr', '属性', 68), ('meaning', '意味', 100), ('value', '値・式', 180)], height=8)
+        table = AttributeTable(frame,e.host.ui_font)
+        table.pack(fill='both',expand=True)
         table.bind('<<TreeviewSelect>>', lambda event, section=key: e.select_field(section))
         table.bind('<Double-1>', lambda _: e.focus_value_input())
+        table.bind('<Return>',lambda _:e.focus_value_input())
         e.tables[key] = table
     e.tabs.bind('<<NotebookTabChanged>>', e.tab_changed)
 
@@ -149,11 +159,17 @@ def build_simple(editor):
     box.pack(side='bottom', fill='x', before=e.tabs)
     row = ttk.Frame(box)
     row.pack(fill='x', pady=(0, 8))
-    e.field_label = ttk.Label(row, text='', style='Heading.TLabel')
-    e.field_label.pack(side='left')
+    caption=ttk.Frame(row);caption.pack(side='left',fill='x',expand=True)
+    e.field_label = ttk.Label(caption, text='', style='Heading.TLabel')
+    e.field_label.pack(anchor='w')
+    e.field_meaning=ttk.Label(caption,text='',style='AttributeMeaning.TLabel')
+    e.field_meaning.pack(anchor='w',fill='x')
     e.reference_button = ttk.Button(row, text='PARAM を選ぶ…', command=e.toggle_references)
     e.reference_button.pack(side='right')
-    row.bind('<Configure>',lambda event:e.field_label.configure(wraplength=max(100,event.width-e.reference_button.winfo_reqwidth()-12)))
+    def wrap_caption(event):
+        width=max(100,event.width-e.reference_button.winfo_reqwidth()-12)
+        e.field_label.configure(wraplength=width);e.field_meaning.configure(wraplength=width)
+    row.bind('<Configure>',wrap_caption)
     e.expression = tk.StringVar()
     e.expression.trace_add('write', e.edit_expression)
     e.expression_entry = ttk.Entry(box, textvariable=e.expression, font=(e.host.ui_font, 13))

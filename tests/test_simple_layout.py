@@ -145,3 +145,27 @@ class SimpleAuthoringTests(unittest.TestCase):
         self.assertTrue(e.point_canvas.canvas.winfo_ismapped());self.assertEqual(e.element_id,point['id'])
         self.assertEqual(e.tables['main'].item('PX','values')[2],'PARAM 3（全長）')
         self.assertEqual(self.errors,[])
+
+    def test_clicking_the_meaning_line_selects_the_attribute_for_editing(self):
+        e=self.app.geometry_editor;table=e.tables['main'];canvas=table.canvas
+        top,bottom=table.bounds['PDIS'];y=top+table.name_font.metrics('linespace')+12-canvas.canvasy(0)
+        canvas.event_generate('<Button-1>',x=15,y=round(y));self.app.update()
+        self.assertEqual(e.field,'PDIS');self.assertEqual(table.selection(),('PDIS',))
+        e.expression.set('PARAM 3 / 3');self.app.update()
+        self.assertEqual(e.element()['attrs']['PDIS'],'PARAM 3 / 3')
+        canvas.focus_force();canvas.event_generate('<Up>');self.app.update()
+        self.assertEqual(e.field,'PAXI');self.assertEqual(self.errors,[])
+
+    def test_keyboard_scroll_reaches_last_attribute_and_keeps_value_editable(self):
+        self.app.switch('gmset');self.app.update();e=self.app.geometry_editor
+        point=schema.add_element(e.definition(),'LPYR');e.element_id=point['id'];e.refresh()
+        self.app.geometry('1120x780');self.app.update();table=e.tables['main'];canvas=table.canvas
+        canvas.focus_force();canvas.event_generate('<End>');self.app.update()
+        self.assertEqual(e.field,'BVISI');top,bottom=table.bounds['BVISI']
+        self.assertGreaterEqual(top,canvas.canvasy(0)-1)
+        self.assertLessEqual(bottom,canvas.canvasy(0)+canvas.winfo_height()+1)
+        e.expression.set('FALSE');self.app.update();self.assertEqual(point['attrs']['BVISI'],'FALSE')
+        self.assertEqual(table.item('BVISI','values')[-1],'FALSE')
+        canvas.focus_force();canvas.event_generate('<Home>');self.app.update()
+        self.assertEqual(e.field,'PAAX');self.assertLessEqual(canvas.canvasy(0),1)
+        self.assertEqual(self.errors,[])

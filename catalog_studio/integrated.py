@@ -86,6 +86,7 @@ class IntegratedStudio(tk.Tk):
         self.style.configure('PaneTitle.TLabel',font=(self.ui_font,11,'bold'))
         self.style.configure('Title.TLabel',font=(self.ui_font,16,'bold'))
         self.style.configure('Muted.TLabel',foreground=MUTED)
+        self.style.configure('AttributeMeaning.TLabel',font=(self.ui_font,9),foreground=MUTED)
         self.style.configure('Treeview',rowheight=31,background='white',fieldbackground='white')
         self.style.configure('Treeview.Heading',background='#edf3fa',padding=7)
         self.style.map('Treeview',background=[('selected','#e5efff')],foreground=[('selected',BLUE)])

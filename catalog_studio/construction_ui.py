@@ -371,7 +371,10 @@ class ConstructionEditor(ttk.Frame):
     def load_field(self):
         e = self.element()
         self.choice_entry.pack_forget(); self.expression_entry.pack_forget()
-        self.field_label.configure(text=(self.field + ' / ' + schema.meaning(e['type'],self.field) if e else '') if self.field else '属性を選択してください')
+        if getattr(self,'simple_layout',False):
+            self.field_label.configure(text=self.field if e and self.field else '属性を選択してください')
+            self.field_meaning.configure(text=schema.meaning(e['type'],self.field) if e and self.field else '')
+        else:self.field_label.configure(text=(self.field + ' / ' + schema.meaning(e['type'],self.field) if e else '') if self.field else '属性を選択してください')
         self.expression.set(schema.value(e, self.field) if e and self.field else '')
         choices = ()
         if self.field == 'OBST': choices = tuple(schema.OBST_CHOICES)
