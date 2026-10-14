@@ -61,46 +61,59 @@ class PointCanvasGuiTests(unittest.TestCase):
         return tuple(round(v) for v in self.view.camera.project(point,self.view.canvas.winfo_width(),self.view.canvas.winfo_height()))
     def click(self,point):
         x,y=self.pixels(point);self.view.canvas.event_generate('<Button-1>',x=x,y=y);self.view.canvas.event_generate('<ButtonRelease-1>',x=x,y=y);self.app.update()
-    def test_mouse_addition_sets_only_basic_direction_and_zero_coordinates(self):
-        before=copy.deepcopy(self.editor.definition());self.view.mode.set('点を追加');self.click((1,-.53,0))
-        self.assertEqual(self.editor.definition(),before);self.assertIsNotNone(self.view.pending)
-        self.view.apply_button.invoke();self.app.update();new=self.editor.element()
+    def create(self,point,kind='PTCAR'):
+        self.click(point);self.assertTrue(self.view.context_menu.winfo_ismapped())
+        self.view.create_menu.invoke(list(schema.PT_TYPES).index(kind));self.app.update()
+
+    def test_blank_click_menu_creates_selected_kind_at_clicked_position(self):
+        before=copy.deepcopy(self.editor.definition());self.click((1,-.53,0))
+        self.assertEqual(self.editor.definition(),before);self.assertIsNone(self.view.pending)
+        self.assertEqual(self.view.context_menu.entrycget(0,'label'),'点を作成')
+        self.view.create_menu.invoke(1);self.app.update();new=self.editor.element()
         self.assertEqual(new['type'],'PTCAR');self.assertEqual(new['attrs']['PX'],'');self.assertEqual(new['attrs']['PY'],'')
         self.assertEqual(new['attrs']['PZ'],'0');self.assertEqual(new['attrs']['PTCDIR'],'X')
         self.assertAlmostEqual(new[LAYOUT_KEY][1],-.53,delta=.01)
         self.assertEqual(self.editor.elements.selection(),(new['id'],));self.assertEqual(new['attrs']['NUMB'],'2')
-        self.assertEqual(schema.missing_fields(new),('PX','PY'))
+        self.assertEqual(schema.missing_fields(new),('PX','PY'));self.assertFalse(self.view.context_menu.winfo_ismapped())
         with tempfile.TemporaryDirectory() as folder:
             path=Path(folder)/'points.json';project.save(self.app.data,path);loaded=project.load(path)
             point=project.get(loaded,'definitions',self.editor.definition_id)['elements'][-1]
             self.assertEqual(point,new)
         self.assertEqual(self.errors,[])
 
-    def test_cancelled_placement_does_not_create_a_point(self):
-        before=copy.deepcopy(self.app.data);self.view.mode.set('点を追加');self.click((.5,.5,0));self.view.cancel();self.app.update()
-        self.assertEqual(self.app.data,before);self.assertIsNone(self.view.pending);self.assertEqual(self.errors,[])
+    def test_cancelled_menu_does_not_create_a_point(self):
+        before=copy.deepcopy(self.app.data);self.click((.5,.5,0));self.view.context_menu.invoke(2);self.app.update()
+        self.assertEqual(self.app.data,before);self.assertIsNone(self.view.pending)
+        self.assertFalse(self.view.context_menu.winfo_ismapped());self.assertIsNone(self.view.menu_context);self.assertEqual(self.errors,[])
 
-    def drag(self,target):
+    def drag(self,target,release=True):
         x,y=self.pixels(self.view.positions[self.point['id']]);tx,ty=self.pixels(target)
         self.view.canvas.event_generate('<Button-1>',x=x,y=y);self.view.canvas.event_generate('<B1-Motion>',x=tx,y=ty)
-        self.view.canvas.event_generate('<ButtonRelease-1>',x=tx,y=ty);self.app.update()
+        if release:self.view.canvas.event_generate('<ButtonRelease-1>',x=tx,y=ty)
+        self.app.update()
 
-    def test_drag_preserves_distances_and_clears_zero_that_now_needs_input(self):
-        original=copy.deepcopy(self.point['attrs']);self.drag((1,.53,.8))
-        self.assertEqual(self.point['attrs'],original);self.view.apply_button.invoke();self.app.update()
-        self.assertEqual(self.point['attrs']['PX'],original['PX']);self.assertEqual(self.point['attrs']['PY'],'')
-        self.assertEqual(self.point['attrs']['PZ'],original['PZ']);self.assertEqual(self.point['attrs']['PTCDIR'],'X')
-        self.assertEqual(self.point['type'],'PTCAR');self.assertEqual(self.errors,[])
+    def test_click_only_selects_and_drag_commits_on_release(self):
+        original=copy.deepcopy(self.point);self.click(self.view.positions[self.point['id']])
+        self.assertEqual(self.editor.element_id,self.point['id']);self.assertEqual(self.point,original)
+        self.assertFalse(self.view.context_menu.winfo_ismapped())
+        self.drag((1,.53,.8),release=False);self.assertEqual(self.point,original)
+        self.view.canvas.event_generate('<ButtonRelease-1>',x=0,y=0);self.app.update()
+        self.assertEqual(self.point['attrs']['PX'],original['attrs']['PX']);self.assertEqual(self.point['attrs']['PY'],'')
+        self.assertEqual(self.point['attrs']['PZ'],original['attrs']['PZ']);self.assertEqual(self.point['attrs']['PTCDIR'],'X')
+        self.assertIn(LAYOUT_KEY,self.point);self.assertIsNone(self.view.pending);self.assertEqual(self.errors,[])
 
-    def test_drag_proposal_does_not_resize_or_shift_the_canvas(self):
-        before=(self.view.canvas.winfo_width(),self.view.canvas.winfo_height());self.drag((1,.5,.8))
-        self.assertEqual((self.view.canvas.winfo_width(),self.view.canvas.winfo_height()),before)
+    def test_drag_keeps_canvas_stable_and_escape_cancels_before_release(self):
+        before=copy.deepcopy(self.app.data);size=(self.view.canvas.winfo_width(),self.view.canvas.winfo_height())
+        self.drag((1,.5,.8),release=False)
+        self.assertEqual((self.view.canvas.winfo_width(),self.view.canvas.winfo_height()),size)
         self.assertEqual(self.view.pending['attrs'],{'PTCDIR':'X','PY':''})
-        self.assertTrue(self.view.apply_button.winfo_ismapped());self.assertEqual(self.errors,[])
+        self.view.canvas.event_generate('<Escape>');self.app.update();self.view.canvas.event_generate('<ButtonRelease-1>',x=0,y=0);self.app.update()
+        self.assertEqual(self.app.data,before);self.assertIsNone(self.view.pending);self.assertEqual(self.errors,[])
 
-    def test_stale_proposal_cannot_overwrite_attribute_edit(self):
-        self.drag((1,0,.8));self.editor.tables['main'].selection_set('PX');self.app.update()
-        self.editor.expression.set('PARAM 3 / 3');self.app.update();self.view.apply_button.invoke();self.app.update()
+    def test_stale_drag_cannot_overwrite_attribute_edit(self):
+        self.drag((1,0,.8),release=False);self.editor.tables['main'].selection_set('PX');self.app.update()
+        self.editor.expression.set('PARAM 3 / 3');self.app.update()
+        self.view.canvas.event_generate('<ButtonRelease-1>',x=0,y=0);self.app.update()
         self.assertEqual(self.point['attrs']['PX'],'PARAM 3 / 3');self.assertIn('属性・配置が変更',self.view.note['text']);self.assertEqual(self.errors,[])
 
     def test_distance_edits_and_scom_values_do_not_move_schematic_points(self):
@@ -118,8 +131,7 @@ class PointCanvasGuiTests(unittest.TestCase):
         win=self.view;self.app.switch('gmset');self.app.update();self.assertFalse(win.winfo_exists());self.assertEqual(self.errors,[])
 
     def test_empty_required_values_are_red_until_inline_input_commits(self):
-        self.view.mode.set('点を追加');self.click((1,0,0));self.view.apply();self.app.update()
-        table=self.editor.tables['main'];self.assertTrue(table.canvas.find_withtag('required:PX'))
+        self.create((1,0,0));table=self.editor.tables['main'];self.assertTrue(table.canvas.find_withtag('required:PX'))
         self.assertFalse(table.canvas.find_withtag('required:PZ'));self.assertFalse(table.canvas.find_withtag('required:DESC'))
         table.begin_edit('PX');table.editing['variable'].set('PARAM 3 / 2');table.finish_edit();self.app.update()
         self.assertFalse(table.canvas.find_withtag('required:PX'))
@@ -128,23 +140,30 @@ class PointCanvasGuiTests(unittest.TestCase):
 
     def test_all_point_types_can_be_placed_without_parameters_or_scom(self):
         self.app.data['scoms'].clear();self.editor.definition()['parameter_preset_id']=''
-        self.view.mode.set('点を追加')
-        for kind in schema.PT_TYPES:
-            self.view.kind_buttons[kind].invoke();self.click((-.85,.37,0));self.view.apply();self.app.update()
-            point=self.editor.element();self.assertEqual(point['type'],kind);self.assertIn(LAYOUT_KEY,point)
-            self.assertEqual(point['attrs']['PAXI' if kind in ('PTAXI','PTMIX') else 'PTCDIR'],'-X')
+        for index,kind in enumerate(schema.PT_TYPES):
+            self.create((-.85,.37+index*.25,0),kind);point=self.editor.element()
+            self.assertEqual(point['type'],kind);self.assertIn(LAYOUT_KEY,point)
+            self.assertIn(point['attrs']['PAXI' if kind in ('PTAXI','PTMIX') else 'PTCDIR'],('-X','Y'))
         self.assertEqual(self.errors,[])
 
-    def test_display_toggles_change_rendering_without_data_changes(self):
-        before=copy.deepcopy(self.app.data);self.view.settings_button.invoke();self.app.update()
-        for label,tag in (('グリッド','grid'),('座標軸','axes'),('点番号','labels'),('原点との関係','relations')):
+    def test_display_buttons_toggle_without_data_changes(self):
+        before=copy.deepcopy(self.app.data)
+        for label,tag in (('グリッド','grid'),('座標軸','axes'),('点番号','labels'),('関係線','relations')):
             self.assertTrue(self.view.canvas.find_withtag(tag));self.view.display_buttons[label].invoke();self.app.update()
             self.assertFalse(self.view.canvas.find_withtag(tag));self.view.display_buttons[label].invoke();self.app.update()
+            self.assertTrue(self.view.canvas.find_withtag(tag))
+        self.assertEqual(len({button.winfo_rooty() for button in self.view.display_buttons.values()}),1)
         self.view.view_buttons['正面'].invoke()
         for plane in PLANES:
             self.view.plane_buttons[plane].invoke();self.assertEqual(self.view.plane.get(),plane)
             camera=Camera();camera.face(plane);self.assertEqual(self.view.camera.basis(),camera.basis())
         self.assertEqual(self.app.data,before);self.assertEqual(self.errors,[])
+
+    def test_menu_context_is_invalidated_when_plane_or_set_changes(self):
+        before=copy.deepcopy(self.app.data);self.click((-.8,-.7,0));self.view.plane_buttons['XZ'].invoke();self.view.create_menu.invoke(0);self.app.update()
+        self.assertEqual(self.app.data,before)
+        self.click((-.8,-.7,0));self.editor.definition_id='missing';self.view.create_menu.invoke(0);self.app.update()
+        self.assertEqual(self.app.data,before);self.assertIn('セット・基準面が変更',self.view.note['text']);self.assertEqual(self.errors,[])
 
 
 class SchematicGeometryTests(unittest.TestCase):

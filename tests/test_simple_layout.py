@@ -1,5 +1,6 @@
 import copy
 import tkinter as tk
+from tkinter import ttk
 import unittest
 
 from catalog_studio import element_schema as schema
@@ -113,7 +114,6 @@ class SimpleAuthoringTests(unittest.TestCase):
     def test_four_columns_keep_the_preview_and_value_input_visible(self):
         app=self.app;e=app.geometry_editor;view=e.point_canvas
         self.assertTrue(view.canvas.winfo_ismapped())
-        self.assertFalse(view.settings_frame.winfo_ismapped())
         self.assertFalse(any(isinstance(child,tk.Toplevel) for child in app.winfo_children()))
         for size in ('1440x960','1120x780'):
             app.geometry(size);app.update()
@@ -128,12 +128,14 @@ class SimpleAuthoringTests(unittest.TestCase):
                 self.assertLessEqual(widget.winfo_rootx()+widget.winfo_width(),app.winfo_rootx()+app.winfo_width())
                 self.assertLessEqual(widget.winfo_rooty()+widget.winfo_height(),app.winfo_rooty()+app.winfo_height())
             e.tables['main'].cancel_edit();app.update()
-        view.mode.set('点を追加');view.toggle_settings();app.update()
-        self.assertTrue(view.settings_frame.winfo_ismapped());self.assertFalse(view.add_options.winfo_ismapped())
-        self.assertGreater(view.canvas.winfo_height(),150)
-        view.toggle_settings();app.update()
-        self.assertFalse(view.settings_frame.winfo_ismapped());self.assertTrue(view.add_options.winfo_ismapped())
-        self.assertGreater(view.canvas.winfo_height(),150)
+        controls=list(view.plane_buttons.values())+list(view.view_buttons.values())
+        displays=list(view.display_buttons.values())
+        self.assertEqual(len({widget.winfo_rooty() for widget in displays}),1)
+        self.assertEqual(len({widget.winfo_rooty() for widget in controls}),1)
+        for widget in controls+displays:
+            self.assertLessEqual(widget.winfo_rootx()+widget.winfo_width(),view.winfo_rootx()+view.winfo_width())
+        self.assertGreater(view.canvas.winfo_height(),300)
+        self.assertFalse(any(isinstance(child,ttk.Button) for child in view.winfo_children()))
         self.assertEqual(self.errors,[])
 
     def test_switching_registered_set_replaces_preview_and_updates_attributes(self):
