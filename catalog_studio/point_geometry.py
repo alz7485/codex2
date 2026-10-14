@@ -5,6 +5,54 @@ from fractions import Fraction
 from . import expressions
 
 PLANES={'XY':(0,1),'XZ':(0,2),'YZ':(1,2)}
+LAYOUT_KEY='schematic_position'
+
+
+def valid_layout(value):
+    return isinstance(value,(list,tuple)) and len(value)==3 and all(type(v) in (int,float) and math.isfinite(v) and abs(v)<=10000 for v in value)
+
+
+def schematic_position(element,index=0):
+    """Tool-only, unitless layout. Never evaluate PARAM or SCOM distances."""
+    saved=element.get(LAYOUT_KEY)
+    if valid_layout(saved):return tuple(saved)
+    attrs=element['attrs'];size=.8+min(index,4)*.25
+    def sign(text):
+        text=str(text).strip()
+        try:return 0 if float(text)==0 else (-1 if float(text)<0 else 1)
+        except ValueError:return -1 if text.startswith('-') else 1
+    if element['type']=='PTAXI':
+        try:return tuple(size*sign(attrs.get('PDIS',''))*v for v in axis_vector(attrs.get('PAXI','')))
+        except ValueError:pass
+    if element['type'] in ('PTCAR','PTMIX'):
+        return tuple(size*sign(attrs.get(key,'')) for key in ('PX','PY','PZ'))
+    angle=index*2.4
+    return (size*math.cos(angle),size*math.sin(angle),0)
+
+
+def schematic_placement(kind,point,attrs=None,plane=None):
+    """Infer basic direction/zero coordinates, leaving distances for the user."""
+    previous=attrs or {};point=[0.0 if abs(v)<.035 else float(v) for v in point]
+    if not valid_layout(point):raise ValueError('画面の配置範囲を超えています。ズームを戻してください。')
+    changes={};index=max(range(3),key=lambda i:abs(point[i]));direction=('-' if point[index]<0 else '')+'XYZ'[index]
+    direction_key='PAXI' if kind in ('PTAXI','PTMIX') else 'PTCDIR'
+    if kind=='PTPOS' and 'PTCD' in previous and 'PTCDIR' not in previous:direction_key='PTCD'
+    old=previous.get(direction_key,'')
+    try:axis_vector(old);simple=True
+    except ValueError:simple=not str(old).strip() or str(old).lower()=='unset'
+    if any(point) and simple:changes[direction_key]=direction
+    if kind=='PTAXI':
+        if not simple:raise ValueError('複合軸の点は右の属性で編集してください。軸式は保持します。')
+        point=[point[i] if i==index else 0.0 for i in range(3)]
+        if not any(point):changes['PDIS']='0'
+        elif str(previous.get('PDIS','')).strip() in ('','0','0.0','unset'):changes['PDIS']=''
+    elif kind in ('PTCAR','PTMIX'):
+        for i,key in enumerate(('PX','PY','PZ')):
+            if plane and i not in PLANES[plane]:continue
+            if not point[i]:changes[key]='0'
+            elif str(previous.get(key,'')).strip() in ('','0','0.0','unset'):changes[key]=''
+    elif kind!='PTPOS':raise ValueError('この種類の仮配置は未対応です。')
+    return tuple(point),changes
 
 
 def axis_vector(text):

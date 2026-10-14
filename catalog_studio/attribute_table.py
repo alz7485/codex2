@@ -4,11 +4,12 @@ from tkinter import font, ttk
 
 
 class AttributeTable(ttk.Frame):
-    def __init__(self,parent,family,value_caption=None,edit_context=None):
+    def __init__(self,parent,family,value_caption=None,edit_context=None,missing_value=None):
         super().__init__(parent)
         self.rows={};self.order=[];self.selected=();self.bounds={};self.pending=None;self.ensure_visible=None;self.scheduler=self.winfo_toplevel()
         self.value_caption=value_caption or (lambda key,value:'')
         self.edit_context=edit_context;self.editing=None
+        self.missing_value=missing_value or (lambda key:False)
         self.name_font=font.Font(self,family=family,size=11,weight='bold')
         self.meaning_font=font.Font(self,family=family,size=9)
         self.value_font=font.Font(self,family=family,size=10)
@@ -167,6 +168,9 @@ class AttributeTable(ttk.Frame):
                 caption_bbox=c.bbox(caption_item);caption_height=caption_bbox[3]-caption_bbox[1]+2
             height=max(minimum,value_height+caption_height+16)
             c.coords(background,0,top,width,top+height)
+            if self.missing_value(iid):
+                c.create_rectangle(divider+3,top+3,width-4,top+height-3,outline='#d94343',width=2,tags=('required:'+iid,))
+                c.itemconfigure(item,text='入力してください',fill='#bc3434')
             c.create_text(10,top+8,text=attr,anchor='nw',font=self.name_font,fill=color,tags=('name:'+iid,))
             c.create_text(10,top+8+name_height,text=self.short_meaning(meaning,divider-20),anchor='nw',font=self.meaning_font,fill='#597fa5' if chosen else '#738499',tags=('meaning:'+iid,))
             self.bounds[iid]=(top,top+height);top+=height

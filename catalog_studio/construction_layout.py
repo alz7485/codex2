@@ -134,7 +134,7 @@ def build_simple(editor):
     e.tables = {}
     e.tab_frames = {}
     e.section_order = ['main']
-    table = AttributeTable(e.tabs,e.host.ui_font,lambda attr,value:e.parameter_caption(attr,value) if e.attribute_section(attr)!='extra' else '',lambda attr:e.inline_context(attr,e.attribute_section(attr)))
+    table = AttributeTable(e.tabs,e.host.ui_font,lambda attr,value:e.parameter_caption(attr,value) if e.attribute_section(attr)!='extra' else '',lambda attr:e.inline_context(attr,e.attribute_section(attr)),lambda attr:attr in schema.missing_fields(e.element()))
     table.pack(fill='both',expand=True)
     table.bind('<<TreeviewSelect>>',lambda event:e.select_field('main'))
     table.bind('<Double-1>',lambda _:e.focus_value_input())

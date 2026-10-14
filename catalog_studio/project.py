@@ -107,6 +107,9 @@ def validate_elements(elements, depth=0, identifiers=None):
         if element['id'] in identifiers: raise ValueError('階層内の要素識別子が重複しています。')
         identifiers.add(element['id'])
         if not isinstance(element.get('attrs'),dict): raise ValueError('属性は辞書です。')
+        if 'schematic_position' in element:
+            from .point_geometry import valid_layout
+            if not valid_layout(element['schematic_position']):raise ValueError('仮配置は有限数値の3座標で指定してください。')
         validate_elements(element.get('children',[]),depth+1,identifiers)
 
 

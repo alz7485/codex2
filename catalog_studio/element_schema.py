@@ -193,6 +193,13 @@ def set_value(element, key, text):
     attrs[key] = text
 
 
+def missing_fields(element):
+    """Unset point geometry needs input; optional end-condition metadata does not."""
+    if not element or element['type'] not in PT_TYPES:return ()
+    required=('NUMB',)+PT_TYPES[element['type']]
+    return tuple(key for key in required if value(element,key).strip().lower() in ('','unset'))
+
+
 def add_element(definition, kind):
     if not known(kind): raise ValueError('未対応の要素型です。')
     allowed = TYPES_BY_SET.get(definition['kind'], {})
