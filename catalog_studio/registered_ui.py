@@ -87,7 +87,7 @@ class RegisteredBrowser(ttk.Frame):
 
     def add_definition(self):
         if self.host.page not in ('ptset','gmset'):return
-        self.host.commit_definition_name()
+        if self.host.commit_definition_name() is False:return
         self.host.definition_form(self.host.page.upper())
 
     def select(self, _=None):
@@ -102,7 +102,7 @@ class RegisteredBrowser(ttk.Frame):
             page = {'PTSET': 'ptset', 'GMSET': 'gmset'}.get(record['kind'], 'structural')
             if host.page == page and host.definition_id == record['id']:
                 return
-            host.commit_definition_name()
+            if host.commit_definition_name() is False:self.refresh();return
             host.definition_id = record['id']
             if page == 'structural':
                 host.structural_kind = record['kind']

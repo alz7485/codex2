@@ -130,7 +130,7 @@ class IntegratedStudio(tk.Tk):
         self.registered_browser.refresh()
 
     def switch(self,page):
-        self.commit_definition_name()
+        if self.commit_definition_name() is False:return
         if page=='catalog':
             s=project.get(self.data,'scoms',self.scom_id)
             if s:self.cate_id=s['cate_id']
@@ -559,6 +559,7 @@ class IntegratedStudio(tk.Tk):
     def element(self):return next((e for e in (self.definition() or {}).get('elements',[]) if e['id']==self.element_id),None)
     def commit_definition_name(self):
         if self.page in ('ptset','gmset','structural') and hasattr(self,'geometry_editor') and self.geometry_editor.winfo_exists():
+            if not self.geometry_editor.commit_inline():return False
             self.geometry_editor.commit_name()
             return
         if self.page!='definitions' or not hasattr(self,'def_name_entry') or not self.def_name_entry.winfo_exists():return
@@ -885,12 +886,12 @@ class IntegratedStudio(tk.Tk):
             except OSError as exc:messagebox.showerror('出力できません',str(exc),parent=self);return
             self.status.configure(text='構成確認用コメントファイルを保存しました：'+path)
     def guard(self):
-        self.commit_definition_name()
+        if self.commit_definition_name() is False:return False
         if not self.dirty:return True
         answer=messagebox.askyesnocancel('未保存の変更','変更を保存しますか？',parent=self)
         return False if answer is None else self.save_project() if answer else True
     def save_project(self):
-        self.commit_definition_name()
+        if self.commit_definition_name() is False:return False
         path=self.path or filedialog.asksaveasfilename(parent=self,defaultextension='.json',initialfile='catalog-integrated-project.json',filetypes=[('プロジェクト JSON','*.json')])
         if not path:return False
         try:project.save(self.data,path)

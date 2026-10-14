@@ -131,7 +131,7 @@ class PointAuthoringTests(unittest.TestCase):
         editor.tables['main'].selection_set('NUMB')
         self.app.update()
         editor.expression.set('10')
-        self.assertEqual(editor.elements.item(first['id'], 'values'), ('10', 'PTAXI'))
+        self.assertEqual(editor.elements.item(first['id'], 'values'), ('10',first['name'],'PTAXI'))
         editor.elements.selection_set(second['id'])
         self.app.update()
         editor.tables['main'].selection_set('PY')

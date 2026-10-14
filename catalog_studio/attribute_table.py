@@ -4,9 +4,11 @@ from tkinter import font, ttk
 
 
 class AttributeTable(ttk.Frame):
-    def __init__(self,parent,family):
+    def __init__(self,parent,family,value_caption=None,edit_context=None):
         super().__init__(parent)
         self.rows={};self.order=[];self.selected=();self.bounds={};self.pending=None;self.ensure_visible=None;self.scheduler=self.winfo_toplevel()
+        self.value_caption=value_caption or (lambda key,value:'')
+        self.edit_context=edit_context;self.editing=None
         self.name_font=font.Font(self,family=family,size=11,weight='bold')
         self.meaning_font=font.Font(self,family=family,size=9)
         self.value_font=font.Font(self,family=family,size=10)
@@ -34,8 +36,9 @@ class AttributeTable(ttk.Frame):
         return super().bind(sequence,func,add)
 
     def cleanup(self,event):
-        if event.widget is self and self.pending:
-            self.scheduler.after_cancel(self.pending);self.pending=None
+        if event.widget is self:
+            self.cancel_edit()
+            if self.pending:self.scheduler.after_cancel(self.pending);self.pending=None
 
     def schedule(self):
         if self.pending is None:self.pending=self.scheduler.after_idle(self.redraw)
@@ -48,6 +51,7 @@ class AttributeTable(ttk.Frame):
         self.schedule();return iid
 
     def delete(self,*items):
+        if self.editing and self.editing['iid'] in items:self.cancel_edit()
         for iid in items:
             if iid in self.rows:del self.rows[iid];self.order.remove(iid)
         self.selected=tuple(i for i in self.selected if i in self.rows);self.schedule()
@@ -63,10 +67,12 @@ class AttributeTable(ttk.Frame):
         selection=(items,) if isinstance(items,str) else tuple(items)
         selection=tuple(i for i in selection if i in self.rows)[:1]
         if selection!=self.selected:
+            if not self.finish_edit():return
             self.selected=selection;self.ensure_visible=selection[0] if selection else None;self.schedule()
             self.event_generate('<<TreeviewSelect>>',when='tail')
 
     def click(self,event):
+        if not self.finish_edit():return
         self.canvas.focus_set();y=self.canvas.canvasy(event.y)
         for iid,(top,bottom) in self.bounds.items():
             if top<=y<bottom:self.selection_set(iid);break
@@ -99,6 +105,46 @@ class AttributeTable(ttk.Frame):
         while text and self.meaning_font.measure(text+'…')>width:text=text[:-1]
         return text+'…'
 
+    def begin_edit(self,iid):
+        if not self.edit_context or iid not in self.rows or not self.finish_edit():return False
+        context=self.edit_context(iid)
+        if context is None:return False
+        self.selection_set(iid);variable=tk.StringVar(value=context['value'])
+        choices=context.get('choices',())
+        entry=ttk.Combobox(self.canvas,textvariable=variable,values=choices,state='normal') if choices else ttk.Entry(self.canvas,textvariable=variable)
+        self.editing={'iid':iid,'variable':variable,'entry':entry,'context':context}
+        entry.bind('<Return>',lambda _:self.finish_edit())
+        entry.bind('<Escape>',lambda _:self.cancel_edit())
+        entry.bind('<FocusOut>',self.edit_blur)
+        if choices:entry.bind('<<ComboboxSelected>>',lambda _:self.finish_edit())
+        self.see(iid);self.draw_editor();entry.focus_set();entry.selection_range(0,'end');entry.icursor('end')
+        return True
+
+    def edit_blur(self,event):
+        if self.editing and isinstance(self.editing['entry'],ttk.Combobox):
+            entry=self.editing['entry']
+            popup=entry.tk.call('ttk::combobox::PopdownWindow',str(entry))
+            if entry.tk.call('winfo','ismapped',popup):return
+        self.finish_edit()
+
+    def finish_edit(self):
+        if not self.editing:return True
+        editing=self.editing;self.editing=None
+        try:editing['context']['commit'](editing['variable'].get())
+        except ValueError as exc:
+            self.editing=editing;editing['context']['report'](str(exc));return False
+        editing['entry'].destroy();self.schedule();return True
+
+    def cancel_edit(self):
+        if self.editing:
+            editing=self.editing;self.editing=None;editing['entry'].destroy();self.schedule()
+        return 'break'
+
+    def draw_editor(self):
+        if self.editing and self.editing['iid'] in self.bounds:
+            width=max(220,self.canvas.winfo_width());divider=max(105,int(width*.39));top=self.bounds[self.editing['iid']][0]
+            self.canvas.create_window(divider+6,top+3,anchor='nw',window=self.editing['entry'],width=max(80,width-divider-12),tags=('editor',))
+
     def redraw(self):
         self.pending=None
         if not self.winfo_exists():return
@@ -114,7 +160,12 @@ class AttributeTable(ttk.Frame):
             color='#2269de' if chosen else '#243448'
             background=c.create_rectangle(0,top,width,top+minimum,fill='#e5efff' if chosen else 'white',outline='')
             item=c.create_text(divider+10,top+8,text=value,anchor='nw',width=value_width,font=self.value_font,fill=color,tags=('value:'+iid,))
-            bbox=c.bbox(item);height=max(minimum,(bbox[3]-bbox[1]+16) if bbox else minimum)
+            bbox=c.bbox(item);value_height=(bbox[3]-bbox[1]) if bbox else self.value_font.metrics('linespace')
+            caption=self.value_caption(attr,value);caption_height=0
+            if caption:
+                caption_item=c.create_text(divider+10,top+10+value_height,text=caption,anchor='nw',width=value_width,font=self.meaning_font,fill='#597fa5' if chosen else '#738499',tags=('caption:'+iid,))
+                caption_bbox=c.bbox(caption_item);caption_height=caption_bbox[3]-caption_bbox[1]+2
+            height=max(minimum,value_height+caption_height+16)
             c.coords(background,0,top,width,top+height)
             c.create_text(10,top+8,text=attr,anchor='nw',font=self.name_font,fill=color,tags=('name:'+iid,))
             c.create_text(10,top+8+name_height,text=self.short_meaning(meaning,divider-20),anchor='nw',font=self.meaning_font,fill='#597fa5' if chosen else '#738499',tags=('meaning:'+iid,))
@@ -123,3 +174,4 @@ class AttributeTable(ttk.Frame):
         c.create_line(divider,0,divider,top,fill='#e7edf4')
         c.configure(scrollregion=(0,0,width,max(top,c.winfo_height())))
         if self.ensure_visible:self.see(self.ensure_visible);self.ensure_visible=None
+        self.draw_editor()

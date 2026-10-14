@@ -63,6 +63,22 @@ def display_expression(data, record, text):
     return _DISPLAY_REFERENCE.sub(annotate,str(text))
 
 
+def expression_names(data,record,text):
+    """Names for a separate caption; never rewrite the expression itself."""
+    from .expressions import ALIASES
+    names={p['id']:p['role'] for p in rules(data,record)}
+    others=reference_roles(data,record);references={}
+    for match in _DISPLAY_REFERENCE.finditer(str(text)):
+        if match.group('quoted') is not None:continue
+        raw_family=' '.join((match.group('family') or 'PARAM').upper().split())
+        family=('DES '+ALIASES.get(raw_family[4:],raw_family[4:])) if raw_family.startswith('DES ') else ALIASES.get(raw_family,raw_family)
+        number=match.group('bracket') or match.group('number') or match.group('short');pid='P'+number
+        name=names.get(pid) if family=='PARAM' else others.get(family,{}).get(pid)
+        references[(family,number)]=name or '設定名未登録'
+    if len(references)==1:return next(iter(references.values()))
+    return ' / '.join(family+' '+number+' '+name for (family,number),name in references.items())
+
+
 def choices(data):
     return {'既存規則（従来データ）':'', **{p['name']:p['id'] for p in data.get('parameter_presets',[])}}
 
@@ -94,7 +110,7 @@ def stamp(data,record):
 
 
 def users(data,ident):
-    return [r for collection in ('scoms','definitions') for r in data[collection] if selected_id(data,r)==ident]
+    return [r for collection in ('scoms','definitions','element_presets') for r in data.get(collection,[]) if selected_id(data,r)==ident]
 
 
 def remove(data,ident):
@@ -142,6 +158,6 @@ def rename(data,pid,new_role,ident=''):
     if not model.valid_role(new_role) or any(p['id']!=pid and p['role']==new_role for p in parameters):raise ValueError('役割名の重複や空白・演算記号を確認してください。')
     parameter=next((p for p in parameters if p['id']==pid),None)
     if not parameter:raise ValueError('パラメータがありません。')
-    for definition in data['definitions']:
+    for definition in data['definitions']+data.get('element_presets',[]):
         if selected_id(data,definition)==ident:_rewrite_aliases(definition,{parameter['role']:new_role})
     parameter['role']=new_role

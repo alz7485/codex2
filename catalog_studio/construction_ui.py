@@ -167,6 +167,7 @@ class ConstructionEditor(ttk.Frame):
 
     def assign_preset(self,_=None):
         if self.busy or not self.definition():return
+        if not self.commit_inline():return
         try:presets.bind(self.data,self.definition(),self.preset_options[self.preset_choice.get()])
         except ValueError as exc:self.validation_note.configure(text=str(exc));self.refresh();return
         self.host.mark();self.refresh()
@@ -190,8 +191,7 @@ class ConstructionEditor(ttk.Frame):
         kind=self.library.get(selection[0]).split()[0]
         if kind in schema.PT_GUIDES:
             guide=schema.PT_GUIDES[kind]
-            text=guide['position']+'\n'+guide['direction']
-            if not getattr(self,'simple_layout',False):text+='\n'+guide['usage']
+            text=guide['position']+'\n'+guide['direction']+'\n'+guide['usage']
         else:
             text=schema.LABELS.get(kind,'負 '+schema.LABELS.get(schema.positive(kind),'未確認'))
             text+='\n'+('ネガティブ形状。NAPP で適用先を指定します。' if kind in schema.NEGATIVE_BASE else '形状を作成してから、寸法・位置の式を入力します。')
@@ -199,10 +199,11 @@ class ConstructionEditor(ttk.Frame):
         self.create_element_button.configure(text=kind+' を作成',state='normal' if self.definition() else 'disabled')
 
     def toggle_create(self):
+        if not self.commit_inline():return
         self.creating=not self.creating
-        if self.creating:self.creation_frame.pack(fill='x',pady=(0,10),before=self.tree_holder)
-        else:self.creation_frame.pack_forget()
-        self.add_button.configure(text='閉じる' if self.creating else '＋ 追加')
+        if self.creating:
+            self.creation_frame.deiconify();self.creation_frame.lift();self.creation_frame.grab_set();self.library.focus_set()
+        else:self.creation_frame.grab_release();self.creation_frame.withdraw()
 
     def toggle_settings(self):
         self.settings_open=not self.settings_open
@@ -232,8 +233,36 @@ class ConstructionEditor(ttk.Frame):
 
     def focus_value_input(self):
         if not self.element() or not self.field:return
+        if getattr(self,'simple_layout',False):
+            self.tables[self.section].begin_edit(self.field);return
         entry=self.choice_entry if self.choice_entry.winfo_ismapped() else self.expression_entry
         entry.focus_set();entry.selection_range(0,'end')
+
+    def commit_inline(self):
+        return all(table.finish_edit() for table in self.tables.values() if hasattr(table,'finish_edit'))
+
+    def inline_context(self,key,section):
+        element=self.element();definition=self.definition();data=self.data
+        if not element or not schema.known(element['type']) or section=='extra':return None
+        original=schema.value(element,key);choices=()
+        if key=='OBST':choices=tuple(schema.OBST_CHOICES)
+        elif key in ('PAXI','PAAX','PBAX','PCAX','PLAXI','PTCDIR'):choices=schema.DIRECTIONS
+        elif key in ('CLFLA','TUFLA','TVISI','BVISI'):choices=('','TRUE','FALSE')
+        elif key=='NAPP':choices=tuple(str(i) for i in range(8))
+        def commit(value):
+            if self.data is not data or definition not in data['definitions'] or not any(node is element for node in schema.walk(definition['elements'])):
+                raise ValueError('編集対象が変更されています。セルを選び直してください。')
+            if schema.value(element,key)!=original and value!=schema.value(element,key):raise ValueError('属性が変更されています。セルを選び直してください。')
+            if key=='OBST':value=schema.OBST_CHOICES.get(value,value)
+            if value==schema.value(element,key):return
+            schema.set_value(element,key,value);self.host.mark()
+            if self.element() is element:
+                self.tables[section].item(key,values=(key,schema.meaning(element['type'],key),self.display_field_value(element,key)))
+                if self.field==key:
+                    busy=self.busy;self.busy=True;self.expression.set(value);self.busy=busy;self.update_validation()
+                if self.kind=='PTSET' and key=='NUMB':self.elements.item(element['id'],values=(value,element['name'],element['type']))
+            self.redraw_points()
+        return {'value':original,'choices':choices,'commit':commit,'report':lambda text:self.validation_note.configure(text=text)}
 
     def open_point_canvas(self):
         if self.kind!='PTSET' or not self.definition():return
@@ -266,10 +295,11 @@ class ConstructionEditor(ttk.Frame):
         self.preset_choice['values']=list(self.preset_options);self.preset_choice.set(presets.label(self.data,self.definition()) if self.definition() else '')
         if d:
             self.host.definition_id = d['id']
-            def insert(items,parent=''):
-                for e in items:
-                    self.elements.insert(parent,'end',iid=e['id'],text=e['name'],values=(e['attrs'].get('NUMB',''),e['type']) if self.kind=='PTSET' else (e['type'],),open=True)
-                    insert(e.get('children',[]),e['id'])
+            def insert(items,parent='',depth=0):
+                for index,e in enumerate(items):
+                    values=(e['attrs'].get('NUMB','') if self.kind=='PTSET' else str(index+1),'  '*depth+e['name'],e['type']) if getattr(self,'simple_layout',False) else ((e['attrs'].get('NUMB',''),e['type']) if self.kind=='PTSET' else (e['type'],))
+                    self.elements.insert(parent,'end',iid=e['id'],text=e['name'],values=values,open=True)
+                    insert(e.get('children',[]),e['id'],depth+1)
             insert(d['elements'])
             if not any(e['id'] == self.element_id for e in schema.walk(d['elements'])): self.element_id = next((e['id'] for e in d['elements']), None)
             if self.element_id: self.elements.selection_set(self.element_id)
@@ -283,6 +313,14 @@ class ConstructionEditor(ttk.Frame):
         self.refresh_element()
         self.busy = False
         self.refresh_values(); self.draw();self.redraw_points(options=True)
+        if hasattr(self,'element_preset_menu'):
+            saved=[p for p in self.data.get('element_presets',[]) if p['kind']==self.kind]
+            self.element_preset_menu.entryconfigure(0,state='normal' if d and d['elements'] else 'disabled')
+            self.element_preset_menu.entryconfigure(1,state='normal' if d and saved else 'disabled')
+            self.element_preset_menu.entryconfigure(2,state='normal' if saved else 'disabled')
+            if getattr(self.host,'is_preset_editor',False):
+                for index in range(3):self.element_preset_menu.entryconfigure(index,state='disabled')
+                self.context_menu.entryconfigure(self.settings_menu_index,state='disabled')
 
     def refresh_element(self):
         e = self.element()
@@ -354,6 +392,9 @@ class ConstructionEditor(ttk.Frame):
         if self.busy: return
         selected = self.elements.selection()
         if selected and selected[0] != self.element_id:
+            if not self.commit_inline():
+                if self.element_id:self.elements.selection_set(self.element_id)
+                return
             self.element_id = selected[0]; self.field = None
             self.busy = True; self.refresh_element(); self.busy = False; self.draw();self.redraw_points()
 
@@ -384,8 +425,8 @@ class ConstructionEditor(ttk.Frame):
         if choices:
             self.choice_entry['values'] = choices
             if self.field == 'OBST': self.expression.set(next((key for key, val in schema.OBST_CHOICES.items() if val == schema.value(e, self.field)), schema.value(e, self.field)))
-            self.choice_entry.pack(fill='x', before=self.reference_frame)
-        else: self.expression_entry.pack(fill='x', before=self.reference_frame)
+            if not getattr(self,'simple_layout',False):self.choice_entry.pack(fill='x', before=self.reference_frame)
+        elif not getattr(self,'simple_layout',False):self.expression_entry.pack(fill='x', before=self.reference_frame)
         self.expression_entry.configure(state='normal' if e and self.field and schema.known(e['type']) and self.section != 'extra' else 'readonly')
         self.choice_entry.configure(state='normal' if e and self.field else 'disabled')
         if getattr(self,'simple_layout',False):
@@ -422,19 +463,25 @@ class ConstructionEditor(ttk.Frame):
     def display_field_value(self,element,key):
         raw=schema.value(element,key)
         literal={'NUMB','DESC','PURP','PSKEY','GTYP','SKEY','PKEY','LEVEL','OBST','NAPP','CLFLA','TUFLA','TVISI','BVISI'}
-        return raw if key in literal else presets.display_expression(self.data,self.definition(),raw)
+        return raw if getattr(self,'simple_layout',False) or key in literal else presets.display_expression(self.data,self.definition(),raw)
+
+    def parameter_caption(self,key,value):
+        element=self.element()
+        literal={'NUMB','DESC','PURP','PSKEY','GTYP','SKEY','PKEY','LEVEL','OBST','NAPP','CLFLA','TUFLA','TVISI','BVISI'}
+        if not element or not schema.known(element['type']) or key in literal:return ''
+        return presets.expression_names(self.data,self.definition(),value)
 
     def update_expression_caption(self):
         if not getattr(self,'simple_layout',False):return
         element=self.element()
         raw=schema.value(element,self.field) if element and self.field else ''
-        text=self.display_field_value(element,self.field) if element and self.field and self.section!='extra' else raw
-        if text==raw:
+        text=self.parameter_caption(self.field,raw) if element and self.field and self.section!='extra' else ''
+        if not text:
             self.expression_caption.configure(text='');self.expression_caption.pack_forget()
         else:
             self.expression_caption.configure(text=text)
             options={'before':self.reference_controls} if self.reference_controls.winfo_manager() else {}
-            self.expression_caption.pack(anchor='w',fill='x',pady=(0,4),**options)
+            self.expression_caption.pack_forget()
 
     def edit_expression(self, *_):
         if self.busy or not self.element() or not self.field or self.section == 'extra' or not schema.known(self.element()['type']): return
@@ -442,7 +489,7 @@ class ConstructionEditor(ttk.Frame):
         if self.field == 'OBST': value = schema.OBST_CHOICES.get(value, value)
         schema.set_value(self.element(), self.field, value)
         self.tables[self.section].item(self.field, values=(self.field, schema.meaning(self.element()['type'],self.field), self.display_field_value(self.element(),self.field)))
-        if self.kind=='PTSET' and self.field=='NUMB':self.elements.item(self.element_id,values=(value,self.element()['type']))
+        if self.kind=='PTSET' and self.field=='NUMB':self.elements.item(self.element_id,values=(value,self.element()['name'],self.element()['type']) if getattr(self,'simple_layout',False) else (value,self.element()['type']))
         self.host.mark(); self.update_validation();self.redraw_points()
 
     def rename_element(self, *_):
@@ -463,12 +510,20 @@ class ConstructionEditor(ttk.Frame):
         except ValueError: self.validation_note.configure(text='参照番号は正の整数を指定してください。'); return
         if number < 1: self.validation_note.configure(text='参照番号は正の整数を指定してください。'); return
         ref = self.ref_kind.get() + '[' + str(number) + ']'
+        if getattr(self,'simple_layout',False):
+            table=self.tables[self.section]
+            if not table.editing and not table.begin_edit(self.field):return
+            entry=table.editing['entry'];variable=table.editing['variable']
+            try:a,b=entry.index('sel.first'),entry.index('sel.last')
+            except tk.TclError:a=b=entry.index('insert')
+            text=variable.get();variable.set(text[:a]+ref+text[b:]);table.finish_edit();return
         entry = self.expression_entry if self.expression_entry.winfo_ismapped() else self.choice_entry
         try: a, b = entry.index('sel.first'), entry.index('sel.last')
         except tk.TclError: a = b = entry.index('insert')
         text = self.expression.get(); self.expression.set(text[:a] + ref + text[b:]); entry.focus_set(); entry.icursor(a + len(ref))
 
     def half(self):
+        if not self.commit_inline():return
         if self.element() and schema.known(self.element()['type']) and self.field and self.section != 'extra': self.expression.set('(' + self.expression.get() + ') / 2')
 
     def update_role(self):
@@ -522,6 +577,7 @@ class ConstructionEditor(ttk.Frame):
         self.host.mark(); self.refresh()
 
     def add_element(self):
+        if not self.commit_inline():return
         d = self.definition(); selected = self.library.curselection()
         if not d: self.validation_note.configure(text='先に定義を追加してください。'); return
         if not selected: return
@@ -533,6 +589,7 @@ class ConstructionEditor(ttk.Frame):
         self.host.status.configure(text=e['type']+' を作成しました。右側の属性行を選んで、値・式を入力してください。')
 
     def duplicate_element(self):
+        if not self.commit_inline():return
         e, d = self.element(), self.definition()
         if not e:return
         siblings=self.siblings(e)
@@ -549,6 +606,7 @@ class ConstructionEditor(ttk.Frame):
         self.siblings(e).append(copied); self.element_id = copied['id']; self.host.mark(); self.refresh()
 
     def delete_element(self):
+        if not self.commit_inline():return
         e = self.element()
         if e and messagebox.askyesno('要素を削除', '要素を削除しますか？ 使用先にも影響します。', parent=self.host):
             self.siblings(e).remove(e); self.element_id = None; self.host.mark(); self.refresh()
@@ -605,9 +663,13 @@ class ConstructionEditor(ttk.Frame):
         if not e: return
         siblings=self.siblings(e);index=siblings.index(e);target=index+delta
         if 0 <= target < len(siblings):
-            siblings[index],siblings[target]=siblings[target],siblings[index];self.host.mark();self.refresh()
+            from . import element_library
+            try:element_library.reorder(self.data,self.definition(),e['id'],target)
+            except ValueError as exc:self.host.status.configure(text=str(exc));return
+            self.host.mark();self.refresh()
 
     def normalize_expression(self):
+        if not self.commit_inline():return
         e=self.element()
         if not e or not self.field or self.section == 'extra': return
         try: value=expressions.normalized(self.expression.get(),presets.rules(self.data,self.definition()))

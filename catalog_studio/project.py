@@ -12,7 +12,7 @@ import re
 import uuid
 from pathlib import Path
 
-from . import model, element_schema, expressions, catalogue, presets
+from . import model, element_schema, expressions, catalogue, presets, element_library
 
 FORMAT = 'catalog-studio-integrated'
 VERSION = 2
@@ -140,6 +140,7 @@ def validate(data):
     if not isinstance(draft,dict) or any(key in draft and not isinstance(draft[key],str) for key in ('ptset_id','gmset_id','scom_id','spec_id')):raise ValueError('作成中の部品の参照形式を確認してください。')
     validate_parameters(data.get('parameters'))
     validate_reference_roles(data.get('reference_roles',{}))
+    element_library.validate_library(data)
     _records(data.get('parameter_presets',[]),'PARAM プリセット',('name','period','component','description'),1000)
     preset_names=set()
     for preset in data.get('parameter_presets',[]):

@@ -122,10 +122,12 @@ class SimpleAuthoringTests(unittest.TestCase):
                 self.assertLessEqual(before.winfo_rootx()+before.winfo_width(),after.winfo_rootx())
             self.assertGreater(view.canvas.winfo_width(),220)
             e.tables['main'].selection_set('PDIS');app.update()
-            for widget in (e.expression_entry,e.reference_button,e.add_button):
+            e.focus_value_input();app.update();entry=e.tables['main'].editing['entry']
+            for widget in (entry,e.reference_button,e.add_button):
                 self.assertTrue(widget.winfo_ismapped())
                 self.assertLessEqual(widget.winfo_rootx()+widget.winfo_width(),app.winfo_rootx()+app.winfo_width())
                 self.assertLessEqual(widget.winfo_rooty()+widget.winfo_height(),app.winfo_rooty()+app.winfo_height())
+            e.tables['main'].cancel_edit();app.update()
         view.mode.set('点を追加');view.toggle_settings();app.update()
         self.assertTrue(view.settings_frame.winfo_ismapped());self.assertFalse(view.add_options.winfo_ismapped())
         self.assertGreater(view.canvas.winfo_height(),150)
@@ -143,7 +145,9 @@ class SimpleAuthoringTests(unittest.TestCase):
         e=app.geometry_editor
         self.assertFalse(old.winfo_exists());self.assertEqual(e.definition_id,record['id'])
         self.assertTrue(e.point_canvas.canvas.winfo_ismapped());self.assertEqual(e.element_id,point['id'])
-        self.assertEqual(e.tables['main'].item('PX','values')[2],'PARAM 3（全長）')
+        table=e.tables['main']
+        self.assertEqual(table.item('PX','values')[2],'PARAM 3')
+        self.assertEqual(table.canvas.itemcget(table.canvas.find_withtag('caption:PX')[0],'text'),'全長')
         self.assertEqual(self.errors,[])
 
     def test_clicking_the_meaning_line_selects_the_attribute_for_editing(self):
