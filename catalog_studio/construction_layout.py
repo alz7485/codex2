@@ -3,11 +3,14 @@ import tkinter as tk
 from tkinter import ttk
 from . import element_schema as schema
 from .attribute_table import AttributeTable
+from .element_list import ElementList
 
 
 def build_simple(editor):
     e = editor
     e.simple_layout = True
+    e.unified_attributes = True
+    e.attribute_sections = {}
     point = e.kind == 'PTSET'
     e.canvas = None
     e.creating = e.settings_open = e.references_open = False
@@ -64,10 +67,6 @@ def build_simple(editor):
     name=ttk.Label(left, textvariable=e.def_name, style='Heading.TLabel', wraplength=210)
     name.pack(anchor='w',fill='x',pady=(0,4))
     name.bind('<Configure>',lambda event:name.configure(wraplength=max(110,event.width-4)))
-    ttk.Label(left, text='PARAM プリセット', style='Muted.TLabel').pack(anchor='w', pady=(8, 0))
-    e.preset_choice = ttk.Combobox(left, state='readonly')
-    e.preset_choice.pack(fill='x', pady=(6, 16))
-    e.preset_choice.bind('<<ComboboxSelected>>', e.assign_preset)
     row = ttk.Frame(left)
     row.pack(fill='x', pady=(0, 8))
     ttk.Label(row, text='要素', style='Heading.TLabel').pack(side='left')
@@ -103,17 +102,11 @@ def build_simple(editor):
 
     e.tree_holder = ttk.Frame(left)
     e.tree_holder.pack(fill='both', expand=True)
-    e.elements = ttk.Treeview(e.tree_holder, columns=('number','name','type'), show='headings', selectmode='browse')
-    e.elements.heading('number',text='番号');e.elements.column('number',width=45,minwidth=40)
-    e.elements.heading('name',text='要素名');e.elements.column('name',width=88,minwidth=50)
-    e.elements.heading('type', text='種類')
-    e.elements.column('type', width=65, minwidth=50)
+    e.elements = ElementList(e.tree_holder,e.host.ui_font,e.element_name_context)
     e.elements.grid(row=0, column=0, sticky='nsew')
     scroll = ttk.Scrollbar(e.tree_holder, command=e.elements.yview)
     scroll.grid(row=0, column=1, sticky='ns')
-    horizontal=ttk.Scrollbar(e.tree_holder,orient='horizontal',command=e.elements.xview)
-    horizontal.grid(row=1,column=0,sticky='ew')
-    e.elements.configure(yscrollcommand=scroll.set,xscrollcommand=horizontal.set)
+    e.elements.configure(yscrollcommand=scroll.set)
     e.tree_holder.rowconfigure(0, weight=1)
     e.tree_holder.columnconfigure(0, weight=1)
     e.elements.bind('<<TreeviewSelect>>', e.select_element)
@@ -125,6 +118,10 @@ def build_simple(editor):
     if point:
         ttk.Label(row, text='P0：自動生成', style='Muted.TLabel').pack(side='right')
 
+    ttk.Label(right, text='PARAM プリセット', style='Muted.TLabel').pack(anchor='w',pady=(0,4))
+    e.preset_choice = ttk.Combobox(right, state='readonly')
+    e.preset_choice.pack(fill='x', pady=(0,12))
+    e.preset_choice.bind('<<ComboboxSelected>>', e.assign_preset)
     ttk.Label(right, text='属性値', style='Heading.TLabel').pack(anchor='w', pady=(0, 4))
     e.element_name = tk.StringVar()
     e.type_choice = tk.StringVar()
@@ -132,25 +129,17 @@ def build_simple(editor):
     e.element_note.pack(anchor='w', pady=(0, 12))
     e.element_note.bind('<Configure>',lambda event:e.element_note.configure(wraplength=max(160,event.width-4)))
 
-    e.tabs = ttk.Notebook(right)
+    e.tabs = ttk.Frame(right)
     e.tabs.pack(fill='both', expand=True)
-    sections = [('main', '基本属性' if point else '形状・位置')]
-    sections += [('detail', '詳細属性')] if point else [('common', '共通属性'), ('negative', 'ネガティブ属性')]
-    sections += [('extra', '保持した追加属性')]
     e.tables = {}
     e.tab_frames = {}
-    e.section_order = [key for key, label in sections]
-    for key, label in sections:
-        frame = ttk.Frame(e.tabs, padding=8)
-        e.tab_frames[key] = frame
-        e.tabs.add(frame, text=label)
-        table = AttributeTable(frame,e.host.ui_font,lambda attr,value,section=key:e.parameter_caption(attr,value) if section!='extra' else '',lambda attr,section=key:e.inline_context(attr,section))
-        table.pack(fill='both',expand=True)
-        table.bind('<<TreeviewSelect>>', lambda event, section=key: e.select_field(section))
-        table.bind('<Double-1>', lambda _: e.focus_value_input())
-        table.bind('<Return>',lambda _:e.focus_value_input())
-        e.tables[key] = table
-    e.tabs.bind('<<NotebookTabChanged>>', e.tab_changed)
+    e.section_order = ['main']
+    table = AttributeTable(e.tabs,e.host.ui_font,lambda attr,value:e.parameter_caption(attr,value) if e.attribute_section(attr)!='extra' else '',lambda attr:e.inline_context(attr,e.attribute_section(attr)))
+    table.pack(fill='both',expand=True)
+    table.bind('<<TreeviewSelect>>',lambda event:e.select_field('main'))
+    table.bind('<Double-1>',lambda _:e.focus_value_input())
+    table.bind('<Return>',lambda _:e.focus_value_input())
+    e.tables['main'] = table
 
     box = ttk.Frame(right, padding=(0, 14, 0, 0))
     box.pack(side='bottom', fill='x', before=e.tabs)

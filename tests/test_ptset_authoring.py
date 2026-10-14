@@ -4,6 +4,7 @@ from tkinter import ttk
 import unittest
 
 from catalog_studio.integrated import IntegratedStudio
+from catalog_studio import element_schema as schema
 
 
 class PointAuthoringTests(unittest.TestCase):
@@ -103,7 +104,7 @@ class PointAuthoringTests(unittest.TestCase):
             self.assertNotIn(point['id'], identifiers)
             identifiers.add(point['id'])
             self.assertEqual(editor.elements.selection(), (point['id'],))
-            self.assertEqual(editor.tables['main'].get_children(), fields)
+            self.assertEqual(editor.tables['main'].get_children(), fields+schema.PT_DETAIL)
         self.assertEqual(len(editor.definition()['elements']), 4)
         self.assertEqual(self.errors, [])
 

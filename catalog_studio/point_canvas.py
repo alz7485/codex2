@@ -186,5 +186,5 @@ class PointCanvas(ttk.Frame):
                 if not element or element['attrs']!=p['base']:raise ValueError('属性が変更されています。候補を作り直してください。')
             else:
                 element=schema.add_element(e.definition(),p['kind']);element['attrs']['PAXI' if p['kind'] in ('PTAXI','PTMIX') else 'PTCDIR']=p['axis']
-            element['attrs'].update(p['attrs']);e.element_id=element['id'];e.field=None;e.section='main';e.tabs.select(0);e.host.mark();self.pending=None;e.refresh();self.cancel()
+            element['attrs'].update(p['attrs']);e.element_id=element['id'];e.field=None;e.select_first_section();e.host.mark();self.pending=None;e.refresh();self.cancel()
         except ValueError as exc:self.error_message=str(exc);self.redraw()

@@ -93,7 +93,7 @@
       "revision": "01",
       "elements": [
         {
-          "id": "0b97a47b6f164674864f3936704e8585",
+          "id": "b41c4d3f937f4336b78587ac4d5b8771",
           "type": "PTAXI",
           "name": "接続点 1",
           "attrs": {
@@ -108,7 +108,7 @@
           }
         },
         {
-          "id": "190bc65de1394b278ae6427e66f9d610",
+          "id": "b5110d66628243d39924c53ad653c189",
           "type": "PTCAR",
           "name": "接続点 2",
           "attrs": {
@@ -125,7 +125,7 @@
           }
         },
         {
-          "id": "b170c202bdb44f61b29018a0f0d2b7ec",
+          "id": "7f212db35ed144e8986ab18b34caa2bf",
           "type": "PTMIX",
           "name": "補助点",
           "attrs": {
@@ -142,7 +142,7 @@
           }
         },
         {
-          "id": "ff7bff5134ad468b959fb7e80937c4a8",
+          "id": "7e0c15555f1e4409ae730490d04f8462",
           "type": "PTPOS",
           "name": "基準点",
           "attrs": {
@@ -165,7 +165,7 @@
       "revision": "01",
       "elements": [
         {
-          "id": "f624d48a2a474e4a896d7739e31e657b",
+          "id": "ec9c84670d4448698a39caad1d67746c",
           "type": "SCYL",
           "name": "胴部",
           "attrs": {
@@ -185,7 +185,7 @@
           }
         },
         {
-          "id": "f158582fb491424bb062b46d34aceadb",
+          "id": "2289d4c49b944ea18fa7da64ad8e5030",
           "type": "SCYL",
           "name": "フランジ",
           "attrs": {
@@ -205,7 +205,7 @@
           }
         },
         {
-          "id": "8050ca97d910483b96e186225156ee29",
+          "id": "870f4b2fe93e4eed81cc8481046c9ae2",
           "type": "SBOX",
           "name": "補助形状",
           "attrs": {
@@ -225,7 +225,7 @@
           }
         },
         {
-          "id": "ab12003f11bd44c29c2b972484218b9e",
+          "id": "2ec4035d93274d099c21e630eb6c17d2",
           "type": "NSCY",
           "name": "切り欠き",
           "attrs": {
@@ -246,7 +246,7 @@
           }
         },
         {
-          "id": "075bdf7714fd4284a887cd487050432f",
+          "id": "e06e34fb4c70476c9f279539fe5ebea6",
           "type": "SEXT",
           "name": "SEXT 1",
           "attrs": {
@@ -266,13 +266,13 @@
           },
           "children": [
             {
-              "id": "414e796ba87541968f91b853ac8ad13f",
+              "id": "5c524e30277849ab922aac9041c9aea5",
               "type": "SLOO",
               "name": "輪郭 1",
               "attrs": {},
               "children": [
                 {
-                  "id": "6769c724e9d84160ba54ffd44b35a9e7",
+                  "id": "9e83ad6774c941589e90232b093d8e03",
                   "type": "SVER",
                   "name": "輪郭の頂点 1",
                   "attrs": {
@@ -282,7 +282,7 @@
                   }
                 },
                 {
-                  "id": "5606959484de4d3ebc1d1093b8f1b918",
+                  "id": "f3a9d1f000a54b65be579c665d0bd138",
                   "type": "SVER",
                   "name": "輪郭の頂点 2",
                   "attrs": {
@@ -292,7 +292,7 @@
                   }
                 },
                 {
-                  "id": "3b772f87fddb410ca572b1a0a24ff24b",
+                  "id": "58a712c94001462a90bd042d9e30a808",
                   "type": "SVER",
                   "name": "輪郭の頂点 3",
                   "attrs": {
@@ -302,7 +302,7 @@
                   }
                 },
                 {
-                  "id": "adcaf8de5a3c4bf886b2c7f29c2cb9c2",
+                  "id": "f4d9b67681bf42a39a89c44b6656fcee",
                   "type": "SVER",
                   "name": "輪郭の頂点 4",
                   "attrs": {
@@ -321,7 +321,7 @@
           "preset_id": "",
           "elements": [
             {
-              "id": "f624d48a2a474e4a896d7739e31e657b",
+              "id": "ec9c84670d4448698a39caad1d67746c",
               "type": "SCYL",
               "name": "胴部",
               "attrs": {
@@ -341,7 +341,7 @@
               }
             },
             {
-              "id": "f158582fb491424bb062b46d34aceadb",
+              "id": "2289d4c49b944ea18fa7da64ad8e5030",
               "type": "SCYL",
               "name": "フランジ",
               "attrs": {
@@ -361,7 +361,7 @@
               }
             },
             {
-              "id": "8050ca97d910483b96e186225156ee29",
+              "id": "870f4b2fe93e4eed81cc8481046c9ae2",
               "type": "SBOX",
               "name": "補助形状",
               "attrs": {
@@ -381,7 +381,7 @@
               }
             },
             {
-              "id": "ab12003f11bd44c29c2b972484218b9e",
+              "id": "2ec4035d93274d099c21e630eb6c17d2",
               "type": "NSCY",
               "name": "切り欠き",
               "attrs": {
@@ -404,7 +404,7 @@
           ]
         }
       ],
-      "parameter_preset_id": "128b4ab2d3a347189e19c44203d1702d"
+      "parameter_preset_id": "ddfb829ec7f24032858084ed8b18cc93"
     },
     {
       "id": "screen-pt",
@@ -413,7 +413,7 @@
       "revision": "01",
       "elements": [
         {
-          "id": "624f7a22e2f745199b0308711cb3d0a8",
+          "id": "7a1f128ea2bf459d82fb8a93db71d019",
           "type": "PTAXI",
           "name": "入口",
           "attrs": {
@@ -428,7 +428,7 @@
           }
         },
         {
-          "id": "5e2243bfe04349c38e8675bc201227f2",
+          "id": "ae5d11a5b4164be7aef1a77e82bd93fb",
           "type": "PTCAR",
           "name": "分岐",
           "attrs": {
@@ -445,7 +445,7 @@
           }
         }
       ],
-      "parameter_preset_id": "128b4ab2d3a347189e19c44203d1702d"
+      "parameter_preset_id": "ddfb829ec7f24032858084ed8b18cc93"
     }
   ],
   "scoms": [
@@ -512,7 +512,7 @@
         "P4": 60,
         "P5": 0
       },
-      "parameter_preset_id": "128b4ab2d3a347189e19c44203d1702d"
+      "parameter_preset_id": "ddfb829ec7f24032858084ed8b18cc93"
     }
   ],
   "specs": [
@@ -554,7 +554,7 @@
   "tables": [],
   "parameter_presets": [
     {
-      "id": "128b4ab2d3a347189e19c44203d1702d",
+      "id": "ddfb829ec7f24032858084ed8b18cc93",
       "name": "配管部品（作成例）",
       "period": "",
       "component": "",
@@ -590,7 +590,7 @@
       "reference_roles": {}
     },
     {
-      "id": "af9f9807db3647b38ef2193a406d99d5",
+      "id": "e1f9845975fb40f59414b38f056e9e1c",
       "name": "過去の部品（作成例）",
       "period": "",
       "component": "",
@@ -627,14 +627,14 @@
   ],
   "element_presets": [
     {
-      "id": "dc31dc123a4241b4b6749637e028c45f",
+      "id": "14b46feac07d4ddbb64a9a21b77eb9b7",
       "name": "入口と分岐の基本ポイント",
       "kind": "PTSET",
       "description": "要素一覧をひとまとまりで登録した作成例",
-      "parameter_preset_id": "128b4ab2d3a347189e19c44203d1702d",
+      "parameter_preset_id": "ddfb829ec7f24032858084ed8b18cc93",
       "elements": [
         {
-          "id": "8363b1894cc24354ab923a9427cf4e73",
+          "id": "49ce551a3add497ab446d7bac88ec61a",
           "type": "PTAXI",
           "name": "入口",
           "attrs": {
@@ -649,7 +649,7 @@
           }
         },
         {
-          "id": "d53cc1c38c684a4cb736b988ee8afc60",
+          "id": "0c57eba6b8f54a9fbc57592339fc931e",
           "type": "PTCAR",
           "name": "分岐",
           "attrs": {

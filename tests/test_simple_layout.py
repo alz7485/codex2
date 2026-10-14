@@ -41,7 +41,7 @@ class SimpleAuthoringTests(unittest.TestCase):
         self.assertEqual(e.element()['type'], 'PTPOS')
         self.assertEqual(e.elements.selection(), (e.element_id,))
         self.assertFalse(e.creation_frame.winfo_ismapped())
-        self.assertEqual(e.tables['main'].get_children(), schema.fields('PTPOS'))
+        self.assertEqual(e.tables['main'].get_children(), schema.fields('PTPOS')+schema.PT_DETAIL)
         self.assertEqual(self.errors, [])
 
     def test_parameter_picker_keeps_role_and_value_when_closed(self):
@@ -165,11 +165,11 @@ class SimpleAuthoringTests(unittest.TestCase):
         point=schema.add_element(e.definition(),'LPYR');e.element_id=point['id'];e.refresh()
         self.app.geometry('1120x780');self.app.update();table=e.tables['main'];canvas=table.canvas
         canvas.focus_force();canvas.event_generate('<End>');self.app.update()
-        self.assertEqual(e.field,'BVISI');top,bottom=table.bounds['BVISI']
+        self.assertEqual(e.field,'PURP');top,bottom=table.bounds['PURP']
         self.assertGreaterEqual(top,canvas.canvasy(0)-1)
         self.assertLessEqual(bottom,canvas.canvasy(0)+canvas.winfo_height()+1)
-        e.expression.set('FALSE');self.app.update();self.assertEqual(point['attrs']['BVISI'],'FALSE')
-        self.assertEqual(table.item('BVISI','values')[-1],'FALSE')
+        e.expression.set('DEMO');self.app.update();self.assertEqual(point['attrs']['PURP'],'DEMO')
+        self.assertEqual(table.item('PURP','values')[-1],'DEMO')
         canvas.focus_force();canvas.event_generate('<Home>');self.app.update()
         self.assertEqual(e.field,'PAAX');self.assertLessEqual(canvas.canvasy(0),1)
         self.assertEqual(self.errors,[])

@@ -31,7 +31,7 @@ class AuthoringActionTests(unittest.TestCase):
         e=self.editor;d=e.definition();d['elements']=[]
         for number in (10,20,30):schema.add_element(d,'PTAXI')['attrs']['NUMB']=str(number)
         e.refresh();self.app.update();before=copy.deepcopy(d);first=d['elements'][0]['id'];last=d['elements'][2]['id']
-        self.assertEqual(tuple(e.elements['columns']),('number','name','type'))
+        self.assertEqual(tuple(e.elements['columns']),('number','name'))
         a=e.elements.bbox(first);b=e.elements.bbox(last);x=20;start=a[1]+a[3]//2;end=b[1]+b[3]-2
         e.elements.event_generate('<ButtonPress-1>',x=x,y=start);e.elements.event_generate('<B1-Motion>',x=x,y=end);e.elements.event_generate('<ButtonRelease-1>',x=x,y=end);self.app.update()
         self.assertEqual([p['id'] for p in d['elements']],[before['elements'][1]['id'],last,first])

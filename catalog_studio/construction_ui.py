@@ -239,7 +239,35 @@ class ConstructionEditor(ttk.Frame):
         entry.focus_set();entry.selection_range(0,'end')
 
     def commit_inline(self):
-        return all(table.finish_edit() for table in self.tables.values() if hasattr(table,'finish_edit'))
+        if not all(table.finish_edit() for table in self.tables.values() if hasattr(table,'finish_edit')):return False
+        return self.elements.finish_edit() if hasattr(self.elements,'finish_edit') else True
+
+    def attribute_section(self,key=None):
+        return self.attribute_sections.get(key or self.field,'main') if getattr(self,'unified_attributes',False) else self.section
+
+    def select_first_section(self):
+        self.section='main'
+        if not getattr(self,'unified_attributes',False):self.tabs.select(0)
+
+    def element_name_context(self,ident):
+        if not self.commit_inline():return None
+        definition=self.definition();data=self.data
+        element=next((node for node in schema.walk(definition['elements']) if node['id']==ident),None) if definition else None
+        if not element:return None
+        original=element['name'];siblings=self.siblings(element)
+        def commit(value):
+            value=value.strip()
+            if self.data is not data or definition not in data['definitions'] or not any(node is element for node in schema.walk(definition['elements'])):
+                raise ValueError('編集対象が変更されています。要素名を選び直してください。')
+            if element['name']!=original and value!=element['name']:raise ValueError('要素名が変更されています。選び直してください。')
+            if not value or any(node is not element and node['name']==value for node in siblings):raise ValueError('要素名が空か、同じ一覧の名前と重複しています。')
+            if len(value)>1000:raise ValueError('要素名は1000文字以内にしてください。')
+            if value==element['name']:return
+            element['name']=value;values=list(self.elements.item(ident,'values'));values[1]=value
+            self.elements.item(ident,text=value,values=values)
+            if self.element() is element:self.element_name.set(value)
+            self.host.mark();self.draw();self.redraw_points()
+        return {'value':original,'commit':commit,'report':lambda text:self.host.status.configure(text=text)}
 
     def inline_context(self,key,section):
         element=self.element();definition=self.definition();data=self.data
@@ -257,7 +285,7 @@ class ConstructionEditor(ttk.Frame):
             if value==schema.value(element,key):return
             schema.set_value(element,key,value);self.host.mark()
             if self.element() is element:
-                self.tables[section].item(key,values=(key,schema.meaning(element['type'],key),self.display_field_value(element,key)))
+                self.tables['main' if getattr(self,'unified_attributes',False) else section].item(key,values=(key,schema.meaning(element['type'],key),self.display_field_value(element,key)))
                 if self.field==key:
                     busy=self.busy;self.busy=True;self.expression.set(value);self.busy=busy;self.update_validation()
                 if self.kind=='PTSET' and key=='NUMB':self.elements.item(element['id'],values=(value,element['name'],element['type']))
@@ -324,6 +352,9 @@ class ConstructionEditor(ttk.Frame):
 
     def refresh_element(self):
         e = self.element()
+        self.attribute_sections={}
+        unified=getattr(self,'unified_attributes',False)
+        if unified:self.section='main'
         if getattr(self,'simple_layout',False):
             for button,match in self.helper_buttons:
                 button.pack_forget()
@@ -346,19 +377,24 @@ class ConstructionEditor(ttk.Frame):
             self.field = None; self.load_field(); self.element_note.configure(text='ポイント・形状欄の「＋ 追加」から要素を作成してください。' if self.definition() else '左端の '+self.kind+' 一覧の「＋ 追加」で名前を登録してください。'); return
         if schema.known(e['type']):
             listed = set()
-            for section, table in self.tables.items():
+            for section in (('main','detail','common','negative') if unified else self.tables):
                 if section == 'extra': continue
+                table=self.tables['main' if unified else section]
                 for key in schema.fields(e['type'], section):
+                    self.attribute_sections[key]=section
                     listed.add(key); table.insert('', 'end', iid=key, values=(key, schema.meaning(e['type'],key), self.display_field_value(e,key)))
             for key, value in e['attrs'].items():
                 if key not in listed and not (key == 'PTCD' and 'PTCDIR' in listed):
-                    self.tables['extra'].insert('', 'end', iid=key, values=(key, '元データを保持', str(value)))
-            note = '通常は PSKEY・DESC・PURP を非表示。新規値は unset。' if self.kind == 'PTSET' else '固有属性と共通属性を分けて編集します。OBST：0 対象外 / 1 ソフト / 2 ハード。'
+                    self.attribute_sections[key]='extra'
+                    self.tables['main' if unified else 'extra'].insert('', 'end', iid=key, values=(key, '元データを保持', str(value)))
+            note = 'PSKEY・DESC・PURP の新規値は unset。' if self.kind == 'PTSET' else 'OBST：0 対象外 / 1 ソフト / 2 ハード。'
             if e['type'] in schema.NEGATIVE_BASE:
                 note = 'NAPP：1 Attached / 2 Owner / 4 Self の組み合わせ。対象の実体は設計側の文脈に依存します。'
                 if e['type'] == 'NSRU': note += ' NSRU の固有属性は未確認です。'
         else:
-            for key, value in e['attrs'].items(): self.tables['extra'].insert('', 'end', iid=key, values=(key, '旧仮要素・未対応の原文', str(value)))
+            for key, value in e['attrs'].items():
+                self.attribute_sections[key]='extra'
+                self.tables['main' if unified else 'extra'].insert('', 'end', iid=key, values=(key, '旧仮要素・未対応の原文', str(value)))
             note = '旧仮要素・未対応要素です。追加属性で原文を確認できます。正式要素への変更時も原文を保持します。'
         note = schema.LABELS.get(e['type'],'負 '+schema.LABELS.get(schema.positive(e['type']),''))+' / '+note
         note += '\n' + schema.NOTES.get(schema.positive(e['type']),'')
@@ -366,7 +402,7 @@ class ConstructionEditor(ttk.Frame):
             self.element_details.configure(text=note)
             note=schema.LABELS.get(e['type'],'負 '+schema.LABELS.get(schema.positive(e['type']),'未対応'))
         self.element_note.configure(text=note)
-        if getattr(self,'simple_layout',False):
+        if getattr(self,'simple_layout',False) and not unified:
             if 'negative' in self.tab_frames:
                 if e['type'] in schema.NEGATIVE_BASE:self.tabs.add(self.tab_frames['negative'])
                 else:
@@ -427,10 +463,10 @@ class ConstructionEditor(ttk.Frame):
             if self.field == 'OBST': self.expression.set(next((key for key, val in schema.OBST_CHOICES.items() if val == schema.value(e, self.field)), schema.value(e, self.field)))
             if not getattr(self,'simple_layout',False):self.choice_entry.pack(fill='x', before=self.reference_frame)
         elif not getattr(self,'simple_layout',False):self.expression_entry.pack(fill='x', before=self.reference_frame)
-        self.expression_entry.configure(state='normal' if e and self.field and schema.known(e['type']) and self.section != 'extra' else 'readonly')
+        self.expression_entry.configure(state='normal' if e and self.field and schema.known(e['type']) and self.attribute_section() != 'extra' else 'readonly')
         self.choice_entry.configure(state='normal' if e and self.field else 'disabled')
         if getattr(self,'simple_layout',False):
-            available=bool(e and self.field and self.field not in ('NUMB','DESC','PURP','PSKEY','GTYP','LEVEL','OBST','CLFLA','TUFLA','TVISI','BVISI','NAPP') and self.section!='extra')
+            available=bool(e and self.field and self.field not in ('NUMB','DESC','PURP','PSKEY','GTYP','LEVEL','OBST','CLFLA','TUFLA','TVISI','BVISI','NAPP') and self.attribute_section()!='extra')
             self.reference_button.configure(state='normal' if available else 'disabled')
             if not available and self.references_open:self.toggle_references()
         self.update_role(); self.update_validation()
@@ -475,7 +511,7 @@ class ConstructionEditor(ttk.Frame):
         if not getattr(self,'simple_layout',False):return
         element=self.element()
         raw=schema.value(element,self.field) if element and self.field else ''
-        text=self.parameter_caption(self.field,raw) if element and self.field and self.section!='extra' else ''
+        text=self.parameter_caption(self.field,raw) if element and self.field and self.attribute_section()!='extra' else ''
         if not text:
             self.expression_caption.configure(text='');self.expression_caption.pack_forget()
         else:
@@ -484,7 +520,7 @@ class ConstructionEditor(ttk.Frame):
             self.expression_caption.pack_forget()
 
     def edit_expression(self, *_):
-        if self.busy or not self.element() or not self.field or self.section == 'extra' or not schema.known(self.element()['type']): return
+        if self.busy or not self.element() or not self.field or self.attribute_section() == 'extra' or not schema.known(self.element()['type']): return
         value = self.expression.get()
         if self.field == 'OBST': value = schema.OBST_CHOICES.get(value, value)
         schema.set_value(self.element(), self.field, value)
@@ -501,11 +537,11 @@ class ConstructionEditor(ttk.Frame):
         if not e or kind == e['type']: return
         if not messagebox.askyesno('要素型を変更', '要素型を変更しますか？ 元の属性と型の履歴は保持します。', parent=self.host): self.type_choice.set(e['type']); return
         schema.change_type(e, kind); self.field = None; self.section = 'main'
-        self.tabs.select(0); self.host.mark(); self.refresh()
+        self.select_first_section(); self.host.mark(); self.refresh()
 
     def insert_reference(self):
         e = self.element()
-        if not e or not self.field or self.field == 'NUMB' or self.section == 'extra' or not schema.known(e['type']): return
+        if not e or not self.field or self.field == 'NUMB' or self.attribute_section() == 'extra' or not schema.known(e['type']): return
         try: number = int(self.ref_number.get())
         except ValueError: self.validation_note.configure(text='参照番号は正の整数を指定してください。'); return
         if number < 1: self.validation_note.configure(text='参照番号は正の整数を指定してください。'); return
@@ -524,7 +560,7 @@ class ConstructionEditor(ttk.Frame):
 
     def half(self):
         if not self.commit_inline():return
-        if self.element() and schema.known(self.element()['type']) and self.field and self.section != 'extra': self.expression.set('(' + self.expression.get() + ') / 2')
+        if self.element() and schema.known(self.element()['type']) and self.field and self.attribute_section() != 'extra': self.expression.set('(' + self.expression.get() + ') / 2')
 
     def update_role(self):
         kind = self.ref_kind.get()
@@ -583,7 +619,7 @@ class ConstructionEditor(ttk.Frame):
         if not selected: return
         try: e = schema.add_element(d, self.library.get(selected[0]).split()[0])
         except ValueError as exc: messagebox.showerror('追加できません', str(exc), parent=self.host); return
-        self.element_id = e['id']; self.section = 'main'; self.tabs.select(0); self.field = None
+        self.element_id = e['id']; self.select_first_section(); self.field = None
         self.host.mark();self.refresh();self.elements.see(e['id'])
         if getattr(self,'simple_layout',False) and self.creating:self.toggle_create()
         self.host.status.configure(text=e['type']+' を作成しました。右側の属性行を選んで、値・式を入力してください。')
@@ -655,7 +691,7 @@ class ConstructionEditor(ttk.Frame):
         if not e: return
         try: child=schema.add_child(e)
         except ValueError as exc: self.validation_note.configure(text=str(exc));return
-        self.element_id=child['id'];self.field=None;self.section='main';self.tabs.select(0)
+        self.element_id=child['id'];self.field=None;self.select_first_section()
         self.host.mark();self.refresh()
 
     def move_element(self,delta):
@@ -671,7 +707,7 @@ class ConstructionEditor(ttk.Frame):
     def normalize_expression(self):
         if not self.commit_inline():return
         e=self.element()
-        if not e or not self.field or self.section == 'extra': return
+        if not e or not self.field or self.attribute_section() == 'extra': return
         try: value=expressions.normalized(self.expression.get(),presets.rules(self.data,self.definition()))
         except ValueError as exc: self.validation_note.configure(text=str(exc));return
         e.setdefault('expression_sources',{}).setdefault(self.field,self.expression.get())
