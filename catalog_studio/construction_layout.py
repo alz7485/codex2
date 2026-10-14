@@ -195,6 +195,14 @@ def build_simple(editor):
         e.point_canvas.pack(fill='both',expand=True)
     else:
         ttk.Label(center,text='構成プレビュー',style='Heading.TLabel').pack(anchor='w',pady=(0,6))
+        if not getattr(e.host,'is_preset_editor',False):
+            pair_row=ttk.Frame(center);pair_row.pack(fill='x',pady=(0,6))
+            ttk.Label(pair_row,text='適用する PTSET',style='Muted.TLabel').pack(side='left',padx=(0,8))
+            e.ptset_choice=ttk.Combobox(pair_row,state='readonly');e.ptset_choice.pack(side='left',fill='x',expand=True)
+            e.ptset_choice.bind('<<ComboboxSelected>>',e.assign_ptset)
+            e.pairing_note=ttk.Label(center,text='',style='AttributeMeaning.TLabel',wraplength=500)
+            e.pairing_note.pack(anchor='w',fill='x',pady=(0,6))
+            e.pairing_note.bind('<Configure>',lambda event:e.pairing_note.configure(wraplength=max(160,event.width-4)))
         ttk.Label(center,text='模式図 · 寸法・位置・方向は未反映',style='Muted.TLabel',wraplength=280).pack(anchor='w',pady=(0,10))
         e.canvas=tk.Canvas(center,bg='#f2f6fc',highlightthickness=0)
         e.canvas.pack(fill='both',expand=True)

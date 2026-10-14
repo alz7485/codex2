@@ -9,7 +9,7 @@ import sys
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, font, messagebox, ttk
-from . import model, project, element_schema, expressions, presets
+from . import model, project, element_schema, expressions, presets, pairing
 from .app import Studio as LegacyPreview
 
 BLUE = '#2269de'
@@ -359,7 +359,14 @@ class IntegratedStudio(tk.Tk):
             if seed is not None:self.data['creation_draft']={key:obj[key] for key in ('ptset_id','gmset_id')} | {'scom_id':obj['id']}
         self.form('SCOM の値を登録',fields,apply)
 
-    def add_scom(self):self.scom_form()
+    def add_scom(self):
+        gm=project.get(self.data,'definitions',self.definition_id)
+        if not gm or gm['kind']!='GMSET':self.scom_form();return
+        pt=pairing.resolve(self.data,gm)['pointset']
+        if pt:
+            try:presets.require_compatible(self.data,gm,pt)
+            except ValueError as exc:messagebox.showinfo('プリセットの確認',str(exc),parent=self);return
+        self.scom_form(seed={'gmset_id':gm['id'],'ptset_id':pt['id'] if pt else '', 'parameter_preset_id':presets.selected_id(self.data,gm)})
     def edit_scom(self):
         s=project.get(self.data,'scoms',self.scom_id)
         if s:self.scom_form(s)
@@ -428,6 +435,7 @@ class IntegratedStudio(tk.Tk):
                 if not pointset or pointset['kind']!='PTSET':raise ValueError('引き継ぐ PTSET が見つかりません。')
                 if presets.selected_id(self.data,pointset)!=ident:raise ValueError('PTSET のプリセットが変更されています。作成をやり直してください。')
             definition={'id':uuid.uuid4().hex,'name':name,'kind':kind,'revision':'01','elements':[],'parameter_preset_id':ident}
+            if kind=='GMSET' and ptset_id is not None:pairing.assign(self.data,definition,ptset_id)
             self.data['definitions'].append(definition);self.definition_id=definition['id']
             if kind=='PTSET':self.data['creation_draft']={'ptset_id':definition['id']}
             elif ptset_id is not None:self.data['creation_draft']={'ptset_id':ptset_id,'gmset_id':definition['id']}
@@ -445,13 +453,13 @@ class IntegratedStudio(tk.Tk):
         self.commit_definition_name()
         gm=project.get(self.data,'definitions',gmset_id)
         if not gm or gm['kind']!='GMSET':return
-        draft=self.data.get('creation_draft',{})
-        pt=project.get(self.data,'definitions',draft.get('ptset_id'))
+        pt=pairing.resolve(self.data,gm)['pointset']
         if not pt or pt['kind']!='PTSET':
             options=self.choices('definitions','PTSET')
             if not options:messagebox.showinfo('PTSET が必要','PTSET 作成でポイントを登録してください。',parent=self);self.switch('ptset');return
             def choose(v):
                 pointset=project.get(self.data,'definitions',options[v['pt']]);presets.require_compatible(self.data,gm,pointset)
+                pairing.assign(self.data,gm,pointset['id'])
                 self.data['creation_draft']={'ptset_id':pointset['id'],'gmset_id':gm['id']}
                 self.after_idle(lambda:self.component_from_gmset(gm['id']))
             self.form('SCOM に使用する PTSET を選択',[('pt','PTSET',next(iter(options)),list(options))],choose);return
@@ -661,6 +669,7 @@ class IntegratedStudio(tk.Tk):
         d=self.definition()
         if not d:return
         if any(d['id'] in (s['gmset_id'],s['ptset_id']) for s in self.data['scoms']):messagebox.showinfo('削除できません','SCOM から参照されています。',parent=self);return
+        if d['kind']=='PTSET' and pairing.users(self.data,d['id']):messagebox.showinfo('削除できません','GMSET の適用先として選択されています。',parent=self);return
         if messagebox.askyesno('削除','未使用の共通定義を削除しますか？',parent=self):self.data['definitions'].remove(d);self.definition_id=next((x['id'] for x in self.data['definitions']),None);self.mark();self.render_page()
     def add_element(self):
         d=self.definition()

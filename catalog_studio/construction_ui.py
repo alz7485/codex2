@@ -3,7 +3,7 @@ import copy
 import tkinter as tk
 import uuid
 from tkinter import messagebox, ttk
-from . import element_schema as schema, project, expressions, catalogue, presets
+from . import element_schema as schema, project, expressions, catalogue, presets, pairing
 
 BLUE = '#2269de'
 MUTED = '#738499'
@@ -172,6 +172,32 @@ class ConstructionEditor(ttk.Frame):
         except ValueError as exc:self.validation_note.configure(text=str(exc));self.refresh();return
         self.host.mark();self.refresh()
 
+    def refresh_pairing(self):
+        if not hasattr(self,'ptset_choice'):return
+        d=self.definition();resolved=pairing.resolve(self.data,d);pt=resolved['pointset']
+        self.ptset_options={'未設定':'','対応から自動選択':None}
+        for record in self.data['definitions']:
+            if record['kind']!='PTSET':continue
+            label=record['name']
+            if label in self.ptset_options:label+=' ['+record['id'][:8]+']'
+            self.ptset_options[label]=record['id']
+        raw=(d or {}).get(pairing.PAIR_KEY,'')
+        if raw and raw not in self.ptset_options.values():self.ptset_options['参照先不明：'+raw]=raw
+        self.ptset_choice['values']=list(self.ptset_options)
+        self.ptset_choice.set(next((label for label,ident in self.ptset_options.items() if ident==pt['id']),'未設定') if pt else next((label for label,ident in self.ptset_options.items() if raw and ident==raw),'未設定'))
+        self.ptset_choice.configure(state='readonly' if d else 'disabled')
+        notes={'name':'名前の一致から初期選択','scom':'登録済み SCOM の対応','draft':'作成中の部品の対応','manual':'手動で選択した対応','unset':'PTSET は未設定','none':'対応する PTSET を選択してください。','ambiguous':'候補が複数あります。PTSET を選択してください。','missing':'適用する PTSET が見つかりません。'}
+        note=notes[resolved['source']] if d else 'GMSET を作成してください。'
+        if pt and presets.selected_id(self.data,pt)!=presets.selected_id(self.data,d):note+=' / PARAM プリセットが異なります。'
+        self.pairing_note.configure(text=note)
+
+    def assign_ptset(self,_=None):
+        if self.busy or not self.definition():return
+        if not self.commit_inline():self.refresh_pairing();return
+        try:pairing.assign(self.data,self.definition(),self.ptset_options[self.ptset_choice.get()])
+        except (KeyError,ValueError) as exc:self.host.status.configure(text=str(exc));self.refresh_pairing();return
+        self.host.mark('GMSET に適用する PTSET を変更しました。');self.refresh_pairing()
+
     def populate_library(self):
         items = schema.TYPES_BY_SET[self.kind]
         if self.kind == 'GMSET' and self.negative.get(): items = schema.NEGATIVE_BASE
@@ -321,6 +347,7 @@ class ConstructionEditor(ttk.Frame):
         current=presets.selected_id(self.data,self.definition()) if self.definition() else ''
         if current and current not in self.preset_options.values():self.preset_options['参照先不明：'+current]=current
         self.preset_choice['values']=list(self.preset_options);self.preset_choice.set(presets.label(self.data,self.definition()) if self.definition() else '')
+        self.refresh_pairing()
         if d:
             self.host.definition_id = d['id']
             def insert(items,parent='',depth=0):
@@ -579,6 +606,7 @@ class ConstructionEditor(ttk.Frame):
         self.definition_names = {x['name']: x['id'] for x in self.data['definitions'] if x['kind'] == self.kind}
         if not getattr(self,'simple_layout',False):self.def_choice['values'] = list(self.definition_names)
         self.def_choice.set(name)
+        self.refresh_pairing()
 
     def create_part(self):
         d=self.definition()

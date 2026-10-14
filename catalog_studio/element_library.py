@@ -2,7 +2,7 @@
 import copy
 import re
 import uuid
-from . import element_schema as schema, presets
+from . import element_schema as schema, presets, pairing
 
 POINT_AXES={'PAXI','PAAX','PBAX','PCAX','PLAXI','PTCDIR','PTCD'}
 POINT_TOKEN=re.compile(r'\b([PT])([0-9]+)\b',re.IGNORECASE)
@@ -49,11 +49,14 @@ def reorder(data,definition,ident,target):
         old=point_numbers(siblings);by_id={e['id']:i+1 for i,e in enumerate(ordered)}
         mapping={number:by_id[eid] for number,eid in old.items()}
         linked={s.get(key) for s in data['scoms'] if s.get('ptset_id')==definition['id'] for key in ('gmset_id','ngmset_id') if s.get(key)}
+        linked.update(d['id'] for d in pairing.users(data,definition['id']))
         for other in data['definitions']:
             if other is not definition and other['id'] not in linked:continue
             changes=[(e,remap_points(e,mapping)) for e in schema.walk(other['elements'])]
             changes=[(e,attrs) for e,attrs in changes if attrs]
-            if changes and other is not definition and any(s.get('ptset_id')!=definition['id'] and other['id'] in (s.get('gmset_id'),s.get('ngmset_id')) for s in data['scoms']):
+            bound=pairing.resolve(data,other)['pointset'] if other is not definition else None
+            conflict=bound and bound['id']!=definition['id']
+            if changes and other is not definition and (conflict or any(s.get('ptset_id')!=definition['id'] and other['id'] in (s.get('gmset_id'),s.get('ngmset_id')) for s in data['scoms'])):
                 raise ValueError('点を参照する GMSET が別の PTSET と共有されています。GMSET を複製して参照を分けてから並べ替えてください。')
             updates.extend(changes)
         for element in ordered:updates.append((element,{'NUMB':str(by_id[element['id']])}))

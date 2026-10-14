@@ -12,7 +12,7 @@ import re
 import uuid
 from pathlib import Path
 
-from . import model, element_schema, expressions, catalogue, presets, element_library
+from . import model, element_schema, expressions, catalogue, presets, element_library, pairing
 
 FORMAT = 'catalog-studio-integrated'
 VERSION = 2
@@ -140,6 +140,7 @@ def validate(data):
     if not isinstance(draft,dict) or any(key in draft and not isinstance(draft[key],str) for key in ('ptset_id','gmset_id','scom_id','spec_id')):raise ValueError('作成中の部品の参照形式を確認してください。')
     validate_parameters(data.get('parameters'))
     validate_reference_roles(data.get('reference_roles',{}))
+    pairing.validate_rules(pairing.rules(data))
     element_library.validate_library(data)
     _records(data.get('parameter_presets',[]),'PARAM プリセット',('name','period','component','description'),1000)
     preset_names=set()
@@ -158,6 +159,7 @@ def validate(data):
     _records(data.get('cates'), 'CATE', ('name', 'description', 'revision'), LIMITS['cates'])
     _records(data.get('definitions'), '共通定義', ('name', 'kind', 'revision'), LIMITS['definitions'])
     for definition in data['definitions']:
+        if definition['kind']=='GMSET' and pairing.PAIR_KEY in definition and not isinstance(definition[pairing.PAIR_KEY],str):raise ValueError('GMSET の PTSET 対応は識別子で保存してください。')
         if definition['kind'] not in element_schema.TYPES_BY_SET:
             raise ValueError('共通定義の種別を確認してください。')
         _records(definition.get('elements'), '要素', ('type', 'name'), 200)
@@ -409,6 +411,7 @@ def issues(data):
                 names[record['name'].casefold()] = collection
     for definition in data['definitions']:
         parameters=presets.rules(data,definition)
+        if definition['kind']=='GMSET' and pairing.resolve(data,definition)['source']=='missing':result.append(definition['name']+'：適用する PTSET が見つかりません。')
         ident=presets.selected_id(data,definition)
         if ident and not presets.get(data,ident):result.append(definition['name']+'：PARAM プリセットが見つかりません。')
         result.extend(catalogue.definition_issues(definition,parameters))

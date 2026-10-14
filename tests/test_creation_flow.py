@@ -91,7 +91,7 @@ class CreationFlowTests(unittest.TestCase):
             self.app.component_from_gmset(gm['id']);notice.assert_called_once();form.assert_not_called()
         self.assertEqual(self.app.data,before)
     def test_standalone_gmset_asks_for_ptset_and_spec_uses_selected_scom(self):
-        app=self.app;app.switch('gmset');gm=app.geometry_editor.definition();app.data.pop('creation_draft',None)
+        app=self.app;app.switch('gmset');gm=app.geometry_editor.definition();app.data.pop('creation_draft',None);gm['paired_ptset_id']=''
         pt=next(d for d in app.data['definitions'] if d['kind']=='PTSET')
         def choose(title,fields,apply):
             values={key:str(initial) for key,label,initial,options in fields}
