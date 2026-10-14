@@ -217,6 +217,8 @@ class ConstructionEditor(ttk.Frame):
         self.reference_button.configure(text='PARAM 選択を閉じる' if self.references_open else 'PARAM を選ぶ…')
 
     def open_preview(self):
+        if getattr(self,'simple_layout',False) and self.canvas is not None:
+            self.canvas.focus_set();self.draw();return
         existing=getattr(self,'preview_window',None)
         if existing and existing.winfo_exists():existing.lift();return
         win=tk.Toplevel(self.host);self.preview_window=win;win.title('構成プレビュー');win.geometry('520x480');win.transient(self.host)
@@ -235,10 +237,7 @@ class ConstructionEditor(ttk.Frame):
 
     def open_point_canvas(self):
         if self.kind!='PTSET' or not self.definition():return
-        if self.point_canvas and self.point_canvas.winfo_exists():self.point_canvas.lift();return
-        from .point_canvas import PointCanvas
-        self.point_canvas=PointCanvas(self)
-        self.bind('<Destroy>',lambda event:self.point_canvas.close() if event.widget is self and self.point_canvas else None,add='+')
+        if self.point_canvas and self.point_canvas.winfo_exists():self.point_canvas.canvas.focus_set()
 
     def redraw_points(self,options=False):
         if self.point_canvas and self.point_canvas.winfo_exists():
@@ -528,7 +527,7 @@ class ConstructionEditor(ttk.Frame):
         self.element_id = e['id']; self.section = 'main'; self.tabs.select(0); self.field = None
         self.host.mark();self.refresh();self.elements.see(e['id'])
         if getattr(self,'simple_layout',False) and self.creating:self.toggle_create()
-        self.host.status.configure(text=e['type']+' を作成しました。中央の属性行を選んで、値・式を入力してください。')
+        self.host.status.configure(text=e['type']+' を作成しました。右側の属性行を選んで、値・式を入力してください。')
 
     def duplicate_element(self):
         e, d = self.element(), self.definition()

@@ -87,12 +87,12 @@ class SimpleAuthoringTests(unittest.TestCase):
         self.assertEqual(self.app.page,'rules')
         self.assertEqual(self.errors, [])
 
-    def test_geometry_options_follow_element_and_preview_closes_on_navigation(self):
+    def test_geometry_options_follow_element_and_inline_preview_closes_on_navigation(self):
         self.app.switch('gmset')
         self.app.update()
         e = self.app.geometry_editor
         self.assertFalse(any(button.winfo_ismapped() for button, match in e.helper_buttons))
-        self.assertIsNone(e.canvas)
+        self.assertTrue(e.canvas.winfo_ismapped())
         e.negative.set(True)
         e.populate_library()
         e.library.selection_clear(0, 'end')
@@ -102,9 +102,46 @@ class SimpleAuthoringTests(unittest.TestCase):
         self.assertTrue(next(button for button, match in e.helper_buttons if match == 'negative').winfo_ismapped())
         e.open_preview()
         self.app.update()
-        win = e.preview_window
-        self.assertTrue(win.winfo_exists())
+        preview = e.canvas
+        self.assertTrue(preview.winfo_exists())
+        self.assertFalse(any(isinstance(child,tk.Toplevel) for child in self.app.winfo_children()))
         self.app.switch('catalog')
         self.app.update()
-        self.assertFalse(win.winfo_exists())
+        self.assertFalse(preview.winfo_exists())
         self.assertEqual(self.errors, [])
+
+    def test_four_columns_keep_the_preview_and_value_input_visible(self):
+        app=self.app;e=app.geometry_editor;view=e.point_canvas
+        self.assertTrue(view.canvas.winfo_ismapped())
+        self.assertFalse(view.settings_frame.winfo_ismapped())
+        self.assertFalse(any(isinstance(child,tk.Toplevel) for child in app.winfo_children()))
+        for size in ('1440x960','1120x780'):
+            app.geometry(size);app.update()
+            widgets=(app.registered_browser.tree,e.elements,view.canvas,e.tables['main'])
+            for before,after in zip(widgets,widgets[1:]):
+                self.assertLessEqual(before.winfo_rootx()+before.winfo_width(),after.winfo_rootx())
+            self.assertGreater(view.canvas.winfo_width(),220)
+            e.tables['main'].selection_set('PDIS');app.update()
+            for widget in (e.expression_entry,e.reference_button,e.add_button):
+                self.assertTrue(widget.winfo_ismapped())
+                self.assertLessEqual(widget.winfo_rootx()+widget.winfo_width(),app.winfo_rootx()+app.winfo_width())
+                self.assertLessEqual(widget.winfo_rooty()+widget.winfo_height(),app.winfo_rooty()+app.winfo_height())
+        view.mode.set('点を追加');view.toggle_settings();app.update()
+        self.assertTrue(view.settings_frame.winfo_ismapped());self.assertFalse(view.add_options.winfo_ismapped())
+        self.assertGreater(view.canvas.winfo_height(),150)
+        view.toggle_settings();app.update()
+        self.assertFalse(view.settings_frame.winfo_ismapped());self.assertTrue(view.add_options.winfo_ismapped())
+        self.assertGreater(view.canvas.winfo_height(),150)
+        self.assertEqual(self.errors,[])
+
+    def test_switching_registered_set_replaces_preview_and_updates_attributes(self):
+        app=self.app;old=app.geometry_editor.point_canvas
+        record={'id':'inline-test-set','name':'/ANOTHER-PTSET','kind':'PTSET','revision':'01','elements':[]}
+        point=schema.add_element(record,'PTCAR');point['attrs'].update(PX='PARAM 3',PY='0',PZ='0',PTCDIR='X')
+        app.data['definitions'].append(record);app.registered_browser.refresh();app.update()
+        app.registered_browser.tree.selection_set('definitions:'+record['id']);app.update()
+        e=app.geometry_editor
+        self.assertFalse(old.winfo_exists());self.assertEqual(e.definition_id,record['id'])
+        self.assertTrue(e.point_canvas.canvas.winfo_ismapped());self.assertEqual(e.element_id,point['id'])
+        self.assertEqual(e.tables['main'].item('PX','values')[2],'PARAM 3（全長）')
+        self.assertEqual(self.errors,[])

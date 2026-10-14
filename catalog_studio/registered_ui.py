@@ -5,7 +5,7 @@ from tkinter import ttk
 
 class RegisteredBrowser(ttk.Frame):
     def __init__(self, host, parent):
-        super().__init__(parent, padding=(12, 14, 8, 12), width=250)
+        super().__init__(parent, padding=(12, 14, 8, 12), width=220)
         self.host = host
         self.signature = None
         self.items = {}
@@ -14,7 +14,7 @@ class RegisteredBrowser(ttk.Frame):
         self.pack(side='left', fill='y')
         self.pack_propagate(False)
         toolbar=ttk.Frame(self);toolbar.pack(fill='x')
-        self.heading=ttk.Label(toolbar, text='登録データ', style='Heading.TLabel')
+        self.heading=ttk.Label(toolbar, text='登録データ', style='PaneTitle.TLabel')
         self.heading.pack(side='left')
         self.add_button=ttk.Button(toolbar,text='＋ 追加',command=self.add_definition,style='Primary.TButton')
         self.search = tk.StringVar()

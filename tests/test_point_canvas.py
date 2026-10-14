@@ -82,6 +82,15 @@ class PointCanvasGuiTests(unittest.TestCase):
         self.assertEqual(self.point['attrs']['PX'],'PARAM[3]');self.assertEqual(self.point['attrs']['PY'],'PARAM[3] / 2')
         self.assertEqual(self.point['attrs']['PZ'],original['PZ']);self.assertEqual(self.point['attrs']['PTCDIR'],'-Y');self.assertEqual(self.point['type'],'PTCAR')
         self.assertEqual(self.errors,[])
+
+    def test_drag_proposal_does_not_resize_or_shift_the_canvas(self):
+        before=(self.view.canvas.winfo_width(),self.view.canvas.winfo_height())
+        x,y=self.pixels((.5,0,.25));tx,ty=self.pixels((1,.5,.25))
+        self.view.canvas.event_generate('<Button-1>',x=x,y=y);self.view.canvas.event_generate('<B1-Motion>',x=tx,y=ty);self.app.update()
+        self.assertEqual((self.view.canvas.winfo_width(),self.view.canvas.winfo_height()),before)
+        self.view.canvas.event_generate('<B1-Motion>',x=tx,y=ty);self.app.update()
+        self.assertEqual(self.view.pending['attrs'],{'PX':'PARAM[3]','PY':'PARAM[3] / 2'})
+        self.assertTrue(self.view.apply_button.winfo_ismapped());self.assertEqual(self.errors,[])
     def test_stale_proposal_cannot_overwrite_attribute_edit(self):
         x,y=self.pixels((.5,0,.25));tx,ty=self.pixels((1,0,.25))
         self.view.canvas.event_generate('<Button-1>',x=x,y=y);self.view.canvas.event_generate('<B1-Motion>',x=tx,y=ty);self.app.update()

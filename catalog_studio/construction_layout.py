@@ -1,4 +1,4 @@
-"""Focused two-column layout for point and geometry authoring."""
+"""Elements, permanent preview, and attributes beside the registered browser."""
 import tkinter as tk
 from tkinter import ttk
 from . import element_schema as schema
@@ -10,11 +10,6 @@ def build_simple(editor):
     point = e.kind == 'PTSET'
     e.canvas = None
     e.creating = e.settings_open = e.references_open = False
-
-    top = ttk.Frame(e)
-    top.pack(fill='x', pady=(0, 16))
-    ttk.Label(top, text=e.kind, style='Heading.TLabel').pack(side='left')
-    ttk.Label(top, text='ポイントを作成' if point else '形状を作成', style='Muted.TLabel').pack(side='left', padx=12)
 
     e.settings_frame = ttk.LabelFrame(e, text='セットの設定・確認', padding=12)
     row = ttk.Frame(e.settings_frame)
@@ -32,8 +27,6 @@ def build_simple(editor):
         ttk.Button(row, text='親属性', command=e.edit_parent).pack(side='left')
     ttk.Button(row, text='セットを複製', command=e.duplicate_definition).pack(side='left', padx=6)
     ttk.Button(row, text='出力を確認', command=e.review).pack(side='left')
-    if not point:
-        ttk.Button(row, text='構成プレビュー', command=e.open_preview).pack(side='left', padx=6)
     e.usage_label = ttk.Label(row, text='', style='Muted.TLabel')
     e.usage_label.pack(side='right')
     row = ttk.Frame(e.settings_frame)
@@ -51,23 +44,27 @@ def build_simple(editor):
 
     e.main_split = ttk.Panedwindow(e, orient='horizontal')
     e.main_split.pack(fill='both', expand=True)
-    left = ttk.Frame(e.main_split, padding=(0, 0, 16, 0))
-    right = ttk.Frame(e.main_split, padding=(16, 0, 0, 0))
+    left = ttk.Frame(e.main_split, padding=(0, 0, 8, 0))
+    center = ttk.Frame(e.main_split, padding=(8, 0, 8, 0))
+    right = ttk.Frame(e.main_split, padding=(8, 0, 0, 0))
+    e.element_pane,e.preview_pane,e.attribute_pane=left,center,right
     e.main_split.add(left, weight=1)
-    e.main_split.add(right, weight=3)
-    e.host.balance(e.main_split, (.30,))
+    e.main_split.add(center, weight=3)
+    e.main_split.add(right, weight=2)
+    e.host.balance(e.main_split, (.19,.63))
     e.def_choice = tk.StringVar()
-    ttk.Label(left, textvariable=e.def_name, style='Heading.TLabel', wraplength=290).pack(anchor='w', pady=(0, 4))
+    name=ttk.Label(left, textvariable=e.def_name, style='Heading.TLabel', wraplength=210)
+    name.pack(anchor='w',fill='x',pady=(0,4))
+    name.bind('<Configure>',lambda event:name.configure(wraplength=max(110,event.width-4)))
     ttk.Label(left, text='PARAM プリセット', style='Muted.TLabel').pack(anchor='w', pady=(8, 0))
     e.preset_choice = ttk.Combobox(left, state='readonly')
     e.preset_choice.pack(fill='x', pady=(6, 16))
     e.preset_choice.bind('<<ComboboxSelected>>', e.assign_preset)
     row = ttk.Frame(left)
     row.pack(fill='x', pady=(0, 8))
-    ttk.Label(row, text='ポイント' if point else '形状の構成', style='Heading.TLabel').pack(side='left')
+    ttk.Label(row, text='要素', style='Heading.TLabel').pack(side='left')
     e.add_button = ttk.Button(row, text='＋ 追加', command=e.toggle_create, style='Primary.TButton')
     e.add_button.pack(side='right')
-    if point:ttk.Button(row,text='3D',command=e.open_point_canvas,width=4).pack(side='right',padx=5)
 
     e.creation_frame = ttk.LabelFrame(left, text='種類を選んで作成', padding=10)
     e.negative = tk.BooleanVar(value=False)
@@ -92,16 +89,18 @@ def build_simple(editor):
     e.tree_holder.pack(fill='both', expand=True)
     e.elements = ttk.Treeview(e.tree_holder, columns=('number', 'type') if point else ('type',), show='tree headings', selectmode='browse')
     e.elements.heading('#0', text='要素名')
-    e.elements.column('#0', width=150, minwidth=70)
+    e.elements.column('#0', width=88, minwidth=50)
     e.elements.heading('type', text='種類')
-    e.elements.column('type', width=70, minwidth=55)
+    e.elements.column('type', width=65, minwidth=50)
     if point:
         e.elements.heading('number', text='番号')
-        e.elements.column('number', width=45, minwidth=35)
+        e.elements.column('number', width=34, minwidth=28)
     e.elements.grid(row=0, column=0, sticky='nsew')
     scroll = ttk.Scrollbar(e.tree_holder, command=e.elements.yview)
     scroll.grid(row=0, column=1, sticky='ns')
-    e.elements.configure(yscrollcommand=scroll.set)
+    horizontal=ttk.Scrollbar(e.tree_holder,orient='horizontal',command=e.elements.xview)
+    horizontal.grid(row=1,column=0,sticky='ew')
+    e.elements.configure(yscrollcommand=scroll.set,xscrollcommand=horizontal.set)
     e.tree_holder.rowconfigure(0, weight=1)
     e.tree_holder.columnconfigure(0, weight=1)
     e.elements.bind('<<TreeviewSelect>>', e.select_element)
@@ -121,11 +120,12 @@ def build_simple(editor):
     if point:
         ttk.Label(row, text='P0：自動生成', style='Muted.TLabel').pack(side='right')
 
-    ttk.Label(right, text='属性', style='Heading.TLabel').pack(anchor='w', pady=(0, 4))
+    ttk.Label(right, text='属性値', style='Heading.TLabel').pack(anchor='w', pady=(0, 4))
     e.element_name = tk.StringVar()
     e.type_choice = tk.StringVar()
     e.element_note = ttk.Label(right, text='', style='Muted.TLabel', wraplength=740)
     e.element_note.pack(anchor='w', pady=(0, 12))
+    e.element_note.bind('<Configure>',lambda event:e.element_note.configure(wraplength=max(160,event.width-4)))
 
     e.tabs = ttk.Notebook(right)
     e.tabs.pack(fill='both', expand=True)
@@ -139,7 +139,7 @@ def build_simple(editor):
         frame = ttk.Frame(e.tabs, padding=8)
         e.tab_frames[key] = frame
         e.tabs.add(frame, text=label)
-        table = e.host.table(frame, [('attr', '属性', 90), ('meaning', '意味', 230), ('value', '値・式', 350)], height=8)
+        table = e.host.table(frame, [('attr', '属性', 68), ('meaning', '意味', 100), ('value', '値・式', 180)], height=8)
         table.bind('<<TreeviewSelect>>', lambda event, section=key: e.select_field(section))
         table.bind('<Double-1>', lambda _: e.focus_value_input())
         e.tables[key] = table
@@ -153,6 +153,7 @@ def build_simple(editor):
     e.field_label.pack(side='left')
     e.reference_button = ttk.Button(row, text='PARAM を選ぶ…', command=e.toggle_references)
     e.reference_button.pack(side='right')
+    row.bind('<Configure>',lambda event:e.field_label.configure(wraplength=max(100,event.width-e.reference_button.winfo_reqwidth()-12)))
     e.expression = tk.StringVar()
     e.expression.trace_add('write', e.edit_expression)
     e.expression_entry = ttk.Entry(box, textvariable=e.expression, font=(e.host.ui_font, 13))
@@ -173,8 +174,10 @@ def build_simple(editor):
     e.number_entry = ttk.Spinbox(row, from_=1, to=999, width=5, textvariable=e.ref_number)
     e.number_entry.pack(side='left', padx=6)
     e.ref_number.trace_add('write', lambda *_: e.update_role())
-    for label, command in [('挿入', e.insert_reference), ('÷ 2', e.half), ('式を整理', e.normalize_expression)]:
-        ttk.Button(row, text=label, command=command).pack(side='left', padx=3)
+    ttk.Button(row,text='挿入',command=e.insert_reference,style='Compact.TButton').pack(side='left',padx=3)
+    row=ttk.Frame(e.reference_controls);row.pack(fill='x',pady=(4,0))
+    for label, command in [('÷ 2', e.half), ('式を整理', e.normalize_expression)]:
+        ttk.Button(row, text=label, command=command,style='Compact.TButton').pack(side='left', padx=3)
     e.role_label = ttk.Label(e.reference_controls, text='', style='Muted.TLabel', wraplength=710)
     e.role_label.pack(anchor='w', fill='x', pady=(6, 0))
     e.role_label.bind('<Configure>', lambda event: e.role_label.configure(wraplength=max(160, event.width - 8)))
@@ -183,3 +186,15 @@ def build_simple(editor):
     e.helper_buttons = [(ttk.Button(e.context_helpers, text=label, command=command), match) for label, command, match in [('NAPP 適用先', e.edit_napp, 'negative'), ('直径／半径', e.edit_sizes, 'LSNO'), ('LINE の点列', e.edit_points, 'LINE')]]
     e.validation_note = ttk.Label(box, text='', foreground='#bb6440', wraplength=710)
     e.validation_note.pack(anchor='w', pady=(4, 0))
+    e.validation_note.bind('<Configure>',lambda event:e.validation_note.configure(wraplength=max(160,event.width-4)))
+
+    if point:
+        from .point_canvas import PointCanvas
+        e.point_canvas=PointCanvas(e,center)
+        e.point_canvas.pack(fill='both',expand=True)
+    else:
+        ttk.Label(center,text='構成プレビュー',style='Heading.TLabel').pack(anchor='w',pady=(0,6))
+        ttk.Label(center,text='模式図 · 寸法・位置・方向は未反映',style='Muted.TLabel',wraplength=280).pack(anchor='w',pady=(0,10))
+        e.canvas=tk.Canvas(center,bg='#f2f6fc',highlightthickness=0)
+        e.canvas.pack(fill='both',expand=True)
+        e.canvas.bind('<Configure>',lambda _:e.draw())
