@@ -17,7 +17,7 @@ class AttributeTable(ttk.Frame):
         self.columnconfigure(0,weight=1);self.rowconfigure(1,weight=1)
         self.header=tk.Canvas(self,height=32,bg='#edf3fa',highlightthickness=0)
         self.header.grid(row=0,column=0,sticky='ew')
-        self.canvas=tk.Canvas(self,bg='white',width=300,height=320,highlightthickness=0,takefocus=True,yscrollincrement=1)
+        self.canvas=tk.Canvas(self,bg='white',width=300,height=320,highlightthickness=1,highlightbackground='#aebccb',takefocus=True,yscrollincrement=1)
         self.canvas.grid(row=1,column=0,sticky='nsew')
         scrollbar=ttk.Scrollbar(self,command=self.scroll);scrollbar.grid(row=1,column=1,sticky='ns')
         self.canvas.configure(yscrollcommand=scrollbar.set)
@@ -153,7 +153,8 @@ class AttributeTable(ttk.Frame):
         width=max(220,c.winfo_width());divider=max(105,int(width*.39));value_width=max(80,width-divider-20)
         for x,text in ((10,'属性 / 意味'),(divider+10,'値・式')):
             self.header.create_text(x,16,text=text,anchor='w',font=self.heading_font,fill='#243448')
-        self.header.create_line(divider,0,divider,32,fill='#dce5ef')
+        self.header.create_line(divider,0,divider,32,fill='#aebccb')
+        self.header.create_line(0,31,width,31,fill='#aebccb')
         top=0;name_height=self.name_font.metrics('linespace');meaning_height=self.meaning_font.metrics('linespace')
         minimum=name_height+meaning_height+18
         for iid in self.order:
@@ -174,8 +175,8 @@ class AttributeTable(ttk.Frame):
             c.create_text(10,top+8,text=attr,anchor='nw',font=self.name_font,fill=color,tags=('name:'+iid,))
             c.create_text(10,top+8+name_height,text=self.short_meaning(meaning,divider-20),anchor='nw',font=self.meaning_font,fill='#597fa5' if chosen else '#738499',tags=('meaning:'+iid,))
             self.bounds[iid]=(top,top+height);top+=height
-            c.create_line(0,top,width,top,fill='#e7edf4')
-        c.create_line(divider,0,divider,top,fill='#e7edf4')
+        for _,bottom in self.bounds.values():c.create_line(0,bottom,width,bottom,fill='#aebccb')
+        c.create_line(divider,0,divider,max(top,c.winfo_height()),fill='#aebccb')
         c.configure(scrollregion=(0,0,width,max(top,c.winfo_height())))
         if self.ensure_visible:self.see(self.ensure_visible);self.ensure_visible=None
         self.draw_editor()

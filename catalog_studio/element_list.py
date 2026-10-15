@@ -153,9 +153,9 @@ class ElementList(tk.Canvas):
 
     def draw_header(self):
         super().delete('header');top=self.canvasy(0);width=max(120,self.winfo_width())
-        self.create_rectangle(0,top,width,top+32,fill='#edf3fa',outline='#dce5ef',tags=('header',))
+        self.create_rectangle(0,top,width,top+32,fill='#edf3fa',outline='#aebccb',tags=('header',))
         for x,label in ((8,'番号'),(53,'要素名 / 種類')):self.create_text(x,top+16,text=label,anchor='w',font=self.heading_font,fill='#243448',tags=('header',))
-        self.create_line(45,top,45,top+32,fill='#dce5ef',tags=('header',))
+        self.create_line(45,top,45,top+32,fill='#aebccb',tags=('header',))
 
     def redraw(self):
         self.pending=None
@@ -171,7 +171,7 @@ class ElementList(tk.Canvas):
             self.create_text(x,top+8,text=self.shorten(row['text'],available,self.name_font),anchor='nw',font=self.name_font,fill=color,tags=('name:'+iid,))
             self.create_text(x,top+9+self.name_font.metrics('linespace'),text=self.shorten(kind,available,self.type_font),anchor='nw',font=self.type_font,fill='#597fa5' if chosen else '#738499',tags=('type:'+iid,))
             self.bounds[iid]=(top,top+self.row_height);top+=self.row_height
-            self.create_line(0,top,width,top,fill='#e7edf4')
-        self.create_line(45,32,45,top,fill='#e7edf4')
+        for _,bottom in self.bounds.values():self.create_line(0,bottom,width,bottom,fill='#aebccb')
+        self.create_line(45,32,45,max(top,self.winfo_height()),fill='#aebccb')
         self.configure(scrollregion=(0,0,width,max(top,self.winfo_height())))
         self.draw_header();self.draw_editor()
