@@ -110,6 +110,9 @@ def validate_elements(elements, depth=0, identifiers=None):
         if 'schematic_position' in element:
             from .point_geometry import valid_layout
             if not valid_layout(element['schematic_position']):raise ValueError('仮配置は有限数値の3座標で指定してください。')
+        if 'schematic_scale' in element:
+            from .geometry_scene import valid_scale
+            if not valid_scale(element['schematic_scale']):raise ValueError('仮サイズは0.02〜50の有限数値3個で指定してください。')
         validate_elements(element.get('children',[]),depth+1,identifiers)
 
 

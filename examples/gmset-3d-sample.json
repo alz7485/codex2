@@ -1,0 +1,315 @@
+{
+  "format": "catalog-studio-integrated",
+  "version": 2,
+  "name": "GMSET と PTSET の3Dプレビュー（自作サンプル）",
+  "parameters": [
+    {
+      "id": "P1",
+      "role": "大径側外径",
+      "unit": "mm"
+    },
+    {
+      "id": "P2",
+      "role": "小径側外径",
+      "unit": "mm"
+    },
+    {
+      "id": "P3",
+      "role": "全長",
+      "unit": "mm"
+    },
+    {
+      "id": "P4",
+      "role": "大径側呼び径",
+      "unit": "mm"
+    },
+    {
+      "id": "P5",
+      "role": "小径側呼び径",
+      "unit": "mm"
+    }
+  ],
+  "cates": [
+    {
+      "id": "cate-reducer",
+      "name": "/REDUCER-CATE",
+      "description": "同心レデューサー（モックアップ参考値）",
+      "revision": "01"
+    }
+  ],
+  "definitions": [
+    {
+      "id": "preview-points",
+      "name": "/DEMO-PTSET",
+      "kind": "PTSET",
+      "revision": "01",
+      "elements": [
+        {
+          "id": "08c5fac4cd554a2c83ba324776124749",
+          "type": "PTAXI",
+          "name": "入口",
+          "attrs": {
+            "NUMB": "1",
+            "PCON": "'BW'",
+            "PBOR": "PARAM 1",
+            "PAXI": "-X",
+            "PDIS": "PARAM 3 / 2",
+            "PSKEY": "unset",
+            "DESC": "unset",
+            "PURP": "unset"
+          },
+          "schematic_position": [
+            -1,
+            0,
+            0
+          ]
+        },
+        {
+          "id": "e72b2e92286f4660b614e5850fdbf697",
+          "type": "PTAXI",
+          "name": "出口",
+          "attrs": {
+            "NUMB": "2",
+            "PCON": "'BW'",
+            "PBOR": "PARAM 1",
+            "PAXI": "X",
+            "PDIS": "PARAM 3 / 2",
+            "PSKEY": "unset",
+            "DESC": "unset",
+            "PURP": "unset"
+          },
+          "schematic_position": [
+            1,
+            0,
+            0
+          ]
+        },
+        {
+          "id": "0fbef34c2ea44a538c2feecbdd082dbb",
+          "type": "PTAXI",
+          "name": "分岐",
+          "attrs": {
+            "NUMB": "3",
+            "PCON": "'BW'",
+            "PBOR": "PARAM 1",
+            "PAXI": "Y",
+            "PDIS": "PARAM 4",
+            "PSKEY": "unset",
+            "DESC": "unset",
+            "PURP": "unset"
+          },
+          "schematic_position": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      ],
+      "parameter_preset_id": "21cf5458480d4195a44f5c5b2237afcc"
+    },
+    {
+      "id": "preview-shapes",
+      "name": "/DEMO-GMSET",
+      "kind": "GMSET",
+      "revision": "01",
+      "elements": [
+        {
+          "id": "9365d9a2b8c145abb6d7ee8bc15ea86c",
+          "type": "SCYL",
+          "name": "胴部",
+          "attrs": {
+            "PAXI": "X",
+            "PHEI": "PARAM 3",
+            "PDIA": "PARAM 1",
+            "PDIS": "-PARAM 3 / 2",
+            "TVISI": "TRUE",
+            "BVISI": "TRUE",
+            "LEVEL": "",
+            "CLFLA": "TRUE",
+            "TUFLA": "TRUE",
+            "OBST": "2",
+            "DESC": "",
+            "GTYP": "",
+            "PURP": ""
+          },
+          "schematic_scale": [
+            1.7,
+            1,
+            1
+          ]
+        },
+        {
+          "id": "6caea832093948cd8e69f164aff766d0",
+          "type": "SCYL",
+          "name": "入口フランジ",
+          "attrs": {
+            "PAXI": "P1",
+            "PHEI": "PARAM 5",
+            "PDIA": "PARAM 2",
+            "PDIS": "-PARAM 5",
+            "TVISI": "TRUE",
+            "BVISI": "TRUE",
+            "LEVEL": "",
+            "CLFLA": "TRUE",
+            "TUFLA": "TRUE",
+            "OBST": "2",
+            "DESC": "",
+            "GTYP": "",
+            "PURP": ""
+          },
+          "schematic_scale": [
+            0.35,
+            1.5,
+            1.5
+          ]
+        },
+        {
+          "id": "beb64af31717479e854d6cbe39983fdd",
+          "type": "SCYL",
+          "name": "出口フランジ",
+          "attrs": {
+            "PAXI": "P2",
+            "PHEI": "PARAM 5",
+            "PDIA": "PARAM 2",
+            "PDIS": "-PARAM 5",
+            "TVISI": "TRUE",
+            "BVISI": "TRUE",
+            "LEVEL": "",
+            "CLFLA": "TRUE",
+            "TUFLA": "TRUE",
+            "OBST": "2",
+            "DESC": "",
+            "GTYP": "",
+            "PURP": ""
+          },
+          "schematic_scale": [
+            0.35,
+            1.5,
+            1.5
+          ]
+        },
+        {
+          "id": "3704949fea984839b2d7fe02b1f6bc10",
+          "type": "SCYL",
+          "name": "分岐管",
+          "attrs": {
+            "PAXI": "P3",
+            "PHEI": "PARAM 4",
+            "PDIA": "PARAM 1 * 0.6",
+            "PDIS": "-PARAM 4",
+            "TVISI": "TRUE",
+            "BVISI": "TRUE",
+            "LEVEL": "",
+            "CLFLA": "TRUE",
+            "TUFLA": "TRUE",
+            "OBST": "2",
+            "DESC": "",
+            "GTYP": "",
+            "PURP": ""
+          },
+          "schematic_scale": [
+            0.7,
+            1.1,
+            0.7
+          ]
+        }
+      ],
+      "parameter_preset_id": "21cf5458480d4195a44f5c5b2237afcc",
+      "paired_ptset_id": "preview-points"
+    }
+  ],
+  "scoms": [
+    {
+      "id": "part-standard",
+      "name": "/DEMO-180",
+      "cate_id": "cate-reducer",
+      "revision": "01",
+      "size": "DEMO-180",
+      "ptset_id": "preview-points",
+      "gmset_id": "preview-shapes",
+      "parameter_preset_id": "21cf5458480d4195a44f5c5b2237afcc",
+      "values": {
+        "P1": 60,
+        "P2": 100,
+        "P3": 180,
+        "P4": 70,
+        "P5": 14
+      }
+    },
+    {
+      "id": "part-small",
+      "name": "/DEMO-SMALL",
+      "cate_id": "cate-reducer",
+      "revision": "01",
+      "size": "DEMO-SMALL",
+      "ptset_id": "preview-points",
+      "gmset_id": "preview-shapes",
+      "parameter_preset_id": "21cf5458480d4195a44f5c5b2237afcc",
+      "values": {
+        "P1": 0.06,
+        "P2": 0.1,
+        "P3": 0.18,
+        "P4": 0.07,
+        "P5": 0.014
+      }
+    },
+    {
+      "id": "part-large",
+      "name": "/DEMO-LARGE",
+      "cate_id": "cate-reducer",
+      "revision": "01",
+      "size": "DEMO-LARGE",
+      "ptset_id": "preview-points",
+      "gmset_id": "preview-shapes",
+      "parameter_preset_id": "21cf5458480d4195a44f5c5b2237afcc",
+      "values": {
+        "P1": 60000,
+        "P2": 100000,
+        "P3": 180000,
+        "P4": 70000,
+        "P5": 14000
+      }
+    }
+  ],
+  "specs": [],
+  "books": [],
+  "texts": [],
+  "tables": [],
+  "parameter_presets": [
+    {
+      "id": "21cf5458480d4195a44f5c5b2237afcc",
+      "name": "3Dプレビュー作成例",
+      "period": "",
+      "component": "",
+      "description": "",
+      "parameters": [
+        {
+          "id": "P1",
+          "role": "胴部外径",
+          "unit": "mm"
+        },
+        {
+          "id": "P2",
+          "role": "フランジ外径",
+          "unit": "mm"
+        },
+        {
+          "id": "P3",
+          "role": "面間距離",
+          "unit": "mm"
+        },
+        {
+          "id": "P4",
+          "role": "分岐長さ",
+          "unit": "mm"
+        },
+        {
+          "id": "P5",
+          "role": "フランジ厚さ",
+          "unit": "mm"
+        }
+      ],
+      "reference_roles": {}
+    }
+  ]
+}

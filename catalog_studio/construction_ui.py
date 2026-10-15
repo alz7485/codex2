@@ -196,7 +196,7 @@ class ConstructionEditor(ttk.Frame):
         if not self.commit_inline():self.refresh_pairing();return
         try:pairing.assign(self.data,self.definition(),self.ptset_options[self.ptset_choice.get()])
         except (KeyError,ValueError) as exc:self.host.status.configure(text=str(exc));self.refresh_pairing();return
-        self.host.mark('GMSET に適用する PTSET を変更しました。');self.refresh_pairing()
+        self.host.mark('GMSET に適用する PTSET を変更しました。');self.refresh_pairing();self.draw()
 
     def populate_library(self):
         items = schema.TYPES_BY_SET[self.kind]
@@ -315,7 +315,7 @@ class ConstructionEditor(ttk.Frame):
                 if self.field==key:
                     busy=self.busy;self.busy=True;self.expression.set(value);self.busy=busy;self.update_validation()
                 if self.kind=='PTSET' and key=='NUMB':self.elements.item(element['id'],values=(value,element['name'],element['type']))
-            self.redraw_points()
+            self.redraw_points();self.draw()
         return {'value':original,'choices':choices,'commit':commit,'report':lambda text:self.validation_note.configure(text=text)}
 
     def open_point_canvas(self):
@@ -556,7 +556,7 @@ class ConstructionEditor(ttk.Frame):
         schema.set_value(self.element(), self.field, value)
         self.tables[self.section].item(self.field, values=(self.field, schema.meaning(self.element()['type'],self.field), self.display_field_value(self.element(),self.field)))
         if self.kind=='PTSET' and self.field=='NUMB':self.elements.item(self.element_id,values=(value,self.element()['name'],self.element()['type']) if getattr(self,'simple_layout',False) else (value,self.element()['type']))
-        self.host.mark(); self.update_validation();self.redraw_points()
+        self.host.mark(); self.update_validation();self.redraw_points();self.draw()
 
     def rename_element(self, *_):
         if not self.busy and self.element():
@@ -681,6 +681,9 @@ class ConstructionEditor(ttk.Frame):
     def select_scom(self, _=None):
         self.preview_scom_id = self.scom_names.get(self.scom_choice.get()); self.refresh_values(); self.update_validation()
         self.redraw_points(options=True)
+        if hasattr(self,'geometry_view'):
+            self.geometry_view.cancel(redraw=False)
+            self.geometry_view.mode.set('SCOM 実寸' if self.preview_scom_id else '仮サイズ');self.draw()
 
     def refresh_values(self):
         s = project.get(self.data, 'scoms', self.preview_scom_id)
@@ -785,6 +788,8 @@ class ConstructionEditor(ttk.Frame):
         self.host.form('LINE：点の順序',fields,apply)
 
     def draw(self):
+        if hasattr(self,'geometry_view'):
+            self.geometry_view.redraw();return
         if self.canvas is None:return
         c = self.canvas; c.delete('all'); w, h = max(c.winfo_width(), 100), max(c.winfo_height(), 120)
         d = self.definition()
