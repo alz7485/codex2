@@ -23,10 +23,12 @@ class ValueEditorTests(unittest.TestCase):
 
     def test_parameter_tools_keep_draft_until_confirmed_and_cancel_restores_everything(self):
         before=copy.deepcopy(self.app.data);dialog=self.open()
-        self.assertIsInstance(dialog,tk.Toplevel);dialog.number.set('3');dialog.insert_button.invoke();self.app.update()
+        self.assertIsInstance(dialog,tk.Toplevel);dialog.insert_button.invoke();self.app.update()
+        self.assertEqual(self.app.data,before);menu,index=dialog.reference_rows[('PARAM','P3')]
+        self.assertIn('全長',menu.entrycget(index,'label'));menu.invoke(index);self.app.update()
         self.assertEqual(dialog.variable.get(),'PARAM[3]');dialog.half_button.invoke();self.app.update()
         self.assertEqual(dialog.variable.get(),'(PARAM[3]) / 2');self.assertEqual(self.app.data,before)
-        dialog.number_choice.focus_force();self.app.update();self.assertIsNotNone(self.table.editing)
+        dialog.insert_button.focus_force();self.app.update();self.assertIsNotNone(self.table.editing)
         dialog.cancel_button.invoke();self.app.update();self.assertEqual(self.app.data,before)
         self.assertIsNone(self.table.editing);self.assertIsNone(self.app.grab_current())
 
@@ -34,17 +36,21 @@ class ValueEditorTests(unittest.TestCase):
         profile=presets.add(self.app.data,'部品ごとの規則');profile['reference_roles']={'IPARAM':{'P1':'断熱厚さ'}}
         next(p for p in profile['parameters'] if p['id']=='P3')['role']='面間距離'
         presets.bind(self.app.data,self.editor.definition(),profile['id']);self.editor.refresh();self.app.update()
-        dialog=self.open();self.assertTrue(any('面間距離' in label for label in dialog.number_choice['values']))
-        dialog.variable.set('');dialog.number.set('3');dialog.insert_button.invoke()
-        dialog.operator_buttons['+'].invoke();dialog.family.set('IPARAM');self.app.update()
-        self.assertIn('断熱厚さ',dialog.role_label['text']);dialog.insert_button.invoke();self.app.update()
+        dialog=self.open();dialog.variable.set('');dialog.insert_button.invoke();self.app.update()
+        menu,index=dialog.reference_rows[('PARAM','P3')];self.assertIn('面間距離',menu.entrycget(index,'label'))
+        menu.invoke(index);dialog.operator_buttons['+'].invoke();dialog.insert_button.invoke();self.app.update()
+        menu,index=dialog.reference_rows[('IPARAM','P1')];self.assertIn('断熱厚さ',menu.entrycget(index,'label'))
+        menu.invoke(index);self.app.update()
         self.assertIn('面間距離',dialog.caption['text']);self.assertIn('断熱厚さ',dialog.caption['text'])
         dialog.confirm_button.invoke();self.app.update();raw=self.editor.element()['attrs']['PDIS']
         self.assertEqual(raw,'PARAM[3] + IPARAM[1]');self.assertNotIn('断熱',raw);self.assertIsNone(self.table.editing)
 
-    def test_invalid_reference_number_and_normalization_leave_source_unchanged(self):
+    def test_dismissing_parameter_list_and_normalizing_leave_source_unchanged(self):
         original=self.editor.element()['attrs']['PDIS'];dialog=self.open()
-        dialog.number.set('-1');dialog.insert_button.invoke();self.app.update();self.assertIn('正の整数',dialog.error['text'])
+        draft=dialog.variable.get();dialog.insert_button.invoke();self.app.update()
+        self.assertTrue(dialog.reference_menu.winfo_ismapped());dialog.reference_menu.event_generate('<Escape>');self.app.update()
+        self.assertFalse(dialog.reference_menu.winfo_ismapped());self.assertTrue(dialog.winfo_exists())
+        self.assertEqual(dialog.variable.get(),draft);self.assertIs(self.app.grab_current(),dialog)
         self.assertEqual(self.editor.element()['attrs']['PDIS'],original)
         dialog.variable.set('0.5 TIMES PARAM 3');dialog.normalize_button.invoke();self.app.update()
         self.assertEqual(dialog.variable.get(),'(0.5 * PARAM[3])');self.assertEqual(self.editor.element()['attrs']['PDIS'],original)
@@ -68,5 +74,21 @@ class ValueEditorTests(unittest.TestCase):
         parent=PresetEditor(self.editor,record);self.app.update();editor=parent.geometry_editor;table=editor.tables['main']
         table.begin_edit('PDIS');self.app.update();dialog=table.editing['dialog'];dialog.variable.set('PARAM 3 / 2')
         table.begin_edit('PDIS');self.assertIs(table.editing['dialog'],dialog)
-        self.assertIs(self.app.grab_current(),dialog);dialog.cancel();self.app.update()
+        self.assertIs(self.app.grab_current(),dialog);dialog.insert_button.invoke();self.app.update();dialog.cancel();self.app.update()
         self.assertIs(self.app.grab_current(),parent);parent.destroy();self.app.update()
+
+    def test_list_insertion_replaces_selected_range_and_rejects_stale_draft(self):
+        dialog=self.open();dialog.variable.set('PARAM[1] + 100');dialog.entry.selection_range(11,14)
+        dialog.insert_button.invoke();self.app.update();menu,index=dialog.reference_rows[('PARAM','P3')];menu.invoke(index);self.app.update()
+        self.assertEqual(dialog.variable.get(),'PARAM[1] + PARAM[3]')
+        dialog.insert_button.invoke();self.app.update();menu,index=dialog.reference_rows[('PARAM','P1')]
+        dialog.variable.set('PARAM[2]');menu.invoke(index);self.app.update()
+        self.assertEqual(dialog.variable.get(),'PARAM[2]');self.assertIn('挿入位置を選び直',dialog.error['text'])
+        dialog.cancel()
+
+    def test_parameter_list_does_not_invent_roles_for_unregistered_families(self):
+        dialog=self.open();dialog.insert_button.invoke();self.app.update()
+        self.assertEqual(tuple(dialog.reference_menus),schema.REFERENCE_TYPES)
+        other=dialog.reference_menus['IPARAM'];self.assertEqual(other.entrycget(0,'state'),'disabled')
+        dialog.dismiss_references();dialog.variable.set('IPARAM[99]');dialog.confirm_button.invoke();self.app.update()
+        self.assertEqual(self.editor.element()['attrs']['PDIS'],'IPARAM[99]')

@@ -48,8 +48,9 @@ class SimpleAuthoringTests(unittest.TestCase):
     def test_parameter_picker_in_dialog_inserts_without_committing_until_confirmed(self):
         e=self.app.geometry_editor;table=e.tables['main'];table.selection_set('PDIS');self.app.update()
         original=e.element()['attrs']['PDIS'];e.focus_value_input();self.app.update();dialog=table.editing['dialog']
-        dialog.variable.set('');dialog.number.set('3');self.app.update()
-        self.assertIn('全長',dialog.role_label['text']);dialog.insert_button.invoke();self.app.update()
+        dialog.variable.set('');dialog.insert_button.invoke();self.app.update()
+        menu,index=dialog.reference_rows[('PARAM','P3')];self.assertIn('全長',menu.entrycget(index,'label'))
+        menu.invoke(index);self.app.update()
         self.assertEqual(dialog.variable.get(),'PARAM[3]');self.assertEqual(e.element()['attrs']['PDIS'],original)
         dialog.confirm_button.invoke();self.app.update();self.assertEqual(e.element()['attrs']['PDIS'],'PARAM[3]')
         table.selection_set('NUMB');self.app.update();e.focus_value_input();self.app.update()

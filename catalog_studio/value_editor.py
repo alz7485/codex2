@@ -1,5 +1,4 @@
 """Compact transactional attribute editor with preset-aware expression helpers."""
-import re
 import tkinter as tk
 from tkinter import ttk
 from . import element_schema as schema, expressions, presets, theme
@@ -14,8 +13,8 @@ class ValueEditor(tk.Toplevel):
         self.previous_grab=self.grab_current();self.title(key+' を編集');self.transient(editor.winfo_toplevel())
         self.resizable(True,False);self.configure(bg=theme.SURFACE)
         self.data=editor.data;self.definition=editor.definition();self.element=editor.element()
-        self.variable=tk.StringVar(value=context['value']);self.family=tk.StringVar(value='PARAM');self.number=tk.StringVar()
-        self.uses_parameters=key not in LITERALS;self.role_options={}
+        self.variable=tk.StringVar(value=context['value']);self.reference_menu=None;self.reference_menus={};self.reference_rows={};self.insertion_context=None
+        self.uses_parameters=key not in LITERALS
         body=ttk.Frame(self,padding=14);body.pack(fill='both',expand=True);body.columnconfigure(0,weight=1)
         header=ttk.Frame(body);header.grid(row=0,column=0,sticky='ew')
         ttk.Label(header,text=key,style='Heading.TLabel').pack(side='left')
@@ -27,15 +26,8 @@ class ValueEditor(tk.Toplevel):
         self.caption=ttk.Label(body,text='',style='AttributeMeaning.TLabel',wraplength=410)
         self.caption.grid(row=3,column=0,sticky='w',pady=(4,8))
         if self.uses_parameters:
-            references=ttk.LabelFrame(body,text='PARAM を挿入',padding=8);references.grid(row=4,column=0,sticky='ew');references.columnconfigure(1,weight=1)
-            self.family_choice=ttk.Combobox(references,textvariable=self.family,values=schema.REFERENCE_TYPES,state='readonly',width=13)
-            self.family_choice.grid(row=0,column=0,sticky='ew',padx=(0,6))
-            self.number_choice=ttk.Combobox(references,textvariable=self.number,width=18)
-            self.number_choice.grid(row=0,column=1,sticky='ew')
-            self.insert_button=ttk.Button(references,text='挿入',width=5,command=self.insert_reference,style='Compact.TButton')
-            self.insert_button.grid(row=0,column=2,padx=(6,0))
-            self.role_label=ttk.Label(references,text='',style='AttributeMeaning.TLabel',wraplength=390)
-            self.role_label.grid(row=1,column=0,columnspan=3,sticky='w',pady=(5,0))
+            self.insert_button=ttk.Button(body,text='PARAM を挿入 ▾',command=self.open_references,style='Compact.TButton')
+            self.insert_button.grid(row=4,column=0,sticky='w')
             tools=ttk.Frame(body);tools.grid(row=5,column=0,sticky='ew',pady=(8,0))
             self.operator_buttons={}
             for label,text in (('+',' + '),('−',' - '),('×',' * '),('÷',' / '),('( )','( )')):
@@ -43,8 +35,6 @@ class ValueEditor(tk.Toplevel):
                 button.pack(side='left',padx=(0,3));self.operator_buttons[label]=button
             self.half_button=ttk.Button(tools,text='÷2',width=4,command=self.half,style='Compact.TButton');self.half_button.pack(side='left',padx=(0,3))
             self.normalize_button=ttk.Button(tools,text='式を整理',width=8,command=self.normalize,style='Compact.TButton');self.normalize_button.pack(side='right')
-            self.family.trace_add('write',lambda *_:self.refresh_references());self.number.trace_add('write',lambda *_:self.update_role())
-            self.refresh_references()
         self.error=ttk.Label(body,text='',foreground='#bc3434',wraplength=410)
         self.error.grid(row=6,column=0,sticky='ew',pady=(6,0))
         footer=ttk.Frame(body);footer.grid(row=7,column=0,sticky='ew',pady=(10,0))
@@ -68,38 +58,54 @@ class ValueEditor(tk.Toplevel):
     def update_caption(self):
         self.caption.configure(text=presets.expression_names(self.data,self.definition,self.variable.get()) if self.uses_parameters else '')
 
-    def roles(self):
-        if self.family.get()=='PARAM':return {p['id']:presets.caption(p) for p in presets.rules(self.data,self.definition)}
-        return presets.reference_roles(self.data,self.definition).get(self.family.get(),{})
+    def open_references(self):
+        if self.reference_menu is not None:
+            self.dismiss_references();self.reference_menu.destroy()
+        try:a,b=self.entry.index('sel.first'),self.entry.index('sel.last')
+        except tk.TclError:a=b=self.entry.index('insert')
+        self.insertion_context=(self.variable.get(),a,b)
+        menu=self.reference_menu=tk.Menu(self,tearoff=False)
+        self.reference_menus={'PARAM':menu};self.reference_rows={}
+        def populate(target,family,roles):
+            for pid,role in roles.items():
+                number=pid[1:];index=target.index('end');index=0 if index is None else index+1
+                target.add_command(label=family+' '+number+'：'+role,command=lambda f=family,p=pid:self.choose_reference(f,p))
+                self.reference_rows[(family,pid)]=(target,index)
+            if not roles:target.add_command(label='設定名が登録されていません',state='disabled')
+            target.bind('<Escape>',lambda _:self.dismiss_references())
+        populate(menu,'PARAM',{p['id']:p['role'] for p in presets.rules(self.data,self.definition)})
+        menu.add_separator()
+        other_roles=presets.reference_roles(self.data,self.definition)
+        for family in schema.REFERENCE_TYPES[1:]:
+            child=tk.Menu(menu,tearoff=False);self.reference_menus[family]=child
+            populate(child,family,other_roles.get(family,{}));menu.add_cascade(label=family,menu=child)
+        menu.add_separator();menu.add_command(label='閉じる',command=self.dismiss_references)
+        menu.tk_popup(self.insert_button.winfo_rootx(),self.insert_button.winfo_rooty()+self.insert_button.winfo_height())
 
-    def refresh_references(self):
-        old=self.role_options.get(self.number.get(),'1');roles=self.roles()
-        self.role_options={pid[1:]+'：'+name:pid[1:] for pid,name in roles.items()}
-        self.number_choice['values']=tuple(self.role_options)
-        self.number.set(next((label for label,number in self.role_options.items() if number==old),next(iter(self.role_options),'1')))
-        self.update_role()
+    def dismiss_references(self,restore=True):
+        if self.reference_menu is not None:
+            for menu in self.reference_menus.values():menu.unpost()
+            current=self.grab_current()
+            if current in self.reference_menus.values():current.grab_release()
+        self.insertion_context=None
+        if restore:self.grab_set();self.entry.focus_set()
+        return 'break'
 
-    def selected_number(self):
-        value=self.role_options.get(self.number.get(),self.number.get().strip())
-        match=re.fullmatch(r'(?:P)?([1-9]\d*)',value,re.IGNORECASE)
-        if not match:raise ValueError('参照番号は正の整数で指定してください。')
-        return match[1]
-
-    def update_role(self):
-        try:
-            number=self.selected_number();name=self.roles().get('P'+number,'設定名未登録')
-            self.role_label.configure(text=self.family.get()+' '+number+'  '+name)
-        except ValueError:self.role_label.configure(text='番号または登録済みの設定名を選択してください。')
+    def choose_reference(self,family,pid):
+        snapshot=self.insertion_context
+        self.dismiss_references()
+        if snapshot is None:return
+        text,a,b=snapshot
+        if text!=self.variable.get():self.report('式が変更されています。挿入位置を選び直してください。');return
+        reference=family+'['+pid[1:]+']'
+        self.variable.set(text[:a]+reference+text[b:]);self.entry.selection_clear();self.entry.icursor(a+len(reference))
+        self.error.configure(text='')
 
     def insert_text(self,text):
         try:a,b=self.entry.index('sel.first'),self.entry.index('sel.last')
         except tk.TclError:a=b=self.entry.index('insert')
         current=self.variable.get();self.variable.set(current[:a]+text+current[b:])
         self.entry.selection_clear();self.entry.focus_set();self.entry.icursor(a+len(text))
-
-    def insert_reference(self):
-        try:self.insert_text(self.family.get()+'['+self.selected_number()+']');self.error.configure(text='')
-        except ValueError as exc:self.report(str(exc))
 
     def half(self):
         self.variable.set('('+self.variable.get()+') / 2');self.entry.selection_clear();self.entry.icursor('end');self.entry.focus_set()
@@ -114,6 +120,7 @@ class ValueEditor(tk.Toplevel):
 
     def dispose(self):
         previous=self.previous_grab
+        self.dismiss_references(restore=False)
         try:self.grab_release()
         except tk.TclError:pass
         self.destroy()
