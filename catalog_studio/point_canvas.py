@@ -33,7 +33,7 @@ class PointCanvas(ttk.Frame):
         self.context_menu=tk.Menu(self,tearoff=False)
         self.create_menu=tk.Menu(self.context_menu,tearoff=False)
         for kind in schema.PT_TYPES:
-            self.create_menu.add_command(label=kind+'  '+schema.PT_GUIDES[kind]['name'],command=lambda selected=kind:self.create_at_menu(selected))
+            self.create_menu.add_command(label=kind+'：'+schema.PT_GUIDES[kind]['name'],command=lambda selected=kind:self.create_at_menu(selected))
         self.context_menu.add_cascade(label='点を作成',menu=self.create_menu)
         self.context_menu.add_separator();self.context_menu.add_command(label='閉じる',command=self.dismiss_menu)
         self.canvas=tk.Canvas(self,bg='#f3f7fc',highlightthickness=0,width=320,height=260);self.canvas.grid(row=3,column=0,sticky='nsew')
