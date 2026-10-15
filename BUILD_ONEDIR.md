@@ -9,7 +9,7 @@
 3. `build_onedir.bat` をダブルクリック。
 4. 完了後、`dist\CatalogStudio\CatalogStudio.exe` を起動。
 
-ビルド用の `.build-venv` を作成し、ReportLab と PyInstaller をインストールします。初回インストールには PyPI への通信が必要です。
+ビルド用の `.build-venv` を作成し、Pillow・ReportLab・PyInstaller をインストールします。初回インストールには PyPI への通信が必要です。
 
 **配布するときは `dist\CatalogStudio` フォルダー全体を ZIP にしてください。** `CatalogStudio.exe` 単体では動作しません。`_internal` 内の Tk ライブラリ、Python DLL、ReportLab 等も必要です。
 

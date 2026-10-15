@@ -6,17 +6,14 @@ Python / Tkinter で、CATE・SCOM、ポイント・形状定義、SPEC、説明
 
 ## 起動
 
-Python 3.10 以降と Tkinter が必要です。Windows は Tcl/Tk を含む公式 Python を使ってください。
-
-```sh
-python main.py
-```
-
-Windows は `start.bat` でも起動できます。PDF 出力を使う場合は次を実行します。
+Python 3.10 以降・Tkinter・Pillow が必要です。Windows は Tcl/Tk を含む公式 Python を使ってください。
 
 ```sh
 python -m pip install -r requirements.txt
+python main.py
 ```
+
+Windows は初回に `install.bat` を実行後、`start.bat` でも起動できます。requirements.txt には透過表示用の Pillow と PDF 出力用の ReportLab を含みます。
 
 Windows 用 `install.bat` も同梱しています。Linux のシステム Python は `python3-tk` が必要な場合があります。
 
@@ -181,6 +178,22 @@ PTSET の中央に、点の配置・編集用 **3D プレビュー（仮配置�
 
 視点は **立体 / XY / XZ / YZ** のトグル、点と負形状の表示も個別トグルです。形状のクリックは要素一覧・右の属性と連動し、属性の確定後に再描画します。
 
+**表示** のトグルで以下を選べます。メッシュの形状データはそのまま使用し、円筒側面の分割線や平面の対角線を隠します。
+
+- **ソリッド**：面を塗って表示。メッシュの分割線を描かないため、面の形が見やすくなります。CAD のソリッド演算へ変換する操作ではありません。
+- **ワイヤー**：面を隠し、外形・角・端面の境界だけを表示。滑らかな曲面の細かい分割線を省きます。透過度スライダーは無効になります。
+- **面＋線**：面と簡略な輪郭線を重ねます。
+
+**透過** スライダーは0%（不透明）〜100%（面が見えない）です。途中の値では前後の面をアルファ合成し、内部・奥の形状が透けて見えます。点・負形状の輪郭・サイズ調整ハンドルは見える状態を保ちます。表示設定は画面を移動しても保持しますが、PTSET / GMSET の属性・SCOM・保存済みプロジェクトは変更しません。透過表示は表示用メッシュの面順で合成するため、交差形状の厳密な CAD 隠面処理は行いません。
+
+狭いプレビューでは表示操作の1行だけを横スクロールできます。不透明表示は従来の描画経路を使い、透過表示だけに画像合成処理を使用します。透過度スライダーの連続操作はまとめて再描画します。
+
+[輪郭線・透過表示のサンプル JSON](examples/gmset-display-sample.json)には内部の筒を追加しています。「面＋線」と透過65%で内部を確認できます。
+
+![細かい分割線を隠したワイヤーフレーム](docs/gmset-wireframe.png)
+
+![メッシュの形状を保持した透過表示](docs/gmset-transparent.png)
+
 ![SCOM の寸法で PTSET と GMSET を重ねた3Dプレビュー](docs/gmset-scom.png)
 
 [3Dプレビューのサンプル JSON](examples/gmset-3d-sample.json)を上部の「読み込み」から開き、GMSET 画面で `/DEMO-180`、`/DEMO-SMALL`、`/DEMO-LARGE` を切り替えて試せます。3つの部品は寸法の桁が異なり、同じ寸法比で表示枠に収まります。すべて架空の自作データです。
@@ -208,6 +221,6 @@ python -m pip install -r requirements.txt pypdf
 python -m unittest discover -s tests -v
 ```
 
-GUI は表示環境、PDF 内容の検証は pypdf が必要です。クラウドの仮想ディスプレイで、GUI・PDF を含む198件を検証しています。Windows 実機は未確認です。
+GUI は表示環境、PDF 内容の検証は pypdf が必要です。クラウドの仮想ディスプレイで、GUI・PDF を含む207件を検証しています。Windows 実機は未確認です。
 
 命名規則の照合設定はプロジェクトの `set_pairing_name_rules` で差し替えられます。各項目に `ptset` と `gmset` のテンプレートを指定し、共通の識別部分を `{name}` とします。テンプレートごとに `{name}` は1か所です。例：`[{"ptset":"/LIB/P-{name}","gmset":"/LIB/G-{name}"}]`。この設定の専用管理画面は現段階ではありません。保存した手動の対応は規則変更でも維持します。

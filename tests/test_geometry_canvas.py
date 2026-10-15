@@ -110,3 +110,48 @@ class GeometryCanvasTests(unittest.TestCase):
         self.assertEqual(self.view.scene.points[1][0],(-1.7,0,0))
         self.actual();self.assertEqual(self.view.scene.meshes,[])
         self.assertIn('PTSET',self.view.issue_label['text']);self.assertEqual(self.errors,[])
+
+    def test_sparse_wire_and_solid_display_modes_preserve_geometry(self):
+        self.actual();before=copy.deepcopy(self.data)
+        self.assertTrue(self.canvas.find_withtag('surface'));self.assertFalse(self.canvas.find_withtag('wireframe'))
+        self.view.display_buttons['ワイヤー'].invoke();self.app.update()
+        self.assertFalse(self.canvas.find_withtag('surface'));self.assertEqual(len(self.canvas.find_withtag('wireframe')),50)
+        self.assertEqual(str(self.view.transparency_scale['state']),'disabled')
+        self.view.display_buttons['面＋線'].invoke();self.app.update()
+        self.assertTrue(self.canvas.find_withtag('surface'));self.assertTrue(self.canvas.find_withtag('wireframe'))
+        self.assertEqual(self.data,before);self.assertEqual(self.errors,[])
+
+    def test_transparency_keeps_rear_surface_pixels_and_shape_selection_available(self):
+        self.actual();before=copy.deepcopy(self.data)
+        self.view.transparency.set(60);self.view.redraw();self.app.update()
+        image=self.view.surface_bitmap;self.assertIsNotNone(image)
+        self.assertTrue(self.canvas.find_withtag('transparent-surface'))
+        alphas=image.getchannel('A');self.assertTrue(0<alphas.getextrema()[1]<255)
+        self.assertTrue(self.view.pick_faces)
+        self.e.element_id=None;self.e.elements.selection_set(())
+        mesh=self.view.scene.meshes[0];point=tuple(sum(p[i] for p in mesh.vertices)/len(mesh.vertices) for i in range(3))
+        x,y=self.view.camera.project(point,self.canvas.winfo_width(),self.canvas.winfo_height())
+        self.canvas.event_generate('<Button-1>',x=round(x),y=round(y));self.app.update()
+        self.assertEqual(self.e.element_id,self.node['id'])
+        self.view.transparency.set(100);self.view.redraw();self.app.update()
+        self.assertIsNone(self.view.surface_bitmap);self.assertFalse(self.canvas.find_withtag('surface'))
+        self.view.transparency.set(0);self.view.redraw();self.app.update()
+        self.assertIsNone(self.view.surface_bitmap);self.assertTrue(self.canvas.find_withtag('surface'))
+        self.assertEqual(self.data,before);self.assertEqual(self.errors,[])
+
+    def test_display_preferences_survive_navigation_without_dirtying_project_or_late_callbacks(self):
+        before=copy.deepcopy(self.data);self.app.dirty=False
+        self.view.transparency.set(55);self.view.display_buttons['面＋線'].invoke();self.app.update()
+        self.view.transparency.set(40)  # Leave a coalesced render pending when navigating.
+        self.app.switch('ptset');self.app.update();self.app.switch('gmset');self.app.update()
+        view=self.app.geometry_editor.geometry_view
+        self.assertEqual(view.render_mode.get(),'面＋線');self.assertEqual(view.transparency.get(),40)
+        self.assertEqual(self.data,before);self.assertFalse(self.app.dirty);self.assertEqual(self.errors,[])
+
+    def test_display_controls_scroll_in_narrow_preview_and_keep_dragging_usable(self):
+        self.app.geometry('1120x780');self.app.update()
+        self.view.display_viewport.xview_moveto(1);self.app.update()
+        self.assertLessEqual(self.view.transparency_label.winfo_rootx()+self.view.transparency_label.winfo_width(),self.view.display_viewport.winfo_rootx()+self.view.display_viewport.winfo_width())
+        self.assertGreater(self.canvas.winfo_height(),200)
+        self.view.display_buttons['ワイヤー'].invoke();self.app.update();self.drag()
+        self.assertIn(geo.SCALE_KEY,self.node);self.assertEqual(self.errors,[])

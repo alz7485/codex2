@@ -3,7 +3,9 @@ import copy
 import math
 import tkinter as tk
 from tkinter import ttk
+from PIL import ImageTk
 from . import geometry_scene as geometry, project, theme
+from .surface_render import alpha_surface, inside_polygon, feature_edges
 
 
 class GeometryCanvas(ttk.Frame):
@@ -11,8 +13,12 @@ class GeometryCanvas(ttk.Frame):
         super().__init__(parent);self.editor=editor;self.camera=geometry.FitCamera();self.scene=geometry.Scene()
         self.mode=tk.StringVar(value='仮サイズ');self.view=tk.StringVar(value='立体')
         self.show_points=tk.BooleanVar(value=True);self.show_negative=tk.BooleanVar(value=True)
+        settings=getattr(editor.host,'gmset_display_settings',{})
+        self.render_mode=tk.StringVar(value=settings.get('mode','ソリッド'))
+        self.transparency=tk.DoubleVar(value=settings.get('transparency',0))
+        self.render_job=None;self.surface_image=None;self.surface_bitmap=None;self.pick_faces=[]
         self.drag=None;self.orbit=None;self.handles={};self.screen_points={};self.refreshing=False
-        self.columnconfigure(0,weight=1);self.rowconfigure(2,weight=1)
+        self.columnconfigure(0,weight=1);self.rowconfigure(3,weight=1)
         controls=ttk.Frame(self);controls.grid(row=0,column=0,sticky='ew',pady=(0,6))
         self.mode_buttons={}
         for label in ('仮サイズ','SCOM 実寸'):
@@ -28,17 +34,57 @@ class GeometryCanvas(ttk.Frame):
         self.scom_choice.bind('<<ComboboxSelected>>',self.select_scom)
         for label,var in (('点',self.show_points),('負形状',self.show_negative)):
             ttk.Checkbutton(row,text=label,variable=var,command=self.redraw,style='Preview.Toolbutton').pack(side='left',padx=(4,0))
+        display=ttk.Frame(self);display.grid(row=2,column=0,sticky='ew',pady=(0,8));display.columnconfigure(0,weight=1)
+        self.display_viewport=tk.Canvas(display,width=1,height=1,highlightthickness=0,bg=theme.SURFACE)
+        self.display_viewport.grid(row=0,column=0,sticky='ew')
+        self.display_scroll=ttk.Scrollbar(display,orient='horizontal',command=self.display_viewport.xview)
+        self.display_viewport.configure(xscrollcommand=self.display_scroll.set)
+        self.display_row=ttk.Frame(self.display_viewport)
+        self.display_window=self.display_viewport.create_window(0,0,anchor='nw',window=self.display_row)
+        ttk.Label(self.display_row,text='表示',style='Muted.TLabel').pack(side='left',padx=(0,5))
+        self.display_buttons={}
+        for label in ('ソリッド','ワイヤー','面＋線'):
+            button=ttk.Radiobutton(self.display_row,text=label,variable=self.render_mode,value=label,command=lambda:self.display_changed(immediate=True),style='Preview.Toolbutton')
+            button.pack(side='left',padx=(0,3));self.display_buttons[label]=button
+        ttk.Label(self.display_row,text='透過',style='Muted.TLabel').pack(side='left',padx=(7,3))
+        self.transparency_scale=ttk.Scale(self.display_row,from_=0,to=100,variable=self.transparency,length=90)
+        self.transparency_scale.pack(side='left',padx=3)
+        self.transparency_label=ttk.Label(self.display_row,text='0%',width=5,style='Muted.TLabel');self.transparency_label.pack(side='left')
+        self.display_row.bind('<Configure>',self.fit_display_controls);self.display_viewport.bind('<Configure>',self.fit_display_controls)
+        self.transparency.trace_add('write',self.display_changed)
         self.canvas=tk.Canvas(self,bg=theme.SUBTLE,highlightthickness=1,highlightbackground=theme.BORDER,width=1,height=1)
-        self.canvas.grid(row=2,column=0,sticky='nsew')
-        self.note=ttk.Label(self,text='',style='Muted.TLabel',wraplength=360);self.note.grid(row=3,column=0,sticky='ew',pady=(6,0))
+        self.canvas.grid(row=3,column=0,sticky='nsew')
+        self.note=ttk.Label(self,text='',style='Muted.TLabel',wraplength=360);self.note.grid(row=4,column=0,sticky='ew',pady=(6,0))
         self.note.bind('<Configure>',lambda e:self.note.configure(wraplength=max(120,e.width-4)))
-        self.issue_label=ttk.Label(self,text='',foreground='#a15c24',wraplength=360);self.issue_label.grid(row=4,column=0,sticky='ew',pady=(4,0))
+        self.issue_label=ttk.Label(self,text='',foreground='#a15c24',wraplength=360);self.issue_label.grid(row=5,column=0,sticky='ew',pady=(4,0))
         self.issue_label.bind('<Configure>',lambda e:self.issue_label.configure(wraplength=max(120,e.width-4)))
         self.canvas.bind('<Configure>',lambda _:self.redraw())
         self.canvas.bind('<Button-1>',self.press);self.canvas.bind('<B1-Motion>',self.move);self.canvas.bind('<ButtonRelease-1>',self.release)
         self.canvas.bind('<Button-3>',self.orbit_start);self.canvas.bind('<B3-Motion>',self.orbit_move)
         self.canvas.bind('<ButtonRelease-3>',lambda _:setattr(self,'orbit',None));self.canvas.bind('<Escape>',lambda _:self.cancel())
-        self.bind('<Destroy>',lambda e:self.cancel(redraw=False) if e.widget is self else None)
+        self.bind('<Destroy>',lambda e:self.dispose() if e.widget is self else None)
+
+    def fit_display_controls(self,_=None):
+        width,height=self.display_row.winfo_reqwidth(),self.display_row.winfo_reqheight();visible=self.display_viewport.winfo_width()
+        self.display_viewport.configure(height=height,scrollregion=(0,0,max(width,visible),height))
+        self.display_viewport.itemconfigure(self.display_window,width=max(width,visible))
+        if width>visible:self.display_scroll.grid(row=1,column=0,sticky='ew')
+        else:self.display_scroll.grid_remove();self.display_viewport.xview_moveto(0)
+
+    def sync_display_controls(self):
+        self.transparency_label.configure(text=f'{round(self.transparency.get())}%')
+        self.transparency_scale.configure(state='disabled' if self.render_mode.get()=='ワイヤー' else 'normal')
+
+    def display_changed(self,*_,immediate=False):
+        self.sync_display_controls()
+        self.editor.host.gmset_display_settings={'mode':self.render_mode.get(),'transparency':self.transparency.get()}
+        if self.render_job:self.after_cancel(self.render_job);self.render_job=None
+        if immediate:self.redraw()
+        else:self.render_job=self.after(35,self.redraw)
+
+    def dispose(self):
+        if self.render_job:self.after_cancel(self.render_job);self.render_job=None
+        self.cancel(redraw=False);self.surface_image=None;self.surface_bitmap=None
 
     @property
     def actual(self):return self.mode.get()=='SCOM 実寸'
@@ -69,13 +115,15 @@ class GeometryCanvas(ttk.Frame):
         self.redraw()
 
     def redraw(self):
+        if self.render_job:self.after_cancel(self.render_job);self.render_job=None
         if not self.winfo_exists() or self.refreshing:return
         self.refreshing=True
         try:self._redraw()
         finally:self.refreshing=False
 
     def _redraw(self):
-        e=self.editor;c=self.canvas;c.delete('all');self.handles={};self.screen_points={};self.refresh_options()
+        e=self.editor;c=self.canvas;c.delete('all');self.handles={};self.screen_points={};self.refresh_options();self.sync_display_controls()
+        self.surface_image=None;self.surface_bitmap=None;self.pick_faces=[]
         scom=project.get(e.data,'scoms',e.preview_scom_id)
         definition=e.definition()
         if self.drag and self.drag.get('candidate'):
@@ -109,15 +157,32 @@ class GeometryCanvas(ttk.Frame):
                 rgb=tuple(int(fill[i:i+2],16) for i in (1,3,5));color='#' + ''.join(f'{int(v*shade):02x}' for v in rgb)
                 faces.append((sum(self.camera.depth(p) for p in points)/len(points),mesh,face,color,outline))
             if mesh.negative:negative.append(mesh)
-        for _,mesh,face,fill,outline in sorted(faces,key=lambda f:f[0]):
+        ordered=sorted(faces,key=lambda f:f[0]);mode=self.render_mode.get();opacity=1-max(0,min(100,self.transparency.get()))/100
+        polygons=[]
+        for _,mesh,face,fill,outline in ordered:
             if mesh.negative:continue
-            c.create_polygon(*(v for i in face for v in xy(mesh.vertices[i])),fill=fill,outline=outline,width=1,tags=('mesh','element:'+mesh.ident))
+            points=[xy(mesh.vertices[i]) for i in face]
+            self.pick_faces.append((points,mesh.ident))
+            if mode=='ワイヤー':continue
+            polygons.append((points,fill))
+            if opacity==1:c.create_polygon(*(v for p in points for v in p),fill=fill,outline='',width=1,tags=('mesh','element:'+mesh.ident,'surface'))
+            else:c.create_polygon(*(v for p in points for v in p),fill='',outline='',tags=('mesh','element:'+mesh.ident,'surface-hit'))
+        if mode!='ワイヤー' and 0<opacity<1 and polygons:
+            self.surface_bitmap=alpha_surface((width,height),polygons,opacity)
+            self.surface_image=ImageTk.PhotoImage(self.surface_bitmap,master=c)
+            c.create_image(0,0,anchor='nw',image=self.surface_image,tags='transparent-surface')
+        if mode in ('ワイヤー','面＋線'):
+            for mesh in meshes:
+                if mesh.negative:continue
+                color=theme.ACCENT if mesh.ident==e.element_id or self.parent_selected(mesh.ident) else '#58799b'
+                edges=feature_edges(mesh,geometry.cross(*self.camera.basis()),visible_only=(mode=='面＋線' and opacity==1))
+                for a,b in edges:c.create_line(*xy(mesh.vertices[a]),*xy(mesh.vertices[b]),fill=color,width=1,tags=('mesh','wireframe','element:'+mesh.ident))
         for mesh in meshes:
             for line in mesh.lines:
                 c.create_line(*(v for i in line for v in xy(mesh.vertices[i])),fill=theme.ACCENT,width=2,tags=('mesh','element:'+mesh.ident))
         # Negative volumes stay visible as orange wireframes; no Boolean cut is claimed.
         for mesh in negative:
-            edges={tuple(sorted((face[i],face[(i+1)%len(face)]))) for face in mesh.faces for i in range(len(face))}
+            edges=feature_edges(mesh,geometry.cross(*self.camera.basis()))
             for a,b in edges:c.create_line(*xy(mesh.vertices[a]),*xy(mesh.vertices[b]),fill='#c7812e',dash=(4,3),tags=('negative','element:'+mesh.ident))
         if self.show_points.get():
             for number,(point,direction,name) in self.scene.points.items():
@@ -171,6 +236,10 @@ class GeometryCanvas(ttk.Frame):
             ident=next((t[8:] for t in self.canvas.gettags(item) if t.startswith('element:')),None)
             if ident:
                 self.editor.elements.selection_set(ident);self.editor.select_element();return
+        if self.render_mode.get()!='ワイヤー':
+            for points,ident in reversed(self.pick_faces):
+                if inside_polygon(event.x,event.y,points):
+                    self.editor.elements.selection_set(ident);self.editor.select_element();return
 
     def move(self,event):
         if not self.drag:return
