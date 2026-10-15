@@ -17,7 +17,7 @@ class RegisteredBrowser(ttk.Frame):
         toolbar=ttk.Frame(self,style='Sidebar.TFrame');toolbar.pack(fill='x')
         self.heading=ttk.Label(toolbar, text='登録データ', style='SidebarTitle.TLabel')
         self.heading.pack(side='left')
-        self.add_button=ttk.Button(toolbar,text='＋ 追加',command=self.add_definition,style='Primary.TButton')
+        self.add_button=ttk.Button(toolbar,text='＋ 追加',command=self.add_definition,style='Compact.Primary.TButton')
         self.search = tk.StringVar()
         entry = ttk.Entry(self, textvariable=self.search)
         entry.pack(fill='x', pady=(10, 4))

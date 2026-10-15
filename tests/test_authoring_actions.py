@@ -68,10 +68,11 @@ class AuthoringActionTests(unittest.TestCase):
             self.assertEqual(d['elements'][0]['attrs']['PDIS'],'PARAM 3 / 4')
         self.assertEqual(self.errors,[])
 
-    def test_direction_choices_commit_from_the_inline_combobox(self):
+    def test_direction_choices_wait_for_dialog_confirmation(self):
         e=self.editor;table=e.tables['main'];table.selection_set('PAXI');self.app.update();table.begin_edit('PAXI');self.app.update()
         entry=table.editing['entry'];self.assertIsInstance(entry,ttk.Combobox)
-        entry.set('-Y');entry.event_generate('<<ComboboxSelected>>');self.app.update()
+        original=e.element()['attrs']['PAXI'];entry.set('-Y');entry.event_generate('<<ComboboxSelected>>');self.app.update()
+        self.assertEqual(e.element()['attrs']['PAXI'],original);table.editing['dialog'].confirm_button.invoke();self.app.update()
         self.assertIsNone(table.editing);self.assertEqual(e.element()['attrs']['PAXI'],'-Y');self.assertEqual(self.errors,[])
 
     def test_conflicting_inline_edit_blocks_project_replacement_until_cancelled(self):

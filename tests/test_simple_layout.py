@@ -45,27 +45,15 @@ class SimpleAuthoringTests(unittest.TestCase):
         self.assertEqual(e.tables['main'].get_children(), schema.fields('PTPOS')+schema.PT_DETAIL)
         self.assertEqual(self.errors, [])
 
-    def test_parameter_picker_keeps_role_and_value_when_closed(self):
-        e = self.app.geometry_editor
-        e.tables['main'].selection_set('PDIS')
-        self.app.update()
-        e.expression.set('')
-        self.assertFalse(e.reference_controls.winfo_ismapped())
-        e.reference_button.invoke()
-        self.app.update()
-        e.ref_number.set('3')
-        self.assertTrue(e.reference_controls.winfo_ismapped())
-        self.assertIn('全長', e.role_label['text'])
-        e.insert_reference()
-        self.app.update()
-        e.reference_button.invoke()
-        self.app.update()
-        self.assertFalse(e.reference_controls.winfo_ismapped())
-        self.assertEqual(e.element()['attrs']['PDIS'], 'PARAM[3]')
-        e.tables['main'].selection_set('NUMB')
-        self.app.update()
-        self.assertEqual(str(e.reference_button['state']), 'disabled')
-        self.assertEqual(self.errors, [])
+    def test_parameter_picker_in_dialog_inserts_without_committing_until_confirmed(self):
+        e=self.app.geometry_editor;table=e.tables['main'];table.selection_set('PDIS');self.app.update()
+        original=e.element()['attrs']['PDIS'];e.focus_value_input();self.app.update();dialog=table.editing['dialog']
+        dialog.variable.set('');dialog.number.set('3');self.app.update()
+        self.assertIn('全長',dialog.role_label['text']);dialog.insert_button.invoke();self.app.update()
+        self.assertEqual(dialog.variable.get(),'PARAM[3]');self.assertEqual(e.element()['attrs']['PDIS'],original)
+        dialog.confirm_button.invoke();self.app.update();self.assertEqual(e.element()['attrs']['PDIS'],'PARAM[3]')
+        table.selection_set('NUMB');self.app.update();e.focus_value_input();self.app.update()
+        self.assertFalse(table.editing['dialog'].uses_parameters);table.cancel_edit();self.assertEqual(self.errors,[])
 
     def test_hidden_settings_remain_editable_and_keep_point_values(self):
         e = self.app.geometry_editor
@@ -123,7 +111,9 @@ class SimpleAuthoringTests(unittest.TestCase):
             self.assertGreater(view.canvas.winfo_width(),220)
             e.tables['main'].selection_set('PDIS');app.update()
             e.focus_value_input();app.update();entry=e.tables['main'].editing['entry']
-            for widget in (entry,e.reference_button,e.add_button):
+            dialog=e.tables['main'].editing['dialog']
+            self.assertIsInstance(dialog,tk.Toplevel)
+            for widget in (entry,dialog.insert_button,dialog.confirm_button,e.add_button):
                 self.assertTrue(widget.winfo_ismapped())
                 self.assertLessEqual(widget.winfo_rootx()+widget.winfo_width(),app.winfo_rootx()+app.winfo_width())
                 self.assertLessEqual(widget.winfo_rooty()+widget.winfo_height(),app.winfo_rooty()+app.winfo_height())

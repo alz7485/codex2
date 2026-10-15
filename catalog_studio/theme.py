@@ -37,6 +37,7 @@ def apply(root,family):
     style.configure('TButton',padding=(12,7),background=SURFACE,foreground=INK,bordercolor=BORDER,lightcolor=SURFACE,darkcolor=SURFACE,relief='flat',borderwidth=1,focusthickness=0)
     style.map('TButton',background=[('disabled',SUBTLE),('pressed',SELECT),('active',SUBTLE)],foreground=[('disabled','#9aa6b7')],bordercolor=[('focus',ACCENT),('active','#a7b8cd')])
     style.configure('Compact.TButton',padding=(8,4),font=(family,9))
+    style.configure('Compact.Primary.TButton',padding=(7,3),width=6,font=(family,9))
     style.configure('Primary.TButton',background=ACCENT,foreground='white',bordercolor=ACCENT,lightcolor=ACCENT,darkcolor=ACCENT)
     style.map('Primary.TButton',background=[('disabled','#aec3e8'),('pressed',ACCENT_HOVER),('active',ACCENT_HOVER)],foreground=[('disabled','#eef3fb'),('!disabled','white')],bordercolor=[('focus','#83a9f6'),('!focus',ACCENT)])
     style.configure('Header.TButton',background=CHROME,foreground='#e0e7f2',bordercolor='#435369',lightcolor=CHROME,darkcolor=CHROME,padding=(13,6))

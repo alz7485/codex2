@@ -90,10 +90,9 @@ class ParameterDisplayGuiTests(unittest.TestCase):
         self.app.update()
         e.expression.set('PARA[3] + PARAM 1')
         self.assertEqual(e.expression_caption['text'], 'PARAM 3 全長 / PARAM 1 大径側外径')
-        e.reference_button.invoke()
-        e.ref_number.set('3')
-        self.app.update()
-        self.assertIn('PARAM 3 / 全長', e.role_label['text'])
+        e.focus_value_input();self.app.update();dialog=e.tables['main'].editing['dialog']
+        dialog.number.set('3');self.app.update()
+        self.assertIn('全長',dialog.role_label['text']);dialog.cancel_button.invoke();self.app.update()
         e.tables['main'].selection_set('DESC')
         self.app.update()
         e.expression.set('PARAM 3 という説明文')

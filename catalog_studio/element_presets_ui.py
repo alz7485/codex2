@@ -76,7 +76,7 @@ class PresetEditor(tk.Toplevel):
         ttk.Label(header,text='説明').pack(side='left');ttk.Entry(header,textvariable=self.description_var).pack(side='left',fill='x',expand=True,padx=8)
         ttk.Button(header,text='保存',command=self.save,style='Primary.TButton').pack(side='right')
         ttk.Button(header,text='キャンセル',command=self.destroy).pack(side='right',padx=8)
-        self.status=ttk.Label(self,text='属性セルを直接編集できます。保存すると登録したプリセットを更新します。',style='Muted.TLabel',padding=12);self.status.pack(side='bottom',fill='x')
+        self.status=ttk.Label(self,text='属性行をダブルクリックして編集できます。保存すると登録したプリセットを更新します。',style='Muted.TLabel',padding=12);self.status.pack(side='bottom',fill='x')
         self.content=ttk.Frame(self,padding=16);self.content.pack(fill='both',expand=True)
         from .construction_ui import ConstructionEditor
         self.geometry_editor=ConstructionEditor(self,record['kind'])

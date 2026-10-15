@@ -5,12 +5,13 @@ from . import theme
 
 
 class AttributeTable(ttk.Frame):
-    def __init__(self,parent,family,value_caption=None,edit_context=None,missing_value=None):
+    def __init__(self,parent,family,value_caption=None,edit_context=None,missing_value=None,editor_factory=None):
         super().__init__(parent)
         self.rows={};self.order=[];self.selected=();self.bounds={};self.pending=None;self.ensure_visible=None;self.scheduler=self.winfo_toplevel()
         self.value_caption=value_caption or (lambda key,value:'')
         self.edit_context=edit_context;self.editing=None
         self.missing_value=missing_value or (lambda key:False)
+        self.editor_factory=editor_factory
         self.name_font=font.Font(self,family=family,size=11,weight='bold')
         self.meaning_font=font.Font(self,family=family,size=9)
         self.value_font=font.Font(self,family=family,size=10)
@@ -108,9 +109,14 @@ class AttributeTable(ttk.Frame):
         return text+'…'
 
     def begin_edit(self,iid):
+        if self.editing and self.editing['iid']==iid and 'dialog' in self.editing:
+            self.editing['dialog'].lift();self.editing['entry'].focus_set();return True
         if not self.edit_context or iid not in self.rows or not self.finish_edit():return False
         context=self.edit_context(iid)
         if context is None:return False
+        if self.editor_factory:
+            self.selection_set(iid);self.see(iid)
+            self.editing=self.editor_factory(self,iid,context);return True
         self.selection_set(iid);variable=tk.StringVar(value=context['value'])
         choices=context.get('choices',())
         entry=ttk.Combobox(self.canvas,textvariable=variable,values=choices,state='normal') if choices else ttk.Entry(self.canvas,textvariable=variable)
@@ -134,16 +140,23 @@ class AttributeTable(ttk.Frame):
         editing=self.editing;self.editing=None
         try:editing['context']['commit'](editing['variable'].get())
         except ValueError as exc:
-            self.editing=editing;editing['context']['report'](str(exc));return False
-        editing['entry'].destroy();self.schedule();return True
+            self.editing=editing;editing['context']['report'](str(exc))
+            if 'dialog' in editing:editing['dialog'].report(str(exc))
+            return False
+        if 'dialog' in editing:editing['dialog'].dispose()
+        else:editing['entry'].destroy()
+        self.schedule();return True
 
     def cancel_edit(self):
         if self.editing:
-            editing=self.editing;self.editing=None;editing['entry'].destroy();self.schedule()
+            editing=self.editing;self.editing=None
+            if 'dialog' in editing:editing['dialog'].dispose()
+            else:editing['entry'].destroy()
+            self.schedule()
         return 'break'
 
     def draw_editor(self):
-        if self.editing and self.editing['iid'] in self.bounds:
+        if self.editing and 'dialog' not in self.editing and self.editing['iid'] in self.bounds:
             width=max(220,self.canvas.winfo_width());divider=max(105,int(width*.39));top=self.bounds[self.editing['iid']][0]
             self.canvas.create_window(divider+6,top+3,anchor='nw',window=self.editing['entry'],width=max(80,width-divider-12),tags=('editor',))
 

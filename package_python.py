@@ -6,7 +6,7 @@ import zipfile
 ROOT = Path(__file__).resolve().parent
 ROOT_FILES = ('.gitattributes','README.md','BUILD_ONEDIR.md','main.py','start.bat','install.bat',
               'build_onedir.bat','requirements.txt','requirements-build.txt','package_python.py')
-DOC_FILES = ('ptset-create.png','ptset-add.png','ptset-canvas.png','ptset-canvas-menu.png','gmset-create.png','outline-create.png','parameter-presets.png','element-presets.png')
+DOC_FILES = ('ptset-create.png','ptset-add.png','attribute-edit.png','ptset-canvas.png','ptset-canvas-menu.png','gmset-create.png','outline-create.png','parameter-presets.png','element-presets.png')
 EXAMPLE_FILES = ('integrated-sample.json','construction-sample.json','catalog-book.pdf',
                  'catalogue-rules-sample.json','catalogue-rules-book.pdf','parameter-presets-sample.json','parameter-presets-book.pdf','element-presets-sample.json')
 

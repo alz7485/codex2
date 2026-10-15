@@ -72,12 +72,12 @@ def build_simple(editor):
     row = ttk.Frame(left)
     row.pack(fill='x', pady=(0, 8))
     ttk.Label(row, text='要素', style='Heading.TLabel').pack(side='left')
-    e.add_button = ttk.Button(row, text='＋ 追加', command=e.toggle_create, style='Primary.TButton')
+    e.add_button = ttk.Button(row, text='＋ 追加', command=e.toggle_create, style='Compact.Primary.TButton')
     e.add_button.pack(side='right')
 
     e.creation_frame=tk.Toplevel(e)
     e.creation_frame.withdraw();e.creation_frame.title('ポイントを追加' if point else '形状を追加')
-    e.creation_frame.geometry('480x540');e.creation_frame.minsize(400,440)
+    e.creation_frame.geometry('420x360' if point else '440x420');e.creation_frame.minsize(400,350 if point else 400)
     e.creation_frame.transient(e.winfo_toplevel())
     e.creation_frame.protocol('WM_DELETE_WINDOW',lambda:e.toggle_create() if e.creating else e.creation_frame.withdraw())
     creation=ttk.Frame(e.creation_frame,padding=16);creation.pack(fill='both',expand=True)
@@ -87,7 +87,7 @@ def build_simple(editor):
         ttk.Checkbutton(creation, text='ネガティブ形状', variable=e.negative, command=e.populate_library).pack(anchor='w', pady=(0, 6))
     holder = ttk.Frame(creation)
     holder.pack(fill='both',expand=True)
-    e.library = tk.Listbox(holder, height=8, exportselection=False, font=(e.host.ui_font, 10), relief='flat',borderwidth=0,activestyle='none',selectbackground=theme.SELECT,selectforeground=theme.ACCENT)
+    e.library = tk.Listbox(holder, height=4 if point else 8, exportselection=False, font=(e.host.ui_font, 10), relief='flat',borderwidth=0,activestyle='none',selectbackground=theme.SELECT,selectforeground=theme.ACCENT)
     e.library.pack(side='left', fill='both', expand=True)
     scroll = ttk.Scrollbar(holder, command=e.library.yview)
     scroll.pack(side='right', fill='y')
@@ -96,10 +96,11 @@ def build_simple(editor):
     e.type_help.pack(fill='x', pady=10)
     e.creation_frame.bind('<Configure>', lambda event: e.type_help.configure(wraplength=max(140,event.width-32)) if event.widget is e.creation_frame else None)
     e.library.bind('<<ListboxSelect>>', e.describe_selected_type)
-    e.create_element_button = ttk.Button(creation, text='作成', command=e.add_element, style='Primary.TButton')
-    e.create_element_button.pack(fill='x')
-    e.cancel_creation_button=ttk.Button(creation,text='キャンセル',command=lambda:e.toggle_create() if e.creating else None)
-    e.cancel_creation_button.pack(fill='x',pady=(8,0))
+    actions=ttk.Frame(creation);actions.pack(fill='x',pady=(6,0))
+    e.create_element_button = ttk.Button(actions, text='作成', command=e.add_element, style='Primary.TButton',width=12)
+    e.create_element_button.pack(side='right')
+    e.cancel_creation_button=ttk.Button(actions,text='キャンセル',width=9,command=lambda:e.toggle_create() if e.creating else None)
+    e.cancel_creation_button.pack(side='right',padx=(0,6))
     e.populate_library()
 
     e.tree_holder = ttk.Frame(left)
@@ -137,6 +138,8 @@ def build_simple(editor):
     e.tab_frames = {}
     e.section_order = ['main']
     table = AttributeTable(e.tabs,e.host.ui_font,lambda attr,value:e.parameter_caption(attr,value) if e.attribute_section(attr)!='extra' else '',lambda attr:e.inline_context(attr,e.attribute_section(attr)),lambda attr:attr in schema.missing_fields(e.element()))
+    from .value_editor import open_editor
+    table.editor_factory=lambda table,key,context:open_editor(e,table,key,context)
     table.pack(fill='both',expand=True)
     table.bind('<<TreeviewSelect>>',lambda event:e.select_field('main'))
     table.bind('<Double-1>',lambda _:e.focus_value_input())
@@ -144,7 +147,7 @@ def build_simple(editor):
     e.tables['main'] = table
 
     box = ttk.Frame(right, padding=(0, 14, 0, 0))
-    box.pack(side='bottom', fill='x', before=e.tabs)
+    # Legacy controller variables remain available, while input lives in a dialog.
     row = ttk.Frame(box)
     row.pack(fill='x', pady=(0, 8))
     caption=ttk.Frame(row)
@@ -184,10 +187,11 @@ def build_simple(editor):
     e.role_label = ttk.Label(e.reference_controls, text='', style='Muted.TLabel', wraplength=710)
     e.role_label.pack(anchor='w', fill='x', pady=(6, 0))
     e.role_label.bind('<Configure>', lambda event: e.role_label.configure(wraplength=max(160, event.width - 8)))
-    e.context_helpers = ttk.Frame(box)
+    footer=ttk.Frame(right);footer.pack(side='bottom',fill='x',before=e.tabs,pady=(6,0))
+    e.context_helpers = ttk.Frame(footer)
     e.context_helpers.pack(fill='x')
     e.helper_buttons = [(ttk.Button(e.context_helpers, text=label, command=command), match) for label, command, match in [('NAPP 適用先', e.edit_napp, 'negative'), ('直径／半径', e.edit_sizes, 'LSNO'), ('LINE の点列', e.edit_points, 'LINE')]]
-    e.validation_note = ttk.Label(box, text='', foreground='#bb6440', wraplength=710)
+    e.validation_note = ttk.Label(footer, text='', foreground='#bb6440', wraplength=710)
     e.validation_note.pack(anchor='w', pady=(4, 0))
     e.validation_note.bind('<Configure>',lambda event:e.validation_note.configure(wraplength=max(160,event.width-4)))
 
