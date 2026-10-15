@@ -6,6 +6,37 @@ from tkinter import messagebox,ttk
 from . import element_library, presets, project
 
 
+def refresh_ptset_presets(e):
+    """Show the source group separately from the PARAM role preset."""
+    e.element_preset_options={p['name']:p['id'] for p in e.data.get('element_presets',[]) if p['kind']=='PTSET'}
+    current=(e.definition() or {}).get('element_preset_id')
+    e.element_preset_choice['values']=list(e.element_preset_options)
+    e.element_preset_choice.set(next((name for name,ident in e.element_preset_options.items() if ident==current),'プリセットを選択' if e.element_preset_options else '未登録'))
+    e.element_preset_choice.configure(state='readonly' if e.definition() and e.element_preset_options else 'disabled')
+
+
+def select_ptset_preset(e):
+    if e.busy or not e.definition():return
+    ident=e.element_preset_options.get(e.element_preset_choice.get())
+    definition=e.definition()
+    refresh_ptset_presets(e)
+    if not ident or (definition['elements'] and ident==definition.get('element_preset_id')):return
+    record=element_library.get(e.data,ident)
+    if not record or record['kind']!='PTSET':return
+    if definition['elements']:
+        text=f'現在の要素：{len(definition["elements"])} 個\n変更先：{record["name"]}\n\n一覧と入力済みの属性値を置き換えます。'
+        if presets.selected_id(e.data,definition)!=record['parameter_preset_id']:
+            text+='\nPARAM プリセットも「'+presets.label(e.data,record)+'」へ切り替わります。'
+        if not messagebox.askyesno('PTSET の要素を置き換え',text+'\n\n置き換えますか？',parent=e.winfo_toplevel(),default=messagebox.NO):return
+    if not e.commit_inline():return
+    try:elements=element_library.recall(e.data,definition,ident,replace=True)
+    except ValueError as exc:
+        messagebox.showerror('プリセットを読み込めません',str(exc),parent=e.winfo_toplevel());return
+    if e.point_canvas:e.point_canvas.cancel()
+    e.element_id=elements[0]['id'] if elements else None;e.field=None
+    e.host.mark('PTSET プリセット「'+record['name']+'」をコピーして読み込みました。');e.refresh()
+
+
 def register_current(editor):
     e=editor
     if not e.commit_inline() or not e.definition() or not e.definition()['elements']:return
@@ -19,8 +50,9 @@ def register_current(editor):
     error=ttk.Label(body,text='',foreground='#bb6440',wraplength=470);error.pack(fill='x',pady=8)
     row=ttk.Frame(body);row.pack(side='bottom',fill='x')
     def apply():
-        try:element_library.register(e.data,e.definition(),name.get(),description.get())
+        try:record=element_library.register(e.data,e.definition(),name.get(),description.get())
         except ValueError as exc:error.configure(text=str(exc));return
+        e.definition()['element_preset_id']=record['id']
         e.host.mark('要素一覧をプリセット登録しました。プロジェクトを保存して残せます。');win.destroy();e.refresh()
     ttk.Button(row,text='登録',command=apply,style='Primary.TButton').pack(side='right')
     ttk.Button(row,text='キャンセル',command=win.destroy).pack(side='right',padx=8)

@@ -347,6 +347,9 @@ class ConstructionEditor(ttk.Frame):
         current=presets.selected_id(self.data,self.definition()) if self.definition() else ''
         if current and current not in self.preset_options.values():self.preset_options['参照先不明：'+current]=current
         self.preset_choice['values']=list(self.preset_options);self.preset_choice.set(presets.label(self.data,self.definition()) if self.definition() else '')
+        if hasattr(self,'element_preset_choice'):
+            from .element_presets_ui import refresh_ptset_presets
+            refresh_ptset_presets(self)
         self.refresh_pairing()
         if d:
             self.host.definition_id = d['id']

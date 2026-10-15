@@ -104,7 +104,7 @@ def recall(data,definition,ident,replace=False):
     if not record or record['kind']!=definition['kind']:raise ValueError('同じ種類の要素プリセットを選んでください。')
     profile=record['parameter_preset_id']
     if profile and not presets.get(data,profile):raise ValueError('要素プリセットの PARAM プリセットが見つかりません。編集で規則を選び直してください。')
-    if definition['elements'] and presets.selected_id(data,definition)!=profile:
+    if definition['elements'] and not replace and presets.selected_id(data,definition)!=profile:
         raise ValueError('PARAM の規則が異なります。空のセットへ呼び出すか、同じ PARAM プリセットを選んでください。')
     result=fresh_elements(record['elements']);existing=[] if replace else definition['elements']
     if len(existing)+len(result)>200:raise ValueError('要素数は最大200です。')
@@ -120,7 +120,10 @@ def recall(data,definition,ident,replace=False):
         base=element['name'];name=base;n=1
         while name in names:n+=1;name=base+' '+str(n)
         element['name']=name;names.add(name)
-    if not definition['elements']:definition['parameter_preset_id']=profile
+    if replace or not definition['elements']:
+        definition['parameter_preset_id']=profile
+        definition['element_preset_id']=ident
+    else:definition.pop('element_preset_id',None)
     if replace:definition['elements'][:]=result
     else:definition['elements'].extend(result)
     return result

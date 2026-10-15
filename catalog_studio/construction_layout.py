@@ -75,6 +75,15 @@ def build_simple(editor):
     e.add_button = ttk.Button(row, text='＋ 追加', command=e.toggle_create, style='Compact.Primary.TButton')
     e.add_button.pack(side='right')
 
+    if point and not getattr(e.host,'is_preset_editor',False):
+        from .element_presets_ui import select_ptset_preset
+        preset_bar=ttk.Frame(left)
+        preset_bar.pack(fill='x',pady=(0,8))
+        ttk.Label(preset_bar,text='PTSET プリセット',style='Muted.TLabel').pack(anchor='w',pady=(0,3))
+        e.element_preset_choice=ttk.Combobox(preset_bar,state='readonly',width=12)
+        e.element_preset_choice.pack(fill='x')
+        e.element_preset_choice.bind('<<ComboboxSelected>>',lambda _:select_ptset_preset(e))
+
     e.creation_frame=tk.Toplevel(e)
     e.creation_frame.withdraw();e.creation_frame.title('ポイントを追加' if point else '形状を追加')
     e.creation_frame.geometry('420x360' if point else '440x420');e.creation_frame.minsize(400,350 if point else 400)
