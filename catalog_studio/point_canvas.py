@@ -19,17 +19,25 @@ class PointCanvas(ttk.Frame):
         self.show_labels=tk.BooleanVar(value=True);self.show_relations=tk.BooleanVar(value=True)
         self.columnconfigure(0,weight=1);self.rowconfigure(3,weight=1)
         ttk.Label(self,text='3D プレビュー · 仮配置',style='Heading.TLabel').grid(row=0,column=0,sticky='w',pady=(0,8))
-        self.viewbar=ttk.Frame(self);self.viewbar.grid(row=1,column=0,sticky='ew',pady=(0,8))
-        ttk.Label(self.viewbar,text='基準面',style='Muted.TLabel').pack(side='left',padx=(0,3))
-        self.plane_buttons=self.toggles(self.viewbar,self.plane,tuple(PLANES),self.plane_changed)
-        ttk.Label(self.viewbar,text='視点',style='Muted.TLabel').pack(side='left',padx=(6,3))
-        self.view_buttons=self.toggles(self.viewbar,self.view,('立体','正面'),self.view_changed)
-        self.displaybar=ttk.Frame(self);self.displaybar.grid(row=2,column=0,sticky='ew',pady=(0,8))
-        ttk.Label(self.displaybar,text='表示',style='Muted.TLabel').pack(side='left',padx=(0,3))
+        controls=ttk.Frame(self);controls.grid(row=1,column=0,sticky='ew',pady=(0,8));controls.columnconfigure(0,weight=1)
+        self.control_viewport=tk.Canvas(controls,width=1,height=1,highlightthickness=0,bg='white')
+        self.control_viewport.grid(row=0,column=0,sticky='ew')
+        self.control_scroll=ttk.Scrollbar(controls,orient='horizontal',command=self.control_viewport.xview)
+        self.control_viewport.configure(xscrollcommand=self.control_scroll.set)
+        self.control_row=ttk.Frame(self.control_viewport)
+        self.control_window=self.control_viewport.create_window(0,0,anchor='nw',window=self.control_row)
+        self.control_groups={}
+        for title in ('基準面','視点','表示'):
+            group=ttk.LabelFrame(self.control_row,text=title,padding=(4,3))
+            group.pack(side='left',fill='y',padx=(0,6));self.control_groups[title]=group
+        self.plane_buttons=self.toggles(self.control_groups['基準面'],self.plane,tuple(PLANES),self.plane_changed)
+        self.view_buttons=self.toggles(self.control_groups['視点'],self.view,('立体','正面'),self.view_changed)
         self.display_buttons={}
         for label,var in (('グリッド',self.show_grid),('座標軸',self.show_axes),('点番号',self.show_labels),('関係線',self.show_relations)):
-            button=ttk.Checkbutton(self.displaybar,text=label,variable=var,command=self.redraw,style='Preview.Toolbutton')
+            button=ttk.Checkbutton(self.control_groups['表示'],text=label,variable=var,command=self.redraw,style='Preview.Toolbutton')
             button.pack(side='left',padx=(0,2));self.display_buttons[label]=button
+        self.control_row.bind('<Configure>',self.fit_controls)
+        self.control_viewport.bind('<Configure>',self.fit_controls)
         self.context_menu=tk.Menu(self,tearoff=False)
         self.create_menu=tk.Menu(self.context_menu,tearoff=False)
         for kind in schema.PT_TYPES:
@@ -53,6 +61,14 @@ class PointCanvas(ttk.Frame):
             button=ttk.Radiobutton(parent,text=value,variable=variable,value=value,command=command,style='Preview.Toolbutton')
             button.pack(side='left',padx=(0,2));buttons[value]=button
         return buttons
+
+    def fit_controls(self,_=None):
+        width=self.control_row.winfo_reqwidth();height=self.control_row.winfo_reqheight()
+        visible=self.control_viewport.winfo_width()
+        self.control_viewport.configure(height=height,scrollregion=(0,0,max(width,visible),height))
+        self.control_viewport.itemconfigure(self.control_window,width=max(width,visible))
+        if width>visible:self.control_scroll.grid(row=1,column=0,sticky='ew')
+        else:self.control_scroll.grid_remove();self.control_viewport.xview_moveto(0)
 
     def dismiss_menu(self):
         self.context_menu.unpost();self.create_menu.unpost();self.menu_context=None
