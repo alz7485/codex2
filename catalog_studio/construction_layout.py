@@ -4,6 +4,7 @@ from tkinter import ttk
 from . import element_schema as schema
 from .attribute_table import AttributeTable
 from .element_list import ElementList
+from . import theme
 
 
 def build_simple(editor):
@@ -11,6 +12,7 @@ def build_simple(editor):
     e.simple_layout = True
     e.unified_attributes = True
     e.attribute_sections = {}
+    e.configure(style='Workspace.TFrame')
     point = e.kind == 'PTSET'
     e.canvas = None
     e.creating = e.settings_open = e.references_open = False
@@ -48,9 +50,9 @@ def build_simple(editor):
 
     e.main_split = ttk.Panedwindow(e, orient='horizontal')
     e.main_split.pack(fill='both', expand=True)
-    left = ttk.Frame(e.main_split, padding=(0, 0, 8, 0))
-    center = ttk.Frame(e.main_split, padding=(8, 0, 8, 0))
-    right = ttk.Frame(e.main_split, padding=(8, 0, 0, 0),width=330)
+    left = ttk.Frame(e.main_split, padding=(10,10),style='Card.TFrame')
+    center = ttk.Frame(e.main_split, padding=(12,10),style='Card.TFrame')
+    right = ttk.Frame(e.main_split, padding=(10,10),width=330,style='Card.TFrame')
     right.pack_propagate(False)
     e.element_pane,e.preview_pane,e.attribute_pane=left,center,right
     e.main_split.add(left, weight=1)
@@ -85,7 +87,7 @@ def build_simple(editor):
         ttk.Checkbutton(creation, text='ネガティブ形状', variable=e.negative, command=e.populate_library).pack(anchor='w', pady=(0, 6))
     holder = ttk.Frame(creation)
     holder.pack(fill='both',expand=True)
-    e.library = tk.Listbox(holder, height=8, exportselection=False, font=(e.host.ui_font, 10), relief='flat', selectbackground='#e4efff', selectforeground='#2269de')
+    e.library = tk.Listbox(holder, height=8, exportselection=False, font=(e.host.ui_font, 10), relief='flat',borderwidth=0,activestyle='none',selectbackground=theme.SELECT,selectforeground=theme.ACCENT)
     e.library.pack(side='left', fill='both', expand=True)
     scroll = ttk.Scrollbar(holder, command=e.library.yview)
     scroll.pack(side='right', fill='y')
@@ -204,6 +206,6 @@ def build_simple(editor):
             e.pairing_note.pack(anchor='w',fill='x',pady=(0,6))
             e.pairing_note.bind('<Configure>',lambda event:e.pairing_note.configure(wraplength=max(160,event.width-4)))
         ttk.Label(center,text='模式図 · 寸法・位置・方向は未反映',style='Muted.TLabel',wraplength=280).pack(anchor='w',pady=(0,10))
-        e.canvas=tk.Canvas(center,bg='#f2f6fc',highlightthickness=0)
+        e.canvas=tk.Canvas(center,bg=theme.SUBTLE,highlightthickness=1,highlightbackground=theme.BORDER)
         e.canvas.pack(fill='both',expand=True)
         e.canvas.bind('<Configure>',lambda _:e.draw())

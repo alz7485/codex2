@@ -11,11 +11,12 @@ from pathlib import Path
 from tkinter import filedialog, font, messagebox, ttk
 from . import model, project, element_schema, expressions, presets, pairing
 from .app import Studio as LegacyPreview
+from . import theme
 
-BLUE = '#2269de'
-NAVY = '#233951'
-BG = '#f3f6fa'
-MUTED = '#738499'
+BLUE = theme.ACCENT
+NAVY = theme.CHROME
+BG = theme.WORKSPACE
+MUTED = theme.MUTED
 PAGES = [('ptset', 'PTSET 作成'), ('gmset', 'GMSET 作成'), ('catalog', 'SCOM 登録'), ('specs', 'スペック登録'), ('structural', '構造材・NGMSET'), ('texts','説明・材質'), ('tables','共通テーブル'), ('books', 'カタログ本・PDF'), ('rules', 'PARAM プリセット'), ('checks', '確認・マクロ')]
 
 
@@ -72,24 +73,11 @@ class Preview:
 class IntegratedStudio(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title('Catalog Studio — 統合モックアップ')
+        self.title('Catalog Studio — カタログ編集')
         self.geometry('1440x960'); self.minsize(1120,780); self.configure(bg=BG)
         families=set(font.families(self))
         self.ui_font=next((f for f in ('Yu Gothic UI','Meiryo','Noto Sans CJK JP','Hiragino Sans','Arial') if f in families),'TkDefaultFont')
-        self.style=ttk.Style(self);self.style.theme_use('clam')
-        self.style.configure('.',font=(self.ui_font,10),background='white',foreground='#243448')
-        self.style.configure('TButton',padding=(10,6))
-        self.style.configure('Compact.TButton',padding=(6,4))
-        self.style.configure('Primary.TButton',background=BLUE,foreground='white')
-        self.style.map('Primary.TButton',background=[('active','#1758c3')])
-        self.style.configure('Heading.TLabel',font=(self.ui_font,13,'bold'))
-        self.style.configure('PaneTitle.TLabel',font=(self.ui_font,11,'bold'))
-        self.style.configure('Title.TLabel',font=(self.ui_font,16,'bold'))
-        self.style.configure('Muted.TLabel',foreground=MUTED)
-        self.style.configure('AttributeMeaning.TLabel',font=(self.ui_font,9),foreground=MUTED)
-        self.style.configure('Treeview',rowheight=31,background='white',fieldbackground='white')
-        self.style.configure('Treeview.Heading',background='#edf3fa',padding=7)
-        self.style.map('Treeview',background=[('selected','#e5efff')],foreground=[('selected',BLUE)])
+        self.style=theme.apply(self,self.ui_font)
         self.data=project.sample()
         from .element_schema import demo_definitions
         self.data['definitions'].extend(demo_definitions())
@@ -104,26 +92,33 @@ class IntegratedStudio(tk.Tk):
         self.bind('<Control-n>',lambda _:self.new_project())
 
     def build_shell(self):
-        header=ttk.Frame(self,padding=(20,12));header.pack(fill='x')
-        ttk.Label(header,text='◇  Catalog Studio',style='Title.TLabel').pack(side='left')
-        ttk.Label(header,text='  E3D 4.0 / 統合モックアップ',style='Muted.TLabel').pack(side='left',padx=8)
-        for text,command,style in [('保存',self.save_project,'Primary.TButton'),('読み込み',self.open_project,'TButton'),('新規',self.new_project,'TButton')]:
-            ttk.Button(header,text=text,command=command,style=style).pack(side='right',padx=4)
-        menu_bar=tk.Frame(self,bg='white');menu_bar.pack(fill='x',padx=16,pady=(0,8))
+        header=ttk.Frame(self,padding=(18,12),style='Header.TFrame');header.pack(fill='x')
+        logo=tk.Canvas(header,width=34,height=34,bg=theme.CHROME,highlightthickness=0);logo.pack(side='left',padx=(0,11))
+        logo.create_rectangle(1,1,33,33,fill=BLUE,outline='')
+        logo.create_polygon(17,6,27,12,17,18,7,12,fill='#edf4ff',outline='')
+        logo.create_polygon(7,14,16,20,16,29,7,23,fill='#b9d0ff',outline='')
+        logo.create_polygon(18,20,27,14,27,23,18,29,fill='white',outline='')
+        ttk.Label(header,text='Catalog Studio',style='HeaderTitle.TLabel').pack(side='left')
+        ttk.Label(header,text='E3D 4.0  /  カタログ編集',style='HeaderMeta.TLabel').pack(side='left',padx=18)
+        for text,command,style in [('保存',self.save_project,'Primary.TButton'),('読み込み',self.open_project,'Header.TButton'),('新規',self.new_project,'Header.TButton')]:
+            ttk.Button(header,text=text,command=command,style=style).pack(side='right',padx=(7,0))
+        menu_bar=tk.Frame(self,bg=theme.NAV,padx=18,pady=6);menu_bar.pack(fill='x')
         self.nav={}
         self.more_nav_menu=tk.Menu(menu_bar,tearoff=False)
         for key,text in PAGES:
             if key in ('ptset','gmset','catalog','specs','books'):
-                button=tk.Button(menu_bar,text=text,command=lambda k=key:self.switch(k),bg='#edf3fa',fg='#243448',activebackground=BLUE,activeforeground='white',relief='flat',highlightthickness=0,font=(self.ui_font,10),padx=16,pady=9)
+                button=tk.Button(menu_bar,text=text,command=lambda k=key:self.switch(k),bg=theme.NAV,fg='#bbcadc',activebackground='#2b4160',activeforeground='white',relief='flat',borderwidth=0,highlightthickness=0,font=(self.ui_font,10),cursor='hand2',padx=16,pady=8)
                 button.pack(side='left',padx=(0,5));self.nav[key]=button
             else:self.more_nav_menu.add_command(label=text,command=lambda k=key:self.switch(k))
-        self.more_nav_button=tk.Menubutton(menu_bar,text='その他の管理 ▾',menu=self.more_nav_menu,bg='#edf3fa',fg='#243448',relief='flat',font=(self.ui_font,10),padx=16,pady=9)
+        self.more_nav_button=tk.Menubutton(menu_bar,text='その他の管理 ▾',menu=self.more_nav_menu,bg=theme.NAV,fg='#bbcadc',activebackground='#2b4160',activeforeground='white',relief='flat',borderwidth=0,font=(self.ui_font,10),cursor='hand2',padx=16,pady=8)
         self.more_nav_button.pack(side='left')
-        self.status=ttk.Label(self,text='サンプルを表示中 · E3D 実行用ではありません',background=BG,foreground=MUTED,padding=(18,7));self.status.pack(side='bottom',fill='x')
-        body=ttk.Frame(self);body.pack(fill='both',expand=True)
+        footer=ttk.Frame(self,padding=(18,7),style='Status.TFrame');footer.pack(side='bottom',fill='x')
+        ttk.Label(footer,text='Ctrl+S 保存    Ctrl+O 開く',style='Status.TLabel').pack(side='right')
+        self.status=ttk.Label(footer,text='サンプルデータを表示しています',style='Status.TLabel');self.status.pack(side='left',fill='x',expand=True)
+        body=ttk.Frame(self,style='Workspace.TFrame');body.pack(fill='both',expand=True)
         from .registered_ui import RegisteredBrowser
         self.registered_browser=RegisteredBrowser(self,body)
-        self.content=ttk.Frame(body,padding=16);self.content.pack(side='left',fill='both',expand=True)
+        self.content=ttk.Frame(body,padding=(10,12,12,0),style='Workspace.TFrame');self.content.pack(side='left',fill='both',expand=True)
 
     def mark(self,text='変更しました。Ctrl+S でプロジェクトを保存できます。'):
         self.dirty=True;self.title('Catalog Studio — '+self.data['name']+' *');self.status.configure(text=text)
@@ -139,9 +134,9 @@ class IntegratedStudio(tk.Tk):
     def render_page(self):
         self.busy=True;self.preview=None
         for child in self.content.winfo_children():child.destroy()
-        for key,button in self.nav.items():button.configure(bg=BLUE if key==self.page else '#edf3fa',fg='white' if key==self.page else '#243448')
+        for key,button in self.nav.items():button.configure(bg=BLUE if key==self.page else theme.NAV,fg='white' if key==self.page else '#bbcadc')
         additional=self.page not in self.nav
-        self.more_nav_button.configure(text=(dict(PAGES).get(self.page,'その他の管理') if additional else 'その他の管理')+' ▾',bg=BLUE if additional else '#edf3fa',fg='white' if additional else '#243448')
+        self.more_nav_button.configure(text=(dict(PAGES).get(self.page,'その他の管理') if additional else 'その他の管理')+' ▾',bg=BLUE if additional else theme.NAV,fg='white' if additional else '#bbcadc')
         getattr(self,'build_'+self.page)()
         self.busy=False
         self.registered_browser.refresh()

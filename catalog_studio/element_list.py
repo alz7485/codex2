@@ -1,11 +1,12 @@
 """Numbered element rows with an editable name and a smaller type line."""
 import tkinter as tk
 from tkinter import font,ttk
+from . import theme
 
 
 class ElementList(tk.Canvas):
     def __init__(self,parent,family,edit_context):
-        super().__init__(parent,bg='white',highlightthickness=1,highlightbackground='#b6c2ce',width=210,takefocus=True,yscrollincrement=1)
+        super().__init__(parent,bg='white',highlightthickness=1,highlightbackground=theme.BORDER,highlightcolor=theme.ACCENT,width=210,takefocus=True,yscrollincrement=1)
         self.rows={};self.node_children={'':[]};self.selected=();self.bounds={};self.pending=None;self.editing=None
         self.edit_context=edit_context;self.scheduler=self.winfo_toplevel();self.tag_styles={}
         self.name_font=font.Font(self,family=family,size=11)
@@ -153,9 +154,9 @@ class ElementList(tk.Canvas):
 
     def draw_header(self):
         super().delete('header');top=self.canvasy(0);width=max(120,self.winfo_width())
-        self.create_rectangle(0,top,width,top+32,fill='#edf3fa',outline='#aebccb',tags=('header',))
-        for x,label in ((8,'番号'),(53,'要素名 / 種類')):self.create_text(x,top+16,text=label,anchor='w',font=self.heading_font,fill='#243448',tags=('header',))
-        self.create_line(45,top,45,top+32,fill='#aebccb',tags=('header',))
+        self.create_rectangle(0,top,width,top+32,fill=theme.SUBTLE,outline=theme.RULE,tags=('header',))
+        for x,label in ((8,'番号'),(53,'要素名 / 種類')):self.create_text(x,top+16,text=label,anchor='w',font=self.heading_font,fill=theme.INK,tags=('header',))
+        self.create_line(45,top,45,top+32,fill=theme.RULE,tags=('header',))
 
     def redraw(self):
         self.pending=None
@@ -163,15 +164,18 @@ class ElementList(tk.Canvas):
         super().delete('all');self.bounds={};width=max(120,self.winfo_width());top=32
         for iid in self.visible():
             row=self.rows[iid];number,name,kind=row['values'];chosen=iid in self.selected
-            color='#2269de' if chosen else '#243448';background='#e5efff' if chosen else 'white'
+            color=theme.ACCENT if chosen else theme.INK;background=theme.SELECT if chosen else 'white'
             for tag in row['tags']:background=self.tag_styles.get(tag,{}).get('background',background)
             self.create_rectangle(0,top,width,top+self.row_height,fill=background,outline='')
             x=53+self.depth(iid)*12;available=max(25,width-x-8)
             self.create_text(8,top+9,text=number,anchor='nw',font=self.name_font,fill=color,tags=('number:'+iid,))
             self.create_text(x,top+8,text=self.shorten(row['text'],available,self.name_font),anchor='nw',font=self.name_font,fill=color,tags=('name:'+iid,))
-            self.create_text(x,top+9+self.name_font.metrics('linespace'),text=self.shorten(kind,available,self.type_font),anchor='nw',font=self.type_font,fill='#597fa5' if chosen else '#738499',tags=('type:'+iid,))
+            self.create_text(x,top+9+self.name_font.metrics('linespace'),text=self.shorten(kind,available,self.type_font),anchor='nw',font=self.type_font,fill='#597fa5' if chosen else theme.MUTED,tags=('type:'+iid,))
             self.bounds[iid]=(top,top+self.row_height);top+=self.row_height
-        for _,bottom in self.bounds.values():self.create_line(0,bottom,width,bottom,fill='#aebccb')
-        self.create_line(45,32,45,max(top,self.winfo_height()),fill='#aebccb')
+        for iid in self.selected:
+            if iid in self.bounds:
+                a,b=self.bounds[iid];self.create_rectangle(1,a,4,b,fill=theme.ACCENT,outline='')
+        for _,bottom in self.bounds.values():self.create_line(0,bottom,width,bottom,fill=theme.RULE)
+        self.create_line(45,32,45,max(top,self.winfo_height()),fill=theme.RULE)
         self.configure(scrollregion=(0,0,width,max(top,self.winfo_height())))
         self.draw_header();self.draw_editor()

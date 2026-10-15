@@ -1,11 +1,12 @@
 """Registered records for the currently selected category."""
 import tkinter as tk
 from tkinter import ttk
+from . import theme
 
 
 class RegisteredBrowser(ttk.Frame):
     def __init__(self, host, parent):
-        super().__init__(parent, padding=(12, 14, 8, 12), width=220)
+        super().__init__(parent, padding=(12, 14, 10, 0), width=220,style='Sidebar.TFrame')
         self.host = host
         self.signature = None
         self.items = {}
@@ -13,19 +14,19 @@ class RegisteredBrowser(ttk.Frame):
         self.refreshing = False
         self.pack(side='left', fill='y')
         self.pack_propagate(False)
-        toolbar=ttk.Frame(self);toolbar.pack(fill='x')
-        self.heading=ttk.Label(toolbar, text='登録データ', style='PaneTitle.TLabel')
+        toolbar=ttk.Frame(self,style='Sidebar.TFrame');toolbar.pack(fill='x')
+        self.heading=ttk.Label(toolbar, text='登録データ', style='SidebarTitle.TLabel')
         self.heading.pack(side='left')
         self.add_button=ttk.Button(toolbar,text='＋ 追加',command=self.add_definition,style='Primary.TButton')
         self.search = tk.StringVar()
         entry = ttk.Entry(self, textvariable=self.search)
         entry.pack(fill='x', pady=(10, 4))
-        ttk.Label(self, text='名前・種類で検索', style='Muted.TLabel').pack(anchor='w', pady=(0, 10))
+        ttk.Label(self, text='名前・種類で検索', style='Sidebar.TLabel').pack(anchor='w', pady=(0, 10))
         holder = ttk.Frame(self)
         holder.pack(fill='both', expand=True)
         style=ttk.Style(self)
         self.rule_image=tk.PhotoImage(master=self,width=2,height=2)
-        self.rule_image.put('#aebccb',to=(0,1,2,2))
+        self.rule_image.put(theme.RULE,to=(0,1,2,2))
         style.element_create('RegisteredRowRule','image',self.rule_image,border=(0,0,0,1),sticky='nswe')
         style.layout('Ruled.Treeview.Item',[('RegisteredRowRule',{'sticky':'nswe','children':style.layout('Treeview.Item')})])
         self.tree = ttk.Treeview(holder, show='tree', selectmode='browse',style='Ruled.Treeview')

@@ -4,14 +4,12 @@ import tkinter as tk
 from tkinter import ttk
 from . import element_schema as schema, presets
 from .point_geometry import Camera, PLANES, LAYOUT_KEY, axis_vector, schematic_position, schematic_placement
+from . import theme
 
 
 class PointCanvas(ttk.Frame):
     def __init__(self,editor,parent):
         super().__init__(parent);self.editor=editor
-        style=ttk.Style(self)
-        style.configure('Preview.Toolbutton',padding=(5,3),background='#edf3fa',foreground='#34495e')
-        style.map('Preview.Toolbutton',background=[('selected','#2269de'),('active','#dce9fa')],foreground=[('selected','white')])
         self.camera=Camera();self.pending=None;self.hits={};self.positions={};self.dragging=None;self.orbit=None
         self.error_message='';self.menu_context=None;self.press_position=None
         self.plane=tk.StringVar(value='XY');self.view=tk.StringVar(value='立体')
@@ -44,7 +42,7 @@ class PointCanvas(ttk.Frame):
             self.create_menu.add_command(label=kind+'：'+schema.PT_GUIDES[kind]['name'],command=lambda selected=kind:self.create_at_menu(selected))
         self.context_menu.add_cascade(label='点を作成',menu=self.create_menu)
         self.context_menu.add_separator();self.context_menu.add_command(label='閉じる',command=self.dismiss_menu)
-        self.canvas=tk.Canvas(self,bg='#f3f7fc',highlightthickness=0,width=320,height=260);self.canvas.grid(row=3,column=0,sticky='nsew')
+        self.canvas=tk.Canvas(self,bg=theme.SUBTLE,highlightthickness=1,highlightbackground=theme.BORDER,highlightcolor=theme.ACCENT,width=320,height=260);self.canvas.grid(row=3,column=0,sticky='nsew')
         self.canvas.bind('<Configure>',lambda _:self.redraw());self.canvas.bind('<Button-1>',self.press);self.canvas.bind('<B1-Motion>',self.move);self.canvas.bind('<ButtonRelease-1>',self.release)
         self.canvas.bind('<Button-3>',self.orbit_start);self.canvas.bind('<B3-Motion>',self.orbit_move)
         self.canvas.bind('<MouseWheel>',lambda ev:self.zoom(1.12 if ev.delta>0 else 1/1.12));self.canvas.bind('<Button-4>',lambda _:self.zoom(1.12));self.canvas.bind('<Button-5>',lambda _:self.zoom(1/1.12))

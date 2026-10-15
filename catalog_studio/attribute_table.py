@@ -1,6 +1,7 @@
 """Attribute rows with a smaller meaning line and a separate value column."""
 import tkinter as tk
 from tkinter import font, ttk
+from . import theme
 
 
 class AttributeTable(ttk.Frame):
@@ -15,9 +16,9 @@ class AttributeTable(ttk.Frame):
         self.value_font=font.Font(self,family=family,size=10)
         self.heading_font=font.Font(self,family=family,size=10,weight='bold')
         self.columnconfigure(0,weight=1);self.rowconfigure(1,weight=1)
-        self.header=tk.Canvas(self,height=32,bg='#edf3fa',highlightthickness=0)
+        self.header=tk.Canvas(self,height=32,bg=theme.SUBTLE,highlightthickness=0)
         self.header.grid(row=0,column=0,sticky='ew')
-        self.canvas=tk.Canvas(self,bg='white',width=300,height=320,highlightthickness=1,highlightbackground='#aebccb',takefocus=True,yscrollincrement=1)
+        self.canvas=tk.Canvas(self,bg='white',width=300,height=320,highlightthickness=1,highlightbackground=theme.RULE,highlightcolor=theme.ACCENT,takefocus=True,yscrollincrement=1)
         self.canvas.grid(row=1,column=0,sticky='nsew')
         scrollbar=ttk.Scrollbar(self,command=self.scroll);scrollbar.grid(row=1,column=1,sticky='ns')
         self.canvas.configure(yscrollcommand=scrollbar.set)
@@ -152,20 +153,20 @@ class AttributeTable(ttk.Frame):
         c=self.canvas;c.delete('all');self.header.delete('all');self.bounds={}
         width=max(220,c.winfo_width());divider=max(105,int(width*.39));value_width=max(80,width-divider-20)
         for x,text in ((10,'属性 / 意味'),(divider+10,'値・式')):
-            self.header.create_text(x,16,text=text,anchor='w',font=self.heading_font,fill='#243448')
-        self.header.create_line(divider,0,divider,32,fill='#aebccb')
-        self.header.create_line(0,31,width,31,fill='#aebccb')
+            self.header.create_text(x,16,text=text,anchor='w',font=self.heading_font,fill=theme.INK)
+        self.header.create_line(divider,0,divider,32,fill=theme.RULE)
+        self.header.create_line(0,31,width,31,fill=theme.RULE)
         top=0;name_height=self.name_font.metrics('linespace');meaning_height=self.meaning_font.metrics('linespace')
         minimum=name_height+meaning_height+18
         for iid in self.order:
             attr,meaning,value=self.rows[iid];chosen=iid in self.selected
-            color='#2269de' if chosen else '#243448'
-            background=c.create_rectangle(0,top,width,top+minimum,fill='#e5efff' if chosen else 'white',outline='')
+            color=theme.ACCENT if chosen else theme.INK
+            background=c.create_rectangle(0,top,width,top+minimum,fill=theme.SELECT if chosen else 'white',outline='')
             item=c.create_text(divider+10,top+8,text=value,anchor='nw',width=value_width,font=self.value_font,fill=color,tags=('value:'+iid,))
             bbox=c.bbox(item);value_height=(bbox[3]-bbox[1]) if bbox else self.value_font.metrics('linespace')
             caption=self.value_caption(attr,value);caption_height=0
             if caption:
-                caption_item=c.create_text(divider+10,top+10+value_height,text=caption,anchor='nw',width=value_width,font=self.meaning_font,fill='#597fa5' if chosen else '#738499',tags=('caption:'+iid,))
+                caption_item=c.create_text(divider+10,top+10+value_height,text=caption,anchor='nw',width=value_width,font=self.meaning_font,fill='#597fa5' if chosen else theme.MUTED,tags=('caption:'+iid,))
                 caption_bbox=c.bbox(caption_item);caption_height=caption_bbox[3]-caption_bbox[1]+2
             height=max(minimum,value_height+caption_height+16)
             c.coords(background,0,top,width,top+height)
@@ -173,10 +174,13 @@ class AttributeTable(ttk.Frame):
                 c.create_rectangle(divider+3,top+3,width-4,top+height-3,outline='#d94343',width=2,tags=('required:'+iid,))
                 c.itemconfigure(item,text='入力してください',fill='#bc3434')
             c.create_text(10,top+8,text=attr,anchor='nw',font=self.name_font,fill=color,tags=('name:'+iid,))
-            c.create_text(10,top+8+name_height,text=self.short_meaning(meaning,divider-20),anchor='nw',font=self.meaning_font,fill='#597fa5' if chosen else '#738499',tags=('meaning:'+iid,))
+            c.create_text(10,top+8+name_height,text=self.short_meaning(meaning,divider-20),anchor='nw',font=self.meaning_font,fill='#597fa5' if chosen else theme.MUTED,tags=('meaning:'+iid,))
             self.bounds[iid]=(top,top+height);top+=height
-        for _,bottom in self.bounds.values():c.create_line(0,bottom,width,bottom,fill='#aebccb')
-        c.create_line(divider,0,divider,max(top,c.winfo_height()),fill='#aebccb')
+        for iid in self.selected:
+            if iid in self.bounds:
+                a,b=self.bounds[iid];c.create_rectangle(1,a,4,b,fill=theme.ACCENT,outline='')
+        for _,bottom in self.bounds.values():c.create_line(0,bottom,width,bottom,fill=theme.RULE)
+        c.create_line(divider,0,divider,max(top,c.winfo_height()),fill=theme.RULE)
         c.configure(scrollregion=(0,0,width,max(top,c.winfo_height())))
         if self.ensure_visible:self.see(self.ensure_visible);self.ensure_visible=None
         self.draw_editor()
