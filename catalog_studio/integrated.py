@@ -331,7 +331,7 @@ class IntegratedStudio(tk.Tk):
                 values[p['id']]=project.parse_value(p,v[p['id']])
             component=copy.deepcopy((scom or {}).get('component_attrs',{}))
             if v['angl']:
-                component['ANGL']=project.parse_value({'id':'ANGL'},v['angl'])
+                component['ANGL']=project.parse_value({'id':'ANGL','unit':'degrees'},v['angl'])
             else:component.pop('ANGL',None)
             if not scom and len(self.data['scoms'])>=project.LIMITS['scoms']:raise ValueError('SCOM 数の上限です。')
             if seed is not None:

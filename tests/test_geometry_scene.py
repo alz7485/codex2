@@ -107,7 +107,7 @@ class GeometrySceneTests(unittest.TestCase):
             node=schema.add_element(self.gm,kind)
             if kind=='LINE':node['attrs']['PTS']='P1 P2'
         scene=geo.build_scene(self.data,self.gm)
-        self.assertEqual(len(scene.meshes),32)  # NSRU is not defined by supplied attributes.
+        self.assertEqual(len(scene.meshes),33)  # NSRU is not defined by supplied attributes.
         self.assertEqual(len(scene.issues),1);self.assertIn('未対応',scene.issues[0])
         self.assertTrue(any(m.negative for m in scene.meshes))
 

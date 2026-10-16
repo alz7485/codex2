@@ -102,7 +102,7 @@ class ConstructionEditor(ttk.Frame):
         library = ttk.LabelFrame(right if self.kind=='PTSET' else left,text='ポイントの種類' if self.kind=='PTSET' else '要素ライブラリ',padding=8);library.pack(fill='x',pady=6)
         self.negative = tk.BooleanVar(value=False)
         if self.kind == 'GMSET':
-            ttk.Checkbutton(library, text='ネガティブ（15種類）', variable=self.negative, command=self.populate_library).pack(anchor='w')
+            ttk.Checkbutton(library, text='ネガティブ（'+str(len(schema.NEGATIVE_BASE))+'種類）', variable=self.negative, command=self.populate_library).pack(anchor='w')
             ttk.Label(library, text='ポジティブ：18種類', style='Muted.TLabel').pack(anchor='w')
         elif self.kind=='PTSET':ttk.Label(library,text='選択すると、指定方法を下に表示します。',style='Muted.TLabel',wraplength=310).pack(anchor='w')
         else: ttk.Label(library,text=' / '.join(schema.TYPES_BY_SET[self.kind]),style='Muted.TLabel').pack(anchor='w')
@@ -158,7 +158,7 @@ class ConstructionEditor(ttk.Frame):
         else:
             helpers=ttk.Frame(editor);helpers.pack(fill='x',pady=4)
             for text,fn in [('式を読みやすく整理',self.normalize_expression),('NAPP 適用先',self.edit_napp),('直径／半径',self.edit_sizes),('LINE の点列',self.edit_points)]:ttk.Button(helpers,text=text,command=fn).pack(side='left',padx=2)
-        ttk.Label(editor,text='四則演算・SUM・TIMES・TAN に対応。ANGL は度。',style='Muted.TLabel',wraplength=520).pack(anchor='w',pady=5)
+        ttk.Label(editor,text='四則演算・三角関数・明示単位に対応。角度は度、距離のDB単位はmm。',style='Muted.TLabel',wraplength=520).pack(anchor='w',pady=5)
         self.validation_note = ttk.Label(editor, text='', foreground='#bb6440', wraplength=520); self.validation_note.pack(anchor='w')
         self.canvas=None
         if self.kind!='PTSET':
@@ -311,6 +311,7 @@ class ConstructionEditor(ttk.Frame):
         elif key in ('PAXI','PAAX','PBAX','PCAX','PLAXI','PTCDIR'):choices=schema.DIRECTIONS
         elif key in ('CLFLA','TUFLA','TVISI','BVISI'):choices=('','TRUE','FALSE')
         elif key=='NAPP':choices=tuple(str(i) for i in range(8))
+        elif key=='PSKEY':choices=schema.PSKEY_CHOICES
         def commit(value):
             if self.data is not data or definition not in data['definitions'] or not any(node is element for node in schema.walk(definition['elements'])):
                 raise ValueError('編集対象が変更されています。セルを選び直してください。')
@@ -401,7 +402,7 @@ class ConstructionEditor(ttk.Frame):
                 button.pack_forget()
                 if e and (match=='negative' and e['type'] in schema.NEGATIVE_BASE or schema.positive(e['type'])==match):button.pack(side='left',pady=6,padx=(0,6))
             self.child_button.pack_forget()
-            if e and schema.child_kind(e['type']):self.child_button.pack(side='right')
+            if e and schema.allowed_children(e['type']):self.child_button.pack(side='right')
         self.element_name.set(e['name'] if e else '')
         available = list(schema.TYPES_BY_SET[self.kind])
         if self.kind == 'GMSET': available += list(schema.NEGATIVE_BASE)
@@ -518,21 +519,22 @@ class ConstructionEditor(ttk.Frame):
         e = self.element(); key = self.field; expr = schema.value(e,key)
         if key == 'NUMB':
             text = 'P0 は自動生成。正の整数で、同じ PTSET 内の番号を重複させません。'
-        elif key == 'LEVEL': text = '下限 上限 の 2 数値。描画フラグと REPRESENTATION の設定にも依存します。'
+        elif key == 'LEVEL': text = '下限 上限 の 2 整数。描画フラグと REPRESENTATION の設定にも依存します。'
         elif key == 'NAPP':
             try:
                 val=int(expr); text='適用先：' + (' / '.join(name for bit,name in ((1,'Attached'),(2,'Owner'),(4,'Self')) if val & bit) or 'なし')
             except ValueError: text='適用先を 0〜7 で指定してください。'
         elif key in ('TVISI','BVISI','CLFLA','TUFLA'): text='TRUE / FALSE の描画フラグです。'
         elif key in ('PAXI','PAAX','PBAX','PCAX','PLAXI','PTCDIR','PTCPOS','PTSPOS','PTEPOS','PTS','DESC','PURP','PSKEY','GTYP','PKEY'):
-            text='原文を保持。複合方向・位置式の座標計算は未対応です。' if key in ('PAXI','PAAX','PBAX','PCAX','PLAXI','PTCDIR','PTCPOS','PTSPOS','PTEPOS') else schema.meaning(e['type'],key)
-        elif not expr.strip(): text='未入力'
+            text='原文を保持。基本軸・対応する角度式を計算します。未対応の式は原文保持。' if key in ('PAXI','PAAX','PBAX','PCAX','PLAXI','PTCDIR','PTCPOS','PTSPOS','PTEPOS') else schema.meaning(e['type'],key)
+        elif not expr.strip(): text='未設定'+('：実寸評価時は '+schema.evaluation_default(e['type'],key) if schema.evaluation_default(e['type'],key) is not None else '')
         elif key=='PCON' and expr.isidentifier() and expr not in {p['role'] for p in presets.rules(self.data,self.definition())} and expr.upper() not in ('PARAM','PARA','ANGL'):text='固定の接続コード：'+expr
         else:
             try:
                 scom=project.get(self.data,'scoms',self.preview_scom_id)
                 if scom:presets.require_compatible(self.data,scom,self.definition())
-                value=expressions.evaluate(expr,expressions.contexts_for(scom or {}),(scom or {}).get('component_attrs',{}),presets.rules(self.data,self.definition()))
+                attributes=dict(self.definition().get('model_settings',{}));attributes.update((scom or {}).get('component_attrs',{}))
+                value=expressions.evaluate(expr,expressions.contexts_for(scom or {}),attributes,presets.rules(self.data,self.definition()))
                 text='確認結果：' + str(value) + ('（選択 SCOM）' if scom else '（定数）')
             except ValueError as exc: text=str(exc)
         self.validation_note.configure(text=text)
@@ -545,7 +547,12 @@ class ConstructionEditor(ttk.Frame):
     def parameter_caption(self,key,value):
         element=self.element()
         literal={'NUMB','DESC','PURP','PSKEY','GTYP','SKEY','PKEY','LEVEL','OBST','NAPP','CLFLA','TUFLA','TVISI','BVISI'}
-        if not element or not schema.known(element['type']) or key in literal:return ''
+        if not element or not schema.known(element['type']):return ''
+        if str(value).strip().lower() in ('','unset'):
+            default=schema.evaluation_default(element['type'],key)
+            if default is not None:return '未設定：実寸評価時は '+default
+        if key=='PSKEY':return 'ISODRAFT の端部記号を追加（標準記号に重ね描き）'
+        if key in literal:return ''
         return presets.expression_names(self.data,self.definition(),value)
 
     def update_expression_caption(self):
@@ -717,14 +724,18 @@ class ConstructionEditor(ttk.Frame):
         keys=schema.PARENT_FIELDS[self.kind]
         if not keys: messagebox.showinfo('親属性','このセットには形状用の固有親属性はありません。',parent=self.host);return
         options={'未設定':''}
-        if self.kind == 'PTSSET': options.update({e['name']:e['id'] for e in d['elements'] if e['type']=='PLINE'})
+        if self.kind == 'PTSSET':
+            options.update({e['name']:e['id'] for e in d['elements'] if e['type']=='PLINE'})
+            options.update({str(i)+'：'+e['name']:str(i) for i,e in enumerate(d['elements'],1) if e['type']=='PLINE'})
         fields=[]
         for key in keys:
             raw=d.get('attrs',{}).get(key,'')
             if key == 'NAREF':
-                if raw and raw not in options.values(): options['参照先不明：'+raw]=raw
+                if raw and raw not in options.values(): options['指定値：'+str(raw)]=raw
                 initial=next((name for name,ident in options.items() if ident==raw),'未設定')
-                fields.append((key,schema.DESCRIPTIONS[key],initial,list(options)))
+                target,source=schema.neutral_axis(d)
+                hint='未指定時：'+(target['name'] if target else '原点・＋Y')+'（明示設定を推奨）' if source in ('origin','fallback') else '名前またはメンバー順番号'
+                fields.append((key,schema.DESCRIPTIONS[key]+' / '+hint,initial,list(options)))
             else: fields.append((key,schema.DESCRIPTIONS.get(key,key),raw,None))
         def apply(v):
             d.setdefault('attrs',{}).update({key:options[v[key]] if key=='NAREF' else v[key] for key in keys})
@@ -735,9 +746,21 @@ class ConstructionEditor(ttk.Frame):
         if element in d['elements']: return d['elements']
         return next(node['children'] for node in schema.walk(d['elements']) if element in node.get('children',[]))
 
+    def add_negative_child(self,kind):
+        if not self.commit_inline():return
+        e=self.element()
+        if not e:return
+        try:child=schema.add_child(e,kind)
+        except ValueError as exc:self.validation_note.configure(text=str(exc));return
+        self.element_id=child['id'];self.field=None;self.select_first_section();self.host.mark();self.refresh()
+
     def add_child(self):
         e=self.element()
         if not e: return
+        if not schema.child_kind(e['type']):
+            menu=tk.Menu(self,tearoff=False)
+            for kind in schema.allowed_children(e['type']):menu.add_command(label=kind,command=lambda k=kind:self.add_negative_child(k))
+            self.negative_child_menu=menu;menu.tk_popup(self.child_button.winfo_rootx(),self.child_button.winfo_rooty()+self.child_button.winfo_height());return
         try: child=schema.add_child(e)
         except ValueError as exc: self.validation_note.configure(text=str(exc));return
         self.element_id=child['id'];self.field=None;self.select_first_section()

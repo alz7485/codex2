@@ -6,9 +6,9 @@ import zipfile
 ROOT = Path(__file__).resolve().parent
 ROOT_FILES = ('.gitattributes','README.md','BUILD_ONEDIR.md','main.py','start.bat','install.bat',
               'build_onedir.bat','requirements.txt','requirements-build.txt','package_python.py')
-DOC_FILES = ('ptset-create.png','ptset-add.png','attribute-edit.png','ptset-preset-confirm.png','ptset-canvas.png','ptset-shared-dimensions.png','ptset-canvas-menu.png','gmset-create.png','gmset-scom.png','gmset-shared-dimensions.png','gmset-wireframe.png','gmset-transparent.png','outline-create.png','parameter-presets.png','parameter-preset-create.png','element-presets.png')
+DOC_FILES = ('manual-updates.png','ptset-create.png','ptset-add.png','attribute-edit.png','ptset-preset-confirm.png','ptset-canvas.png','ptset-shared-dimensions.png','ptset-canvas-menu.png','gmset-create.png','gmset-scom.png','gmset-shared-dimensions.png','gmset-wireframe.png','gmset-transparent.png','outline-create.png','parameter-presets.png','parameter-preset-create.png','element-presets.png')
 EXAMPLE_FILES = ('integrated-sample.json','construction-sample.json','catalog-book.pdf',
-                 'catalogue-rules-sample.json','catalogue-rules-book.pdf','parameter-presets-sample.json','parameter-presets-book.pdf','element-presets-sample.json','gmset-3d-sample.json','gmset-display-sample.json','parameter-text-sample.json','ptset-shared-dimensions.json','gmset-shared-dimensions.json')
+                 'catalogue-rules-sample.json','catalogue-rules-book.pdf','parameter-presets-sample.json','parameter-presets-book.pdf','element-presets-sample.json','gmset-3d-sample.json','gmset-display-sample.json','parameter-text-sample.json','ptset-shared-dimensions.json','gmset-shared-dimensions.json','manual-compatibility-sample.json')
 
 
 def build():

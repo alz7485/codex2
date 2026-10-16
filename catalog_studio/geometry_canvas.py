@@ -6,7 +6,7 @@ from tkinter import ttk
 from PIL import ImageTk
 from . import geometry_scene as geometry, project, theme
 from .surface_render import alpha_surface, inside_polygon, feature_edges
-from . import geometry_preview
+from . import geometry_preview, representation, model_settings, element_schema as schema
 
 
 class GeometryCanvas(ttk.Frame):
@@ -15,6 +15,9 @@ class GeometryCanvas(ttk.Frame):
         self.mode=tk.StringVar(value='仮サイズ');self.view=tk.StringVar(value='立体')
         self.show_points=tk.BooleanVar(value=True);self.show_negative=tk.BooleanVar(value=True)
         settings=getattr(editor.host,'gmset_display_settings',{})
+        rep=getattr(editor.host,'gmset_representation',{})
+        self.representation_mode=tk.StringVar(value=rep.get('mode','全形状'))
+        self.rep_options=dict(tube=rep.get('tube',True),cl=rep.get('cl',False),obst=rep.get('obst',False),level=rep.get('level',0),obst_bypass=rep.get('obst_bypass',False))
         self.render_mode=tk.StringVar(value=settings.get('mode','ソリッド'))
         self.transparency=tk.DoubleVar(value=settings.get('transparency',0))
         self.render_job=None;self.surface_image=None;self.surface_bitmap=None;self.pick_faces=[]
@@ -51,6 +54,10 @@ class GeometryCanvas(ttk.Frame):
         self.transparency_scale=ttk.Scale(self.display_row,from_=0,to=100,variable=self.transparency,length=90)
         self.transparency_scale.pack(side='left',padx=3)
         self.transparency_label=ttk.Label(self.display_row,text='0%',width=5,style='Muted.TLabel');self.transparency_label.pack(side='left')
+        self.representation_choice=ttk.Combobox(self.display_row,state='readonly',width=8,textvariable=self.representation_mode,values=('全形状','属性確認'))
+        self.representation_choice.pack(side='left',padx=4);self.representation_choice.bind('<<ComboboxSelected>>',lambda _:self.representation_changed())
+        ttk.Button(self.display_row,text='表示条件',command=lambda:representation.edit(self),style='Compact.TButton').pack(side='left')
+        ttk.Button(self.display_row,text='設計値',command=lambda:model_settings.edit(editor),style='Compact.TButton').pack(side='left',padx=3)
         self.display_row.bind('<Configure>',self.fit_display_controls);self.display_viewport.bind('<Configure>',self.fit_display_controls)
         self.transparency.trace_add('write',self.display_changed)
         self.canvas=tk.Canvas(self,bg=theme.SUBTLE,highlightthickness=1,highlightbackground=theme.BORDER,width=1,height=1)
@@ -75,6 +82,12 @@ class GeometryCanvas(ttk.Frame):
     def sync_display_controls(self):
         self.transparency_label.configure(text=f'{round(self.transparency.get())}%')
         self.transparency_scale.configure(state='disabled' if self.render_mode.get()=='ワイヤー' else 'normal')
+
+    def representation_settings(self):return dict(self.rep_options,mode=self.representation_mode.get())
+
+    def representation_changed(self):
+        self.cancel(redraw=False)
+        self.editor.host.gmset_representation=self.representation_settings();self.redraw()
 
     def display_changed(self,*_,immediate=False):
         self.sync_display_controls()
@@ -131,9 +144,9 @@ class GeometryCanvas(ttk.Frame):
             self.drag=None;self.resize_issue='属性・PTSET・共有仮値が変更されています。ハンドルを選び直してください。'
         if self.drag and self.drag.get('candidate'):
             definition=copy.deepcopy(definition)
-            node=next((n for n in definition['elements'] if n['id']==self.drag['node']['id']),None)
+            node=next((n for n in schema.walk(definition['elements']) if n['id']==self.drag['node']['id']),None)
             if node:node[geometry.SCALE_KEY]=self.drag['candidate']
-        self.scene=geometry.build_scene(e.data,definition,scom,self.actual,preview_state=self.drag.get('candidate_state') if self.drag else None)
+        self.scene=geometry.build_scene(e.data,definition,scom,self.actual,preview_state=self.drag.get('candidate_state') if self.drag else None,representation_settings=self.representation_settings())
         meshes=[m for m in self.scene.meshes if not m.negative or self.show_negative.get()]
         width,height=max(c.winfo_width(),100),max(c.winfo_height(),100)
         vertices=[p for m in meshes for p in m.vertices]+([p[0] for p in self.scene.points.values()] if self.show_points.get() else [])
@@ -166,6 +179,7 @@ class GeometryCanvas(ttk.Frame):
             if mesh.negative:continue
             points=[xy(mesh.vertices[i]) for i in face]
             self.pick_faces.append((points,mesh.ident))
+            if mesh.ident in self.scene.soft:continue
             if mode=='ワイヤー':continue
             polygons.append((points,fill))
             if opacity==1:c.create_polygon(*(v for p in points for v in p),fill=fill,outline='',width=1,tags=('mesh','element:'+mesh.ident,'surface'))
@@ -174,12 +188,13 @@ class GeometryCanvas(ttk.Frame):
             self.surface_bitmap=alpha_surface((width,height),polygons,opacity)
             self.surface_image=ImageTk.PhotoImage(self.surface_bitmap,master=c)
             c.create_image(0,0,anchor='nw',image=self.surface_image,tags='transparent-surface')
-        if mode in ('ワイヤー','面＋線'):
+        if mode in ('ワイヤー','面＋線') or self.scene.soft:
             for mesh in meshes:
                 if mesh.negative:continue
+                if mode not in ('ワイヤー','面＋線') and mesh.ident not in self.scene.soft:continue
                 color=theme.ACCENT if mesh.ident==e.element_id or self.parent_selected(mesh.ident) else '#58799b'
                 edges=feature_edges(mesh,geometry.cross(*self.camera.basis()),visible_only=(mode=='面＋線' and opacity==1))
-                for a,b in edges:c.create_line(*xy(mesh.vertices[a]),*xy(mesh.vertices[b]),fill=color,width=1,tags=('mesh','wireframe','element:'+mesh.ident))
+                for a,b in edges:c.create_line(*xy(mesh.vertices[a]),*xy(mesh.vertices[b]),fill=color,width=1,dash=(4,3) if mesh.ident in self.scene.soft else (),tags=('mesh','wireframe','element:'+mesh.ident))
         for mesh in meshes:
             for line in mesh.lines:
                 c.create_line(*(v for i in line for v in xy(mesh.vertices[i])),fill=theme.ACCENT,width=2,tags=('mesh','element:'+mesh.ident))
@@ -202,9 +217,12 @@ class GeometryCanvas(ttk.Frame):
         dimensions=''
         if self.actual and meshes:
             points=[p for m in meshes for p in m.vertices]
-            dimensions='\n外形：'+' / '.join('XYZ'[i]+' '+format(max(p[i] for p in points)-min(p[i] for p in points),'.5g') for i in range(3))+'（SCOM の単位）'
+            dimensions='\n外形：'+' / '.join('XYZ'[i]+' '+format(max(p[i] for p in points)-min(p[i] for p in points),'.5g') for i in range(3))+' mm（DB 単位）'
         self.note.configure(text=('SCOM 実寸：寸法比を保持して全体表示 / 右ドラッグ：回転'+dimensions if self.actual else '共有仮寸法：どの形状のハンドルからも同じ PARAM を更新\n対応する PTSET の点・他の形状も追従 / 距離・単位なし\n属性・PARAM 式は保持 / 右ドラッグ：回転')+'\n負形状は橙色の輪郭で重ねて表示します。')
-        messages=self.scene.issues+([self.resize_issue] if self.resize_issue else [])
+        hidden=self.scene.hidden
+        selected_reason=hidden.get(e.element_id)
+        messages=([selected_reason] if selected_reason else [])+self.scene.issues+([self.resize_issue] if self.resize_issue else [])
+        if hidden:messages.append('表示条件による非表示：'+str(len(hidden))+' 件。要素一覧で選ぶと理由を表示します。')
         self.issue_label.configure(text=('表示できない項目：'+str(len(messages))+' 件\n'+'\n'.join(messages[:2])+ ('\nほか '+str(len(messages)-2)+' 件' if len(messages)>2 else '')) if messages else '')
 
     def parent_selected(self,ident):
@@ -271,7 +289,7 @@ class GeometryCanvas(ttk.Frame):
     def release(self,_=None):
         if not self.drag:return
         d=self.drag;self.drag=None
-        if d['data'] is self.editor.data and d['definition']==self.editor.definition_id and any(n is d['node'] for n in (self.editor.definition() or {}).get('elements',[])):
+        if d['data'] is self.editor.data and d['definition']==self.editor.definition_id and any(n is d['node'] for n in schema.walk((self.editor.definition() or {}).get('elements',[]))):
             if d['context']!=geometry_preview.context(self.editor.data,self.editor.definition()):
                 self.resize_issue='属性・PTSET・共有仮値が変更されています。ハンドルを選び直してください。'
             elif d.get('candidate_state') is not None and d['candidate_state']!=d['state']:

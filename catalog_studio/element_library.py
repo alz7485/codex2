@@ -66,6 +66,10 @@ def reorder(data,definition,ident,target):
     elif definition['kind']=='GMSET':
         from .geometry_preview import remember
         remember(data,definition)
+    if definition['kind']=='PTSSET' and siblings is definition['elements']:
+        raw=str(definition.get('attrs',{}).get('NAREF',''))
+        neutral,source=schema.neutral_axis(definition)
+        if raw.isdecimal() and source=='explicit':definition['attrs']['NAREF']=str(ordered.index(neutral)+1)
     siblings[:]=ordered
     for element,attrs in updates:element['attrs'].update(attrs)
     return True
@@ -93,6 +97,7 @@ def register(data,definition,name,description=''):
     if len(data.get('element_presets',[]))>=1000:raise ValueError('要素プリセット数の上限です。')
     record={'id':uuid.uuid4().hex,'name':name,'kind':definition['kind'],'description':description,
             'parameter_preset_id':presets.selected_id(data,definition),'elements':fresh_elements(definition['elements'])}
+    if 'model_settings' in definition:record['model_settings']=copy.deepcopy(definition['model_settings'])
     if definition['kind']=='PTSET':
         from .point_preview import PointPreview, DIMENSIONS_KEY
         record[DIMENSIONS_KEY]=PointPreview(data,definition).snapshot()
@@ -107,7 +112,7 @@ def update(data,ident,working,name,description=''):
     if not record or record['kind']!=working['kind']:raise ValueError('編集する要素プリセットが見つかりません。')
     if not working['elements']:raise ValueError('要素を1つ以上登録してください。')
     name=check_name(data,record['kind'],name,ident)
-    metadata={}
+    metadata={'model_settings':copy.deepcopy(working.get('model_settings',{}))}
     if working['kind']=='PTSET':
         from .point_preview import PointPreview, DIMENSIONS_KEY
         metadata[DIMENSIONS_KEY]=PointPreview(data,working).snapshot()
@@ -155,6 +160,7 @@ def recall(data,definition,ident,replace=False):
     if replace or not definition['elements']:
         definition['parameter_preset_id']=profile
         definition['element_preset_id']=ident
+        definition['model_settings']=copy.deepcopy(record.get('model_settings',{}))
     else:definition.pop('element_preset_id',None)
     if replace:definition['elements'][:]=result
     else:definition['elements'].extend(result)
@@ -174,5 +180,7 @@ def validate_library(data):
         key=(record['kind'],record['name'].casefold())
         if record['kind'] not in ('PTSET','GMSET') or not record['name'].strip() or key in names:raise ValueError('要素プリセットの名前・種類を確認してください。')
         names.add(key);project.validate_elements(record.get('elements'))
+        from .model_settings import validate as validate_settings
+        validate_settings(record.get('model_settings',{}))
         from .point_geometry import DIMENSIONS_KEY, validate_dimensions
         if DIMENSIONS_KEY in record:validate_dimensions(record[DIMENSIONS_KEY])

@@ -77,9 +77,9 @@ class RulesTests(unittest.TestCase):
     def test_structure_limits_neutral_axis_and_angle_ranges(self):
         d=self.definition('GMSSET')
         for index in range(21):schema.add_element(d,'SREC')['attrs']['OBST']='1'
-        self.assertIn('20',self.problems(d));d['elements'][-1]['attrs']['OBST']='0';self.assertNotIn('20',self.problems(d))
+        self.assertNotIn('20',self.problems(d))
         p=self.definition('PTSSET');line=schema.add_element(p,'PLINE')
-        self.assertIn('NAREF',self.problems(p));p['attrs']['NAREF']=line['id'];self.assertNotIn('NAREF',self.problems(p))
+        self.assertNotIn('NAREF',self.problems(p));self.assertEqual(schema.neutral_axis(p)[1],'origin');p['attrs']['NAREF']=line['id'];self.assertNotIn('NAREF',self.problems(p))
         ann=schema.add_element(d,'SANN');ann['attrs']['PANG']='181';self.assertIn('180',self.problems(d))
         rev=schema.add_element(self.definition(),'SREV');rev['attrs']['PANGLE']='361'
         self.assertIn('360',self.problems(self.data['definitions'][-1]))

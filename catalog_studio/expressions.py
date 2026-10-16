@@ -1,10 +1,12 @@
 """Restricted catalogue expression parser. No eval, Python execution or implicit contexts."""
 import math
 import re
+from . import units
 
 FAMILIES = ('PARAM', 'IPARAM', 'APARAM', 'OPARAM', 'DES PARAM', 'DES APARAM', 'DES OPARAM')
 ALIASES = {'PARA':'PARAM', 'IPARA':'IPARAM', 'APARA':'APARAM', 'OPARA':'OPARAM',
-           'DESP':'DES PARAM', 'DESA':'DES APARAM', 'DESO':'DES OPARAM'}
+           'DESP':'DES PARAM', 'DESA':'DES APARAM', 'DESO':'DES OPARAM',
+           'ADESP':'DES APARAM', 'ODESP':'DES OPARAM'}
 TOKEN = re.compile(r'\s*(?:(\d+(?:\.\d*)?(?:[eE][+-]?\d+)?|\.\d+(?:[eE][+-]?\d+)?)|([^\W\d]\w*)|([+*/()\[\],\-])|("[^"\n]*"|\x27[^\x27\n]*\x27))', re.UNICODE)
 
 
@@ -36,12 +38,21 @@ def parse(text, parameters=()):
         if re.fullmatch(r'(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?', token):
             value = float(token)
             if not math.isfinite(value): raise ValueError('有限の数値を使用してください。')
+            if peek().lower() in units.UNITS:
+                factor,dim=units.UNITS[take().lower()]
+                value*=factor
+                if not math.isfinite(value):raise ValueError('有限の数値を使用してください。')
+                return ('quantity',value,dim)
             return ('number', value)
         if upper == 'ATTRIB': return atom(depth+1)
         if upper in ('SUM', 'DIFF', 'TIMES', 'DIV'):
             return ('binary', {'SUM':'+', 'DIFF':'-', 'TIMES':'*', 'DIV':'/'}[upper], atom(depth+1), atom(depth+1))
         if upper == 'TAN': return ('tan', atom(depth+1))
-        if upper == 'ANGL': return ('attr', 'ANGL')
+        if upper in ('SIN','COS','ASIN','ACOS','ATAN'):return ('func',upper,atom(depth+1))
+        if upper=='TWICE':return ('binary','*',('number',2.),atom(depth+1))
+        aliases={'DDA':'DDANGLE','DDANG':'DDANGLE','DDHEI':'DDHEIGHT','DDRAD':'DDRADIUS','ANGLE':'ANGL','HEIGHT':'HEIG'}
+        upper=aliases.get(upper,upper)
+        if upper in ('ANGL','HEIG','DDANGLE','DDHEIGHT','DDRADIUS','BORE'): return ('attr',upper)
         if upper == 'DES':
             upper = 'DES ' + ALIASES.get(take().upper(), tokens[index-1].upper())
         else: upper = ALIASES.get(upper, upper)
@@ -69,52 +80,74 @@ def parse(text, parameters=()):
 
 def refs(root):
     if root[0] == 'ref': return {(root[1], root[2])}
-    if root[0] in ('number','word','attr'): return set()
+    if root[0] in ('number','quantity','word','attr'): return set()
     if root[0] in ('tan',): return refs(root[1])
+    if root[0]=='func':return refs(root[2])
     if root[0] == 'unary': return refs(root[2])
     return refs(root[2]) | refs(root[3])
+
+
+def attribute_refs(root):
+    if root[0]=='attr':return {root[1]}
+    if root[0] in ('number','quantity','word','ref'):return set()
+    if root[0]=='tan':return attribute_refs(root[1])
+    if root[0] in ('func','unary'):return attribute_refs(root[2])
+    return attribute_refs(root[2])|attribute_refs(root[3])
 
 
 def normalized(text, parameters=()):
     def render(node):
         kind = node[0]
         if kind == 'number': return f'{node[1]:g}'
+        if kind == 'quantity':return f'{node[1]:.15g}'+({units.DIST:'mm',units.ANGL:'degrees',units.SCALAR:'none'}[node[2]])
         if kind == 'word': return '"' + node[1] + '"'
         if kind == 'ref': return node[1] + '[' + node[2][1:] + ']'
         if kind == 'attr': return node[1]
         if kind == 'tan': return 'TAN(' + render(node[1]) + ')'
+        if kind == 'func':return node[1]+'('+render(node[2])+')'
         if kind == 'unary': return '(' + node[1] + render(node[2]) + ')'
         return '(' + render(node[2]) + ' ' + node[1] + ' ' + render(node[3]) + ')'
     return render(parse(text, parameters))
 
 
-def evaluate(text, contexts=None, attributes=None, parameters=()):
+def evaluate(text, contexts=None, attributes=None, parameters=(), expected=None, typed=False):
     contexts = contexts or {}; attributes = attributes or {}
     def numeric(value):
         if type(value) not in (int, float) or not math.isfinite(value): raise ValueError('数値演算には有限の数値パラメータが必要です。')
         return value
     def run(node):
         kind = node[0]
-        if kind in ('number', 'word'): return node[1]
+        if kind=='word':return node[1]
+        if kind=='number':return units.Quantity(node[1])
+        if kind=='quantity':return units.Quantity(node[1],node[2])
         if kind == 'ref':
             if node[2] not in contexts.get(node[1], {}): raise ValueError('値が未設定：' + node[1] + '[' + node[2][1:] + ']')
-            return contexts[node[1]][node[2]]
+            value=contexts[node[1]][node[2]]
+            if isinstance(value,str):return value
+            rule=next((p for p in parameters if p['id']==node[2]),{}) if node[1]=='PARAM' else {}
+            factor=units.UNITS.get(str(rule.get('unit','')).lower(),(1,None))[0]
+            return units.Quantity(numeric(value)*factor,units.dimension(rule.get('unit')))
         if kind == 'attr':
             if node[1] not in attributes: raise ValueError('コンポーネント属性が未設定：' + node[1])
-            return numeric(attributes[node[1]])
-        if kind == 'tan':
-            angle = numeric(run(node[1])); radians = math.radians(angle)
-            if abs(math.cos(radians)) < 1e-12: raise ValueError('TAN が定義できない角度です。')
-            return numeric(math.tan(radians))
+            return units.Quantity(numeric(attributes[node[1]]),units.ANGL if node[1] in ('ANGL','DDANGLE') else units.DIST)
+        if kind in ('tan','func'):
+            arg=run(node[1] if kind=='tan' else node[2])
+            if not isinstance(arg,units.Quantity):raise ValueError('関数には数値が必要です。')
+            return units.function('TAN' if kind=='tan' else node[1],arg)
         if kind == 'unary':
-            value = numeric(run(node[2])); return value if node[1] == '+' else -value
-        left, right = numeric(run(node[2])), numeric(run(node[3]))
-        if node[1] == '/' and right == 0: raise ValueError('ゼロで除算できません。')
-        result = {'+':lambda:left+right, '-':lambda:left-right, '*':lambda:left*right, '/':lambda:left/right}[node[1]]()
-        return numeric(result)
+            value=run(node[2])
+            if not isinstance(value,units.Quantity):raise ValueError('数値演算には数値が必要です。')
+            return units.Quantity(value.value if node[1]=='+' else -value.value,value.dimension)
+        left,right=run(node[2]),run(node[3])
+        if not isinstance(left,units.Quantity) or not isinstance(right,units.Quantity):raise ValueError('数値演算には数値パラメータが必要です。')
+        result=units.binary(node[1],left,right);numeric(result.value);return result
     result = run(parse(text, parameters))
-    if not isinstance(result, str): numeric(result)
-    return result
+    if isinstance(result,str):
+        if expected is not None:raise ValueError('寸法・角度には数値が必要です。')
+        return result
+    units.compatible(result.dimension,{'DIST':units.DIST,'ANGL':units.ANGL,'NONE':units.SCALAR}.get(expected))
+    numeric(result.value)
+    return result if typed else result.value
 
 
 def contexts_for(scom):

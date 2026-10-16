@@ -10,12 +10,19 @@ from .point_preview import PointPreview, empty, merged_dimensions, remember as r
 ANGLES={'PANGLE','PXTS','PYTS','PXBS','PYBS'}
 
 
-def numeric_form(root):
-    if root[0]=='attr':raise ValueError(root[1]+' の仮の角度は未設定です。')
+def mesh_nodes(node):
+    yield node
+    for child in node.get('children',[]):
+        if child['type'] in schema.CHILD_TYPES:yield from mesh_nodes(child)
+
+
+def numeric_form(root,attributes=None):
+    if root[0]=='attr' and root[1] not in (attributes or {}):raise ValueError(root[1]+' の確認用設計値は未設定です。')
     if root[0]=='word':raise ValueError('寸法には数値の式が必要です。')
-    if root[0]=='tan':numeric_form(root[1])
-    elif root[0]=='unary':numeric_form(root[2])
-    elif root[0]=='binary':numeric_form(root[2]);numeric_form(root[3])
+    if root[0]=='tan':numeric_form(root[1],attributes)
+    elif root[0]=='func':numeric_form(root[2],attributes)
+    elif root[0]=='unary':numeric_form(root[2],attributes)
+    elif root[0]=='binary':numeric_form(root[2],attributes);numeric_form(root[3],attributes)
 
 
 def pointset_for(data,definition):
@@ -29,7 +36,7 @@ def context(data,definition):
     """Detect edits or a changed association while a resize is pending."""
     if not definition:return None
     pointset=pairing.resolve(data,definition)['pointset']
-    return copy.deepcopy((definition.get('id'),presets.selected_id(data,definition),definition['elements'],definition.get(DIMENSIONS_KEY),
+    return copy.deepcopy((definition.get('id'),definition.get('model_settings',{}),presets.selected_id(data,definition),definition['elements'],definition.get(DIMENSIONS_KEY),
                           (pointset['id'],presets.selected_id(data,pointset),pointset['elements'],pointset.get(DIMENSIONS_KEY)) if pointset else None))
 
 
@@ -46,6 +53,7 @@ class GeometryPreview(geo.Resolver):
         if state is not None:saved=state
         if saved is not None:self.point_definition[DIMENSIONS_KEY]=copy.deepcopy(saved)
         self.dimensions=PointPreview(data,self.point_definition)
+        self.dimensions.attributes.update(definition.get('model_settings',{}))
         # First learn size expressions, then offsets: a provisional zero offset
         # must not establish a zero height for the same new PARAM.
         self.deferred=[]
@@ -56,7 +64,7 @@ class GeometryPreview(geo.Resolver):
         self.learning=False;self.reset_points()
 
     def prepare(self):
-        for node in self.definition['elements']:
+        for node in schema.walk(self.definition['elements']):
             if schema.positive(node['type'])=='SLINE':
                 for key,defaults in (('PTSPOS',(-.7,0,0)),('PTEPOS',(.7,0,0))):
                     try:
@@ -69,9 +77,10 @@ class GeometryPreview(geo.Resolver):
     def reset_points(self):
         self.point_definition[DIMENSIONS_KEY]=self.dimensions.snapshot()
         self.dimensions=PointPreview(self.data,self.point_definition)
+        self.dimensions.attributes.update(self.definition.get('model_settings',{}))
         self.schematic=self.dimensions;self.cache={0:(geo.ZERO,geo.AXES[2])}
 
-    def number(self,text):return self.dimensions.number(text)
+    def number(self,text,expected=None):return self.dimensions.number(text,expected)
 
     def axis(self,text,default=geo.AXES[0]):
         if empty(text):return geo.ZERO,default
@@ -87,7 +96,7 @@ class GeometryPreview(geo.Resolver):
         text=node['attrs'].get(key,'')
         if empty(text):return default
         try:
-            root=expressions.parse(text,self.parameters);numeric_form(root);refs=expressions.refs(root)
+            root=expressions.parse(text,self.parameters);numeric_form(root,self.dimensions.attributes);refs=expressions.refs(root)
             if key not in ANGLES:self.forms[(node['id'],key)]=root
             try:value=self.dimensions.scalar(root)
             except ValueError:
@@ -103,6 +112,7 @@ class GeometryPreview(geo.Resolver):
                 if len(coefficients)==1:
                     ref,coefficient=next(iter(coefficients.items()))
                     if abs(coefficient)>1e-12:
+                        if key=='PHEI' and schema.positive(node['type'])=='SCYL' and coefficient<0:target=-abs(target)
                         inferred=(target-offset)/coefficient
                         if not math.isfinite(inferred) or abs(inferred)>1e100:raise ValueError('共有仮寸法の範囲を超えています。')
                         self.dimensions.values[ref]=inferred
@@ -137,7 +147,7 @@ class GeometryPreview(geo.Resolver):
     def snapshot(self):return self.dimensions.snapshot()
 
     def has_dimensions(self,node):
-        ids={child['id'] for child in schema.walk([node])}
+        ids={child['id'] for child in mesh_nodes(node)}
         for (ident,key),root in self.forms.items():
             if ident not in ids or not expressions.refs(root):continue
             if ident==node['id'] and (key in ('PX','PY','PZ') or key=='PDIS' and schema.positive(node['type'])!='SCON'):continue
@@ -146,8 +156,8 @@ class GeometryPreview(geo.Resolver):
 
     def resize(self,ident,axis,extent):
         """Invert a handle's extent into a unique shared PARAM change."""
-        node=next(n for n in self.definition['elements'] if n['id']==ident)
-        ids={child['id'] for child in schema.walk([node])};refs=set()
+        node=next(n for n in schema.walk(self.definition['elements']) if n['id']==ident)
+        ids={child['id'] for child in mesh_nodes(node)};refs=set()
         for (nid,_),root in self.forms.items():
             if nid in ids:refs.update(expressions.refs(root))
         variables=[ref for ref in sorted(refs) if ref in self.dimensions.values]

@@ -72,6 +72,8 @@ class PointPreview(Resolver):
         return {}
 
     def scalar(self,root):
+        missing=expressions.attribute_refs(root)-self.attributes.keys()
+        if missing:raise ValueError(', '.join(sorted(missing))+' の確認用設計値は未設定です。')
         try:return self.run_scalar(root)
         except ValueError:
             if root not in self.exact:raise
@@ -79,17 +81,18 @@ class PointPreview(Resolver):
 
     def run_scalar(self,root):
         kind=root[0]
-        if kind=='number':return root[1]
+        if kind in ('number','quantity'):return root[1]
         if kind=='ref':
             if root[1:] not in self.values:raise ValueError('仮寸法が未定：'+root[1]+' '+root[2][1:])
             return self.values[root[1:]]
-        if kind=='attr':raise ValueError(root[1]+' の仮の角度は未設定です。')
+        if kind=='attr':
+            if root[1] not in self.attributes:raise ValueError(root[1]+' の確認用設計値は未設定です。')
+            return self.attributes[root[1]]
         if kind=='word':raise ValueError('位置には数値の式が必要です。')
         if kind=='unary':return self.scalar(root[2])*(1 if root[1]=='+' else -1)
-        if kind=='tan':
-            angle=math.radians(self.scalar(root[1]))
-            if abs(math.cos(angle))<1e-12:raise ValueError('TAN が定義できない角度です。')
-            return math.tan(angle)
+        if kind in ('tan','func'):
+            from .units import Quantity, function
+            return function('TAN' if kind=='tan' else root[1],Quantity(self.scalar(root[1] if kind=='tan' else root[2]))).value
         a,b=self.scalar(root[2]),self.scalar(root[3])
         if root[1]=='/' and not b:raise ValueError('ゼロで除算できません。')
         return {'+':lambda:a+b,'-':lambda:a-b,'*':lambda:a*b,'/':lambda:a/b}[root[1]]()
@@ -110,7 +113,7 @@ class PointPreview(Resolver):
         if op=='/' and not bc and b:return a/b,{ref:c/b for ref,c in ac.items()}
         return self.scalar(root),{}
 
-    def number(self,text):
+    def number(self,text,expected=None):
         root=expressions.parse(text,self.parameters)
         try:value=self.scalar(root)
         except ValueError:
@@ -119,7 +122,9 @@ class PointPreview(Resolver):
         if not math.isfinite(value) or abs(value)>1e100:raise ValueError('仮寸法の計算結果が大きすぎます。')
         return value
 
-    def value(self,node,key,default=0,positive=False):return self.number(node['attrs'].get(key,''))*self.scale
+    def value(self,node,key,default=0,positive=False):
+        text=node['attrs'].get(key,'')
+        return self.number(text)*self.scale
     def position_expression(self,text):return tuple(self.number(part)*self.scale for part in coordinate_expressions(text))
 
     def axis(self,text,default=None):

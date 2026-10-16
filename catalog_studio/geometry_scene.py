@@ -47,6 +47,8 @@ class Scene:
     points:dict=field(default_factory=dict)
     issues:list=field(default_factory=list)
     actual:bool=False
+    hidden:dict=field(default_factory=dict)
+    soft:set=field(default_factory=set)
     preview:object=field(default=None,repr=False)
 
     def vertices(self):return [p for mesh in self.meshes for p in mesh.vertices]+[p[0] for p in self.points.values()]
@@ -75,7 +77,7 @@ class FitCamera(Camera):
 class Resolver:
     def __init__(self,data,definition,pointset,scom,actual,scene):
         self.data=data;self.definition=definition;self.pointset=pointset;self.scom=scom or {};self.actual=actual;self.scene=scene
-        self.contexts=expressions.contexts_for(self.scom);self.attributes=self.scom.get('component_attrs',{})
+        self.contexts=expressions.contexts_for(self.scom);self.attributes=dict(definition.get('model_settings',{}));self.attributes.update(self.scom.get('component_attrs',{}))
         self.parameters=presets.rules(data,definition);self.cache={0:(ZERO,AXES[2])};self.active=set();self.nodes={}
         for index,node in enumerate((pointset or {}).get('elements',[])):
             try:
@@ -88,15 +90,18 @@ class Resolver:
             from .point_preview import PointPreview
             self.schematic=PointPreview(data,pointset)
 
-    def number(self,text):
-        value=expressions.evaluate(text,self.contexts,self.attributes,self.parameters)
+    def number(self,text,expected=None):
+        value=expressions.evaluate(text,self.contexts,self.attributes,self.parameters,expected)
         if type(value) not in (int,float) or not math.isfinite(value) or abs(value)>1e100:raise ValueError('表示用の有限数値が必要です（絶対値 1e100 以下）。')
         return value
 
     def value(self,node,key,default=0,positive=False):
         text=str(node['attrs'].get(key,''))
         if self.actual:
-            try:value=self.number(text)
+            if text.strip().lower() in ('','unset'):
+                fallback=schema.evaluation_default(node['type'],key)
+                if fallback is not None:text=fallback
+            try:value=self.number(text,'ANGL' if key in ('PANGLE','PANG','PXTS','PYTS','PXBS','PYBS') else 'DIST')
             except ValueError as exc:raise ValueError(key+'：'+str(exc)) from exc
         else:
             try:value=float(text) if text.strip() in ('0','0.0') else default
@@ -118,16 +123,18 @@ class Resolver:
             if char=='(':depth+=1
             elif char==')':depth-=1
             elif depth==0 and char in 'XYZENWSUD' and index:
-                try:angle=self.number(tail[:index])
+                boundary=index-1 if tail[index-1] in '+-' else index
+                second=tail[boundary:index+1] if boundary!=index else char
+                try:angle=self.number(tail[:boundary],'ANGL')
                 except ValueError:continue
                 remaining=tail[index+1:]
                 if remaining:
                     if remaining[-1] not in 'XYZENWSUD':continue
-                    try:elevation=self.number(remaining[:-1])
+                    try:elevation=self.number(remaining[:-1],'ANGL')
                     except ValueError:continue
                     third=remaining[-1]
                 else:elevation=0;third=None
-                parts=(angle,char,elevation,third);break
+                parts=(angle,second,elevation,third);break
         if not parts:raise ValueError('未対応または値が不足する方向式：'+text)
         angle,second,elevation,third=parts;a,b=cardinal(first[0]),cardinal(second)
         if dot(a,b):raise ValueError('方向式には直交する軸が必要です。')
@@ -168,10 +175,12 @@ class Resolver:
                     position=schematic_position(node,index)
                     direction=self.axis(attrs.get('PAXI' if kind in ('PTAXI','PTMIX') else 'PTCDIR',attrs.get('PTCD','X')))[1]
             elif kind=='PTAXI':
-                origin,direction=self.axis(attrs.get('PAXI',''));position=add(origin,mul(direction,self.value(node,'PDIS')))
+                origin,direction=self.axis(attrs.get('PAXI') if str(attrs.get('PAXI','')).strip().lower() not in ('','unset') else 'Y');position=add(origin,mul(direction,self.value(node,'PDIS')))
             elif kind in ('PTCAR','PTMIX','PTPOS'):
                 position=self.position_expression(attrs.get('PTCPOS','')) if kind=='PTPOS' else tuple(self.value(node,k) for k in ('PX','PY','PZ'))
-                direction=self.axis(attrs.get('PAXI',''))[1] if kind=='PTMIX' else self.direction(attrs.get('PTCDIR',attrs.get('PTCD','')))
+                text=attrs.get('PAXI','') if kind=='PTMIX' else attrs.get('PTCDIR',attrs.get('PTCD',''))
+                if str(text).strip().lower() in ('','unset'):text='Y'
+                direction=self.axis(text)[1] if kind=='PTMIX' else self.direction(text)
             elif kind=='point':
                 direction=self.direction(attrs.get('方向',''));position=(0.,0.,self.value(node,'位置'))
             else:raise ValueError('未対応のポイント種類：'+kind)
@@ -203,7 +212,7 @@ def build_mesh(node,resolver):
         origin,direction=axis();diameter=value('PDIA',.65,True);radius=diameter/2
         if kind=='LCYL':low,high=value('PBDI',-.6),value('PTDI',.6)
         elif kind=='SCON':low,high=0,value('PDIS',1.2,True)
-        else:low=value('PDIS',0);high=low+value('PHEI',1.2,True) if kind in ('SCYL','SSLC','SDSH') else low
+        else:low=value('PDIS',0);high=low+value('PHEI',1.2,kind!='SCYL') if kind in ('SCYL','SSLC','SDSH') else low
         if kind=='SDSH':
             if r.actual:raise ValueError('SDSH の基準面・皿形曲面の実寸表示は未対応です。')
             rings=[circle(at(origin,direction,low+(high-low)*math.sin(i*math.pi/16)),direction,radius*math.cos(i*math.pi/16)) for i in range(9)]
@@ -212,7 +221,8 @@ def build_mesh(node,resolver):
         elif kind=='SDIS':
             mesh.vertices=circle(at(origin,direction,low),direction,radius);mesh.faces=[tuple(range(24))];return mesh
         else:
-            if high<=low:raise ValueError('上面位置は底面位置より大きくしてください。')
+            if kind=='SCYL' and high==low:raise ValueError('円筒の高さは0以外にしてください。')
+            if kind!='SCYL' and high<=low:raise ValueError('上面位置は底面位置より大きくしてください。')
             slopes=[(0,0),(0,0)]
             if kind=='SSLC':
                 def tangent(key):
@@ -223,6 +233,7 @@ def build_mesh(node,resolver):
                 if high-low<=radius*math.hypot(*(sub(slopes[1],slopes[0]))):raise ValueError('傾斜した上下端面が交差しています。')
             rings=[circle(at(origin,direction,low),direction,0 if kind=='SCON' else radius,slopes[0]),circle(at(origin,direction,high),direction,radius,slopes[1])]
         rings_mesh(mesh,rings,top,bottom)
+        if kind=='SCYL' and high<low:mesh.faces=[tuple(reversed(face)) for face in mesh.faces]
     elif kind=='SBOX':
         center=tuple(value(k,0) for k in ('PX','PY','PZ'));sizes=[value(k,.8,True) for k in ('PXLE','PYLE','PZLE')]
         rings=[[add(center,(sx*sizes[0]/2,sy*sizes[1]/2,sz*sizes[2]/2)) for sx,sy in ((-1,-1),(1,-1),(1,1),(-1,1))] for sz in (-1,1)]
@@ -322,7 +333,7 @@ def build_mesh(node,resolver):
     return mesh
 
 
-def build_scene(data,definition,scom=None,actual=False,preview_state=None):
+def build_scene(data,definition,scom=None,actual=False,preview_state=None,representation_settings=None):
     scene=Scene(actual=actual)
     if not definition:return scene
     pt=pairing.resolve(data,definition)['pointset']
@@ -345,7 +356,12 @@ def build_scene(data,definition,scom=None,actual=False,preview_state=None):
     for number,(node,_) in resolver.nodes.items():
         try:scene.points[number]=(*resolver.point(number),node['name'])
         except ValueError as exc:scene.issues.append(node['name']+'：'+str(exc))
-    for node in definition['elements']:
+    for node in schema.walk(definition['elements']):
+        if node['type'] in schema.CHILD_TYPES:continue
+        from .representation import visibility
+        visible,reason,soft=visibility(node,representation_settings)
+        if not visible:scene.hidden[node['id']]=node['name']+'：'+reason;continue
+        if soft:scene.soft.add(node['id'])
         try:scene.meshes.append(build_mesh(node,resolver))
         except (ValueError,OverflowError) as exc:scene.issues.append(node['name']+'：'+str(exc))
     return scene

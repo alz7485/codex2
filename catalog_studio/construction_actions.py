@@ -15,10 +15,18 @@ def context_menu(editor):
     menu.add_separator();menu.add_cascade(label='要素プリセット',menu=library)
     menu.add_separator();menu.add_command(label='セットの設定・確認',command=e.toggle_settings)
     e.context_menu=e.operations_menu=menu;e.element_preset_menu=library;e.settings_menu_index=menu.index('end')
+    from . import model_settings, element_schema as schema
+    menu.add_command(label='確認用設計値（DDANGLE 等）',command=lambda:model_settings.edit(e))
+    negatives=tk.Menu(menu,tearoff=False)
+    for kind in schema.NEGATIVE_BASE:
+        negatives.add_command(label=kind,command=lambda k=kind:e.add_negative_child(k))
+    menu.add_cascade(label='負形状を子として追加',menu=negatives)
+    negative_index=menu.index('end')
     def popup(event):
         ident=e.elements.identify_row(event.y)
         if ident:e.elements.selection_set(ident);e.select_element()
         for index in (0,1):menu.entryconfigure(index,state='normal' if ident else 'disabled')
+        node=e.element();menu.entryconfigure(negative_index,state='normal' if node and any(k in schema.NEGATIVE_BASE for k in schema.allowed_children(node['type'])) else 'disabled')
         try:menu.tk_popup(event.x_root,event.y_root)
         finally:menu.grab_release()
     e.elements.bind('<Button-3>',popup)

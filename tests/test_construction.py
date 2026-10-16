@@ -9,7 +9,7 @@ from catalog_studio.integrated import IntegratedStudio
 
 class SchemaTests(unittest.TestCase):
     def test_lists_and_hidden_defaults(self):
-        self.assertEqual(len(schema.PT_TYPES),4);self.assertEqual(len(schema.GM_TYPES),18);self.assertEqual(len(schema.NEGATIVE_BASE),15)
+        self.assertEqual(len(schema.PT_TYPES),4);self.assertEqual(len(schema.GM_TYPES),18);self.assertEqual(len(schema.NEGATIVE_BASE),16)
         self.assertEqual(schema.fields('SCYL'),('PAXI','PHEI','PDIA','PDIS','TVISI','BVISI'))
         self.assertEqual(schema.fields('PTPOS'),('NUMB','PCON','PBOR','PTCPOS','PTCDIR'))
         for kind in schema.PT_TYPES:
@@ -65,7 +65,7 @@ class ConstructionGuiTests(unittest.TestCase):
         app=self.app;app.switch('gmset');app.update();editor=app.geometry_editor
         self.assertEqual(editor.element()['type'],'SCYL')
         self.assertEqual(editor.library.size(),18)
-        editor.negative.set(True);editor.populate_library();self.assertEqual(editor.library.size(),15)
+        editor.negative.set(True);editor.populate_library();self.assertEqual(editor.library.size(),16)
         index=list(schema.NEGATIVE_BASE).index('NSRU');editor.library.selection_clear(0,'end');editor.library.selection_set(index);editor.add_element();app.update()
         self.assertEqual(editor.element()['type'],'NSRU')
         self.assertEqual(editor.tables['main'].get_children(),schema.GM_COMMON+schema.NEGATIVE_EXTRA)

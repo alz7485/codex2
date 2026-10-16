@@ -1,0 +1,219 @@
+{
+  "format": "catalog-studio-integrated",
+  "version": 2,
+  "name": "符号・単位・表示条件の確認（自作例）",
+  "parameters": [
+    {
+      "id": "P1",
+      "role": "大径側外径",
+      "unit": "mm"
+    },
+    {
+      "id": "P2",
+      "role": "小径側外径",
+      "unit": "mm"
+    },
+    {
+      "id": "P3",
+      "role": "全長",
+      "unit": "mm"
+    },
+    {
+      "id": "P4",
+      "role": "大径側呼び径",
+      "unit": "mm"
+    },
+    {
+      "id": "P5",
+      "role": "小径側呼び径",
+      "unit": "mm"
+    }
+  ],
+  "cates": [
+    {
+      "id": "cate-reducer",
+      "name": "/REDUCER-CATE",
+      "description": "同心レデューサー（モックアップ参考値）",
+      "revision": "01"
+    }
+  ],
+  "definitions": [
+    {
+      "id": "manual-points",
+      "name": "/CHECK-PTSET",
+      "kind": "PTSET",
+      "revision": "01",
+      "elements": [
+        {
+          "id": "1a09cb962945425fae9567a822d87e01",
+          "type": "PTAXI",
+          "name": "PTAXI 1",
+          "attrs": {
+            "NUMB": "1",
+            "PCON": "",
+            "PBOR": "PARAM 4",
+            "PAXI": "-Y",
+            "PDIS": "PARAM 3 / 2",
+            "PSKEY": "BW",
+            "DESC": "unset",
+            "PURP": "unset"
+          }
+        },
+        {
+          "id": "20601225653c44ef8ab55afde3996514",
+          "type": "PTAXI",
+          "name": "PTAXI 2",
+          "attrs": {
+            "NUMB": "2",
+            "PCON": "",
+            "PBOR": "PARAM 4",
+            "PAXI": "Y",
+            "PDIS": "PARAM 3 / 2",
+            "PSKEY": "BW",
+            "DESC": "unset",
+            "PURP": "unset"
+          }
+        },
+        {
+          "id": "14f6228671ff45eb9f291f47a08dcce8",
+          "type": "PTCAR",
+          "name": "設計角度の方向",
+          "attrs": {
+            "NUMB": "3",
+            "PCON": "",
+            "PBOR": "",
+            "PX": "PARAM 1",
+            "PY": "0",
+            "PZ": "0",
+            "PTCDIR": "X DDA Y",
+            "PSKEY": "unset",
+            "DESC": "unset",
+            "PURP": "unset"
+          }
+        }
+      ],
+      "model_settings": {
+        "DDANGLE": 30
+      }
+    },
+    {
+      "id": "manual-geometry",
+      "name": "/CHECK-GMSET",
+      "kind": "GMSET",
+      "revision": "01",
+      "paired_ptset_id": "manual-points",
+      "elements": [
+        {
+          "id": "861ed5098d1446b592820fe1605e1aa3",
+          "type": "SCYL",
+          "name": "負の高さの胴部",
+          "attrs": {
+            "PAXI": "-Y",
+            "PHEI": "-PARAM 3",
+            "PDIA": "PARAM 1",
+            "PDIS": "PARAM 3 / 2",
+            "TVISI": "",
+            "BVISI": "",
+            "LEVEL": "0 5",
+            "CLFLA": "TRUE",
+            "TUFLA": "TRUE",
+            "OBST": "0",
+            "DESC": "",
+            "GTYP": "",
+            "PURP": ""
+          },
+          "children": [
+            {
+              "id": "b2625728dc9f4580ab2e0f2c004e32ac",
+              "type": "NSCY",
+              "name": "子の負円筒",
+              "attrs": {
+                "PAXI": "-Y",
+                "PHEI": "-PARAM 3",
+                "PDIA": "PARAM 1 / 2",
+                "PDIS": "PARAM 3 / 2",
+                "TVISI": "",
+                "BVISI": "",
+                "LEVEL": "0 5",
+                "CLFLA": "",
+                "TUFLA": "TRUE",
+                "OBST": "",
+                "DESC": "",
+                "GTYP": "",
+                "PURP": "",
+                "NAPP": "1"
+              }
+            }
+          ]
+        },
+        {
+          "id": "fffd667db6e345b09763228ee3ea9098",
+          "type": "SCYL",
+          "name": "ソフトの確認範囲",
+          "attrs": {
+            "PAXI": "Y",
+            "PHEI": "PARAM 3",
+            "PDIA": "PARAM 1 + 10mm",
+            "PDIS": "-PARAM 3 / 2",
+            "TVISI": "",
+            "BVISI": "",
+            "LEVEL": "2 4",
+            "CLFLA": "FALSE",
+            "TUFLA": "FALSE",
+            "OBST": "1",
+            "DESC": "",
+            "GTYP": "",
+            "PURP": ""
+          }
+        },
+        {
+          "id": "3a31042df0fd4a80845b888d1553d047",
+          "type": "SCYL",
+          "name": "設計高さの補助形状",
+          "attrs": {
+            "PAXI": "Z",
+            "PHEI": "DDHEIGHT",
+            "PDIA": "1inch",
+            "PDIS": "0",
+            "TVISI": "",
+            "BVISI": "",
+            "LEVEL": "0 5",
+            "CLFLA": "",
+            "TUFLA": "TRUE",
+            "OBST": "",
+            "DESC": "",
+            "GTYP": "",
+            "PURP": ""
+          }
+        }
+      ],
+      "model_settings": {
+        "DDANGLE": 30,
+        "DDHEIGHT": 50.8,
+        "DDRADIUS": 25.4
+      }
+    }
+  ],
+  "scoms": [
+    {
+      "id": "manual-part",
+      "name": "/CHECK-PART",
+      "cate_id": "cate-reducer",
+      "size": "40 / 100",
+      "revision": "01",
+      "gmset_id": "manual-geometry",
+      "ptset_id": "manual-points",
+      "values": {
+        "P1": 40,
+        "P2": 20,
+        "P3": 100,
+        "P4": 25,
+        "P5": 15
+      }
+    }
+  ],
+  "specs": [],
+  "books": [],
+  "texts": [],
+  "tables": []
+}

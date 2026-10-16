@@ -47,7 +47,7 @@ def definition_issues(definition, parameters=(), scom=None):
     for element in elements:
         kind = element['type']; attrs = element['attrs']; base = schema.positive(kind)
         if not schema.known(kind): continue
-        if not schema.child_kind(kind) and element.get('children'): report(element,'子要素','この要素型は子要素を持ちません。')
+        if any(c['type'] not in schema.allowed_children(kind) for c in element.get('children',[])):report(element,'子要素','この親には追加できない子要素の型です。')
         if kind in schema.PT_TYPES:
             number = str(attrs.get('NUMB',''))
             if not re.fullmatch(r'[1-9]\d*',number): report(element,'NUMB','正の整数。P0 は自動生成される編集不可の基準点です。')
@@ -60,10 +60,11 @@ def definition_issues(definition, parameters=(), scom=None):
         level = str(attrs.get('LEVEL','')).strip()
         if level and level.lower() != 'unset':
             try:
-                pair = [float(v) for v in level.split()]
-                if len(pair) != 2 or not all(math.isfinite(v) for v in pair) or pair[0] > pair[1]: raise ValueError()
-            except ValueError: report(element,'LEVEL','下限 上限 の 2 数値を昇順で入力してください。')
+                pair = [int(v) for v in level.split()]
+                if len(pair) != 2 or pair[0] > pair[1]: raise ValueError()
+            except ValueError: report(element,'LEVEL','下限 上限 の 2 整数を昇順で入力してください。')
         if kind in schema.NEGATIVE_BASE and str(attrs.get('NAPP','')).strip() not in tuple(map(str,range(8))): report(element,'NAPP','0〜7 の適用先の組み合わせです。')
+        if kind in schema.PT_TYPES and str(attrs.get('PSKEY','')).strip().upper() not in schema.PSKEY_CHOICES+('UNSET',):report(element,'PSKEY','NULL / BW / CP / FL / SC / SW / PL を指定してください。')
         if base == 'LINE' and attrs.get('PTS'):
             points = str(attrs['PTS']).upper().split()
             if not 1 <= len(points) <= 6 or any(not re.fullmatch(r'[PT]\d+', v) for v in points): report(element,'PTS','P1 / T2 形式の点を順に最大 6 個指定します。')
@@ -73,7 +74,7 @@ def definition_issues(definition, parameters=(), scom=None):
         if base in ('SEXT','SREV','SPRO','SLOO'):
             children = element.get('children',[]); expected = schema.child_kind(kind)
             if not children: report(element,'輪郭','輪郭または頂点がありません。')
-            elif any(c['type'] != expected for c in children): report(element,'輪郭','子要素の種類は ' + expected + ' です。')
+            elif not any(c['type']==expected for c in children):report(element,'輪郭','子要素に '+expected+' が必要です。')
             if base in ('SLOO','SPRO') and len(children) < 3: report(element,'輪郭','輪郭には 3 点以上の頂点が必要です。')
         numeric_keys = set(schema.fields(kind)) - {'NUMB','PCON','PKEY','PAXI','PAAX','PBAX','PCAX','PLAXI','PTCDIR','PTCPOS','PTSPOS','PTEPOS','TVISI','BVISI','PTS'}
         for key in numeric_keys:
@@ -85,17 +86,15 @@ def definition_issues(definition, parameters=(), scom=None):
                     if family == 'PARAM' and pid not in {p['id'] for p in parameters}: raise ValueError('未定義のパラメータ：' + pid)
                 if scom is not None or not expressions.refs(root):
                     contexts = expressions.contexts_for(scom) if scom else {}
-                    value = expressions.evaluate(expr,contexts,(scom or {}).get('component_attrs',{}),parameters)
+                    attributes=dict(definition.get('model_settings',{}));attributes.update((scom or {}).get('component_attrs',{}))
+                    expected='ANGL' if key in ('PANGLE','PANG','PXTS','PYTS','PXBS','PYBS') else 'DIST'
+                    value = expressions.evaluate(expr,contexts,attributes,parameters,expected)
                     if type(value) not in (int,float): raise ValueError('寸法・角度には数値が必要です。')
                     if key == 'PANGLE' and not -360 <= value <= 360: raise ValueError('回転角度は −360〜360 度です。')
                     if key == 'PANG' and not -180 <= value <= 180: raise ValueError('円環角度は −180〜180 度です。')
             except ValueError as exc: report(element,key,str(exc))
-    if definition['kind'] == 'GMSSET' and sum(str(e['attrs'].get('OBST','')) in ('1','2') for e in definition['elements']) > 20:
-        result.append(definition['name'] + '：OBST 1 / 2 の断面要素は 20 個以内にしてください（資料に基づく上限）。')
-    if definition['kind'] == 'PTSSET':
-        target = definition.get('attrs',{}).get('NAREF','')
-        if target not in {e['id'] for e in definition['elements']} | {e['name'] for e in definition['elements']}:
-            result.append(definition['name'] + '：中立軸 NAREF の PLINE を選択してください。')
+    if definition['kind']=='PTSSET' and schema.neutral_axis(definition)[1]=='invalid':
+        result.append(definition['name']+'：NAREF は同じ PTSSET の PLINE の名前・ID・メンバー順番号で指定してください。')
     return result
 
 

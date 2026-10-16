@@ -41,7 +41,7 @@ NEGATIVE_EXTRA = ('NAPP',)
 # UI working correspondence only; no executable command is generated from it.
 NEGATIVE_BASE = {
     'NSBO': 'SBOX', 'NBOX': 'BOXI', 'NSCO': 'SCON', 'NLCY': 'LCYL',
-    'NSCY': 'SCYL', 'NSSL': 'SSLC', 'NLPY': 'LPYR', 'NSCT': 'SCTO',
+    'NSCY': 'SCYL', 'NSDS':'SDSH', 'NSSL': 'SSLC', 'NLPY': 'LPYR', 'NSCT': 'SCTO',
     'NSRT': 'SRTO', 'NLSN': 'LSNO', 'NSSP': 'SSPH', 'NTUB': 'TUBE',
     'NSEX': 'SEXT', 'NSRE': 'SREV', 'NSRU': None,
 }
@@ -157,14 +157,48 @@ def child_kind(kind):
     return {'SEXT':'SLOO', 'SREV':'SLOO', 'SLOO':'SVER', 'SPRO':'SPVE'}.get(kind)
 
 
-def add_child(element):
-    kind = child_kind(element['type'])
+def allowed_children(kind):
+    outline=child_kind(kind)
+    return ((outline,) if outline else ())+ (tuple(NEGATIVE_BASE) if kind in GM_TYPES and kind not in ('LINE','SLINE') else ())
+
+
+def add_child(element, kind=None):
+    kind = kind or child_kind(element['type'])
     if not kind: raise ValueError('この要素には頂点・輪郭を追加できません。')
+    if kind not in allowed_children(element['type']):raise ValueError('この親には追加できない子要素です。')
     children = element.setdefault('children', [])
-    if kind == 'SLOO' and children: raise ValueError('既存の輪郭を選択して頂点を追加してください。')
+    if kind == 'SLOO' and any(c['type']=='SLOO' for c in children): raise ValueError('既存の輪郭を選択して頂点を追加してください。')
     if len(children) >= 200: raise ValueError('子要素の上限です。')
-    child = {'id':uuid.uuid4().hex, 'type':kind, 'name':LABELS[kind] + ' ' + str(len(children)+1), 'attrs':default_attrs(kind)}
+    child = {'id':uuid.uuid4().hex, 'type':kind, 'name':LABELS.get(kind,kind) + ' ' + str(len(children)+1), 'attrs':default_attrs(kind)}
     children.append(child); return child
+
+
+PSKEY_CHOICES=('', 'NULL','BW','CP','FL','SC','SW','PL')
+
+
+def evaluation_default(kind,key):
+    if kind in PT_TYPES:
+        if key in ('PAXI','PTCDIR','PTCD'):return 'Y'
+        if key in ('PDIS','PX','PY','PZ','PBOR'):return '0'
+    if kind in GM_TYPES or kind in NEGATIVE_BASE:
+        if key in ('PDIS','PX','PY','PZ'):return '0'
+    if kind=='PLINE':
+        if key=='PLAXI':return 'Y'
+        if key in ('PX','PY'):return '0'
+    return None
+
+
+def neutral_axis(definition):
+    """Resolve explicit member ordinal/name/id or the documented fallback."""
+    elements=definition.get('elements',[]);raw=str(definition.get('attrs',{}).get('NAREF','')).strip()
+    if raw:
+        target=next((e for e in elements if raw in (e['id'],e['name'])),None)
+        if target is None and raw.isdecimal() and 1<=int(raw)<=len(elements):target=elements[int(raw)-1]
+        return (target,'explicit') if target and target['type']=='PLINE' else (None,'invalid')
+    for key in ('NA','NAXI','ZAXI'):
+        target=next((e for e in elements if e['type']=='PLINE' and str(e['attrs'].get('PKEY','')).upper()==key),None)
+        if target:return target,'fallback'
+    return None,'origin'
 
 def default_attrs(kind, number=1):
     attrs = {key: '' for section in ('main', 'detail', 'common', 'negative') for key in fields(kind, section)}

@@ -93,7 +93,15 @@ def parse_value(parameter, value):
         return value
     if isinstance(value,bool): raise ValueError('有限の数値を入力してください。')
     try: result=float(value)
-    except (ValueError,TypeError,OverflowError): raise ValueError(parameter['id'] + ' に数値を入力してください。')
+    except (ValueError,TypeError,OverflowError):
+        from . import units
+        dim=units.dimension(parameter.get('unit'))
+        expected={units.DIST:'DIST',units.ANGL:'ANGL',units.SCALAR:'NONE'}.get(dim)
+        try:quantity=expressions.evaluate(value,expected=expected,typed=True)
+        except ValueError as exc:raise ValueError(parameter['id']+'：'+str(exc)) from exc
+        if not isinstance(quantity,units.Quantity):raise ValueError('数値を入力してください。')
+        result=quantity.value
+        if quantity.dimension is not None:result/=units.UNITS.get(str(parameter.get('unit','')).strip().lower(),(1,None))[0]
     if not math.isfinite(result): raise ValueError('有限の数値を入力してください。')
     # Stored numeric parameters must actually be numeric, not numeric strings.
     return result
@@ -175,6 +183,8 @@ def validate(data):
             raise ValueError('共通定義の種別を確認してください。')
         _records(definition.get('elements'), '要素', ('type', 'name'), 200)
         validate_elements(definition['elements'])
+        from .model_settings import validate as validate_model_settings
+        validate_model_settings(definition.get('model_settings',{}))
         if not isinstance(definition.get('attrs',{}),dict): raise ValueError('親属性の形式が不正です。')
         for e in element_schema.walk(definition['elements']):
             if not e['type'] or not isinstance(e.get('attrs'), dict):
