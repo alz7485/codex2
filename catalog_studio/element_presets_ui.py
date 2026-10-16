@@ -101,6 +101,8 @@ class PresetEditor(tk.Toplevel):
         super().__init__(owner.winfo_toplevel());self.owner=owner;self.record_id=record['id'];self.title('要素プリセットを編集');self.geometry('1280x900');self.minsize(1040,740);self.transient(owner.winfo_toplevel());self.grab_set()
         self.data=copy.deepcopy(owner.data);self.ui_font=owner.host.ui_font;self.dirty=False;self.is_preset_editor=True
         working={'id':uuid.uuid4().hex,'name':'プリセット：'+record['name'],'kind':record['kind'],'revision':'01','elements':copy.deepcopy(record['elements']),'parameter_preset_id':record['parameter_preset_id']}
+        from .point_geometry import DIMENSIONS_KEY
+        if DIMENSIONS_KEY in record:working[DIMENSIONS_KEY]=copy.deepcopy(record[DIMENSIONS_KEY])
         self.data['definitions'].append(working);self.definition_id=working['id'];self.scom_id=owner.preview_scom_id
         self.name_var=tk.StringVar(value=record['name']);self.description_var=tk.StringVar(value=record['description'])
         header=ttk.Frame(self,padding=(16,12));header.pack(fill='x')

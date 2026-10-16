@@ -60,6 +60,9 @@ def reorder(data,definition,ident,target):
                 raise ValueError('点を参照する GMSET が別の PTSET と共有されています。GMSET を複製して参照を分けてから並べ替えてください。')
             updates.extend(changes)
         for element in ordered:updates.append((element,{'NUMB':str(by_id[element['id']])}))
+    if definition['kind']=='PTSET':
+        from .point_preview import remember
+        remember(data,definition)
     siblings[:]=ordered
     for element,attrs in updates:element['attrs'].update(attrs)
     return True
@@ -87,6 +90,9 @@ def register(data,definition,name,description=''):
     if len(data.get('element_presets',[]))>=1000:raise ValueError('要素プリセット数の上限です。')
     record={'id':uuid.uuid4().hex,'name':name,'kind':definition['kind'],'description':description,
             'parameter_preset_id':presets.selected_id(data,definition),'elements':fresh_elements(definition['elements'])}
+    if definition['kind']=='PTSET':
+        from .point_preview import PointPreview, DIMENSIONS_KEY
+        record[DIMENSIONS_KEY]=PointPreview(data,definition).snapshot()
     data.setdefault('element_presets',[]).append(record);return record
 
 
@@ -95,7 +101,11 @@ def update(data,ident,working,name,description=''):
     if not record or record['kind']!=working['kind']:raise ValueError('編集する要素プリセットが見つかりません。')
     if not working['elements']:raise ValueError('要素を1つ以上登録してください。')
     name=check_name(data,record['kind'],name,ident)
-    record.update(name=name,description=description,parameter_preset_id=presets.selected_id(data,working),elements=fresh_elements(working['elements']))
+    metadata={}
+    if working['kind']=='PTSET':
+        from .point_preview import PointPreview, DIMENSIONS_KEY
+        metadata[DIMENSIONS_KEY]=PointPreview(data,working).snapshot()
+    record.update(name=name,description=description,parameter_preset_id=presets.selected_id(data,working),elements=fresh_elements(working['elements']),**metadata)
     return record
 
 
@@ -120,12 +130,18 @@ def recall(data,definition,ident,replace=False):
         base=element['name'];name=base;n=1
         while name in names:n+=1;name=base+' '+str(n)
         element['name']=name;names.add(name)
+    dimensions=None
+    if definition['kind']=='PTSET':
+        from .point_preview import PointPreview, DIMENSIONS_KEY, merged_dimensions
+        dimensions=PointPreview(data,record).snapshot()
+        if existing:dimensions=merged_dimensions(PointPreview(data,definition).snapshot(),dimensions)
     if replace or not definition['elements']:
         definition['parameter_preset_id']=profile
         definition['element_preset_id']=ident
     else:definition.pop('element_preset_id',None)
     if replace:definition['elements'][:]=result
     else:definition['elements'].extend(result)
+    if dimensions is not None:definition[DIMENSIONS_KEY]=dimensions
     return result
 
 
@@ -138,3 +154,5 @@ def validate_library(data):
         key=(record['kind'],record['name'].casefold())
         if record['kind'] not in ('PTSET','GMSET') or not record['name'].strip() or key in names:raise ValueError('要素プリセットの名前・種類を確認してください。')
         names.add(key);project.validate_elements(record.get('elements'))
+        from .point_geometry import DIMENSIONS_KEY, validate_dimensions
+        if DIMENSIONS_KEY in record:validate_dimensions(record[DIMENSIONS_KEY])

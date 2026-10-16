@@ -6,6 +6,24 @@ from . import expressions
 
 PLANES={'XY':(0,1),'XZ':(0,2),'YZ':(1,2)}
 LAYOUT_KEY='schematic_position'
+DIMENSIONS_KEY='schematic_dimensions'
+
+
+def validate_dimensions(state):
+    def finite(value):return type(value) in (int,float) and math.isfinite(value) and abs(value)<=1e100
+    if not isinstance(state,dict) or not finite(state.get('scale')) or state['scale']<=0:raise ValueError('共有仮寸法の表示倍率が不正です。')
+    values=state.get('values');items=state.get('expressions')
+    if not isinstance(values,dict) or any(family not in expressions.FAMILIES or not isinstance(group,dict) for family,group in values.items()):raise ValueError('共有仮寸法の PARAM 種類が不正です。')
+    if sum(len(group) for group in values.values())>2000:raise ValueError('共有仮寸法が多すぎます。')
+    for group in values.values():
+        if any(not isinstance(pid,str) or not re.fullmatch(r'P[1-9]\d*',pid) or not finite(value) for pid,value in group.items()):raise ValueError('共有仮寸法の番号・値が不正です。')
+    if not isinstance(items,list) or len(items)>600:raise ValueError('共有式の仮寸法が不正です。')
+    seen=set()
+    for item in items:
+        if not isinstance(item,dict) or not finite(item.get('value')) or not isinstance(item.get('expression'),str):raise ValueError('共有式の仮寸法が不正です。')
+        root=expressions.parse(item['expression'])
+        if root in seen:raise ValueError('共有式が重複しています。')
+        seen.add(root)
 
 
 def valid_layout(value):

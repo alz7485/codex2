@@ -47,7 +47,7 @@
         {
           "id": "397a08d114264d89aedf777839ce3d1e",
           "type": "PTAXI",
-          "name": "基準点 · PARAM 3",
+          "name": "共有仮寸法 · PARAM 3",
           "attrs": {
             "NUMB": "1",
             "PCON": "unset",
@@ -59,9 +59,9 @@
             "PURP": "unset"
           },
           "schematic_position": [
+            0.9000000000000001,
             0.9,
-            0.9,
-            0
+            0.0
           ]
         },
         {
@@ -79,9 +79,9 @@
             "PURP": "unset"
           },
           "schematic_position": [
-            0.4,
-            0,
-            0
+            1.2727922061357857,
+            0.0,
+            0.0
           ]
         },
         {
@@ -99,9 +99,9 @@
             "PURP": "unset"
           },
           "schematic_position": [
-            0.3,
-            0.4,
-            0
+            0.45000000000000007,
+            0.45,
+            0.0
           ]
         },
         {
@@ -121,12 +121,26 @@
             "PURP": "unset"
           },
           "schematic_position": [
-            0.6,
-            -0.2,
-            0
+            1.2727922061357857,
+            -0.6363961030678928,
+            0.0
           ]
         }
-      ]
+      ],
+      "schematic_dimensions": {
+        "scale": 1.0,
+        "values": {
+          "PARAM": {
+            "P3": 1.2727922061357857
+          }
+        },
+        "expressions": [
+          {
+            "expression": "PARAM[3]",
+            "value": 1.2727922061357857
+          }
+        ]
+      }
     },
     {
       "id": "ebcf90cc22884d448bb445e65e13e98b",

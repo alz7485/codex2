@@ -1,10 +1,10 @@
-"""Unitless point layout with shared, lowest-numbered-point PARAM dimensions."""
+"""Unitless point layout with PARAM dimensions editable from any shared point."""
 import copy
 import tkinter as tk
 from tkinter import ttk
 from . import element_schema as schema, presets, expressions
-from .point_geometry import Camera, PLANES, LAYOUT_KEY, schematic_position, schematic_placement
-from .point_preview import PointPreview, empty
+from .point_geometry import Camera, PLANES, LAYOUT_KEY, DIMENSIONS_KEY, schematic_position, schematic_placement
+from .point_preview import PointPreview, empty, remember
 from . import theme
 
 
@@ -121,12 +121,12 @@ class PointCanvas(ttk.Frame):
             if self.show_labels.get():c.create_text(x+r+6,y-r-4,text='P'+str(element['attrs'].get('NUMB','?')),anchor='w',fill=color,font=(self.editor.host.ui_font,11 if selected else 10,'bold' if selected else 'normal'),tags=('labels',))
             if any(vector):
                 c.create_line(x,y,*xy(tuple(point[i]+.3*vector[i] for i in range(3))),fill=color,width=3 if selected else 1.5,arrow='last')
-        message='仮寸法：同じ PARAM は NUMB の若い点を基準に共有します。'
+        message='共有仮寸法：どの点を動かしても同じ PARAM の点が追従します。'
         if not definition:message='左の PTSET 一覧からセットを選ぶか追加してください。'
         elif self.editor.element_id:
             try:
                 sources=model.sources(self.editor.element_id)
-                if sources:message+=' / '+'、'.join(f'{family} {pid[1:]}：P{number}' for family,pid,number in sources)
+                if sources:message+=' / '+'、'.join(f'{family} {pid[1:]}' for family,pid,_ in sources)
                 number=model.number_for(self.editor.element_id)
                 if number in model.problems:message+=' / '+model.problems[number]
             except ValueError:pass
@@ -203,11 +203,12 @@ class PointCanvas(ttk.Frame):
             working=copy.deepcopy(e.definition())
             target=next(r for r in working['elements'] if r['id']==ident) if element else schema.add_element(working,kind)
             target['attrs'].update(attrs);target[LAYOUT_KEY]=list(point)
-            proposed=PointPreview(e.data,working);point=proposed.location(target['id'])
+            proposed=model.moved(working,target['id'],plane) if element else PointPreview(e.data,working)
+            point=proposed.location(target['id'])
             base=copy.deepcopy(element['attrs']) if element else None
             layout=copy.deepcopy(element.get(LAYOUT_KEY)) if element else None
             if self.pending and self.pending['id']==ident and ident:base=self.pending['base'];layout=self.pending['layout']
-            self.pending={'id':ident,'base':base,'layout':layout,'attrs':attrs,'point':point,'kind':kind,'preset':presets.selected_id(e.data,e.definition()),'definition':e.definition_id,'preview':proposed,'snapshot':copy.deepcopy(e.definition()['elements'])}
+            self.pending={'id':ident,'base':base,'layout':layout,'attrs':attrs,'point':point,'kind':kind,'preset':presets.selected_id(e.data,e.definition()),'definition':e.definition_id,'preview':proposed,'snapshot':copy.deepcopy(e.definition()['elements']),'dimensions':copy.deepcopy(e.definition().get(DIMENSIONS_KEY))}
             self.redraw()
         except (ValueError,KeyError) as exc:self.error_message=str(exc);self.pending=None;self.redraw()
 
@@ -220,6 +221,7 @@ class PointCanvas(ttk.Frame):
             if not e.commit_inline():return
             if p['definition']!=e.definition_id or p['preset']!=presets.selected_id(e.data,e.definition()):raise ValueError('セット・プリセットが変更されています。候補を作り直してください。')
             if e.definition()['elements']!=p['snapshot']:raise ValueError('属性・配置が変更されています。候補を作り直してください。')
+            if e.definition().get(DIMENSIONS_KEY)!=p['dimensions']:raise ValueError('共有仮寸法が変更されています。候補を作り直してください。')
             if p['id']:
                 element=next((r for r in e.definition()['elements'] if r['id']==p['id']),None)
                 if not element or element['attrs']!=p['base'] or element.get(LAYOUT_KEY)!=p['layout']:raise ValueError('属性・配置が変更されています。候補を作り直してください。')
@@ -228,6 +230,7 @@ class PointCanvas(ttk.Frame):
                     self.cancel();return
             else:element=schema.add_element(e.definition(),p['kind'])
             element['attrs'].update(p['attrs']);element[LAYOUT_KEY]=list(p['point'])
+            e.definition()[DIMENSIONS_KEY]=p['preview'].snapshot();remember(e.data,e.definition())
             e.element_id=element['id'];e.field=None;e.select_first_section();e.host.mark();self.pending=None;e.refresh();self.cancel()
             missing=schema.missing_fields(element)
             if missing:e.tables['main'].selection_set(missing[0]);e.tables['main'].see(missing[0])

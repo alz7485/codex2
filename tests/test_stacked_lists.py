@@ -6,6 +6,7 @@ from pathlib import Path
 from tkinter import ttk
 from catalog_studio import element_schema as schema,project,presets
 from catalog_studio.integrated import IntegratedStudio
+from catalog_studio.point_preview import remember
 
 
 class StackedListTests(unittest.TestCase):
@@ -32,7 +33,8 @@ class StackedListTests(unittest.TestCase):
         self.app.update();self.assertEqual(view.item(point['id'],'text'),'入口接続点');self.assertEqual(point['type'],before['type']);self.assertEqual(point['attrs'],before['attrs'])
 
     def test_pending_attribute_and_name_edits_commit_to_their_own_element(self):
-        e=self.editor;first=e.element();second=e.definition()['elements'][1];unchanged=copy.deepcopy(second)
+        e=self.editor;remember(self.app.data,e.definition())
+        first=e.element();second=e.definition()['elements'][1];unchanged=copy.deepcopy(second)
         table=e.tables['main'];table.begin_edit('PDIS');table.editing['variable'].set('PARAM 3 / 4')
         e.elements.begin_edit(first['id']);self.assertEqual(first['attrs']['PDIS'],'PARAM 3 / 4')
         e.elements.editing['variable'].set('編集した入口');e.elements.selection_set(second['id']);self.app.update()

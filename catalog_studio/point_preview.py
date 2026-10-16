@@ -1,7 +1,9 @@
-"""Shared, unitless PARAM dimensions anchored by the lowest numbered p-point."""
+"""Persistent, unitless PARAM dimensions shared by every referencing p-point."""
+import copy
 import math
+import re
 from . import expressions, element_schema as schema
-from .point_geometry import LAYOUT_KEY, schematic_position, valid_layout, coordinate_expressions
+from .point_geometry import LAYOUT_KEY, DIMENSIONS_KEY, PLANES, schematic_position, valid_layout, coordinate_expressions, validate_dimensions
 from .geometry_scene import Resolver, Scene, ZERO, add, sub, mul, dot, unit
 
 
@@ -14,18 +16,25 @@ class PointPreview(Resolver):
         # No SCOM or design context is supplied or modified.
         super().__init__(data,definition,definition,None,True,Scene())
         self.seeds={n:schematic_position(node,index) for n,(node,index) in self.nodes.items()}
-        self.forms={};self.owners={};self.values={};self.exact={};self.scale=1.;self.problems={}
-        for number,(node,_) in sorted(self.nodes.items()):
+        self.forms={};self.owners={};self.values={};self.exact={};self.scale=1.;self.problems={};self.root_text={}
+        saved=definition.get(DIMENSIONS_KEY)
+        if DIMENSIONS_KEY in definition:
+            validate_dimensions(saved);self.scale=saved['scale']
+            self.values={(family,pid):value for family,group in saved['values'].items() for pid,value in group.items()}
+            for item in saved['expressions']:
+                root=expressions.parse(item['expression']);self.exact[root]=item['value'];self.root_text[root]=item['expression']
+        for number,(node,_) in self.nodes.items():
             if node['type'] not in schema.PT_TYPES:continue
             try:
                 for key,text in self.fields(node).items():
                     try:root=expressions.parse(text,self.parameters)
                     except ValueError:continue
                     self.forms[(number,key)]=root
+                    self.root_text[root]=expressions.normalized(text,self.parameters)
                     for ref in expressions.refs(root):self.owners.setdefault(ref,number)
             except ValueError as exc:self.problems[number]=str(exc)
         # Literal dimensions establish only a common display scale, never mm.
-        for number,key in self.forms:
+        for number,key in (() if saved is not None else self.forms):
             root=self.forms[(number,key)]
             if expressions.refs(root):continue
             try:
@@ -171,4 +180,110 @@ class PointPreview(Resolver):
         number=self.number_for(ident);refs=set()
         for (n,_),root in self.forms.items():
             if n==number:refs.update(expressions.refs(root))
-        return [(family,pid,self.owners[family,pid]) for family,pid in sorted(refs) if (family,pid) in self.owners]
+        return [(family,pid,self.values.get((family,pid))) for family,pid in sorted(refs)]
+
+    def references(self,number,seen=None):
+        seen=set() if seen is None else seen
+        if number in seen or number not in self.nodes:return set()
+        seen.add(number);result=set()
+        for (n,_),root in self.forms.items():
+            if n==number:result.update(expressions.refs(root))
+        node=self.nodes[number][0]
+        for key in ('PAXI','PTCDIR','PTCD'):
+            for match in re.finditer(r'\bP(\d+)\b',str(node['attrs'].get(key,'')),re.IGNORECASE):
+                result.update(self.references(int(match[1]),seen))
+        return result
+
+    def moved(self,working,ident,plane):
+        """Invert a dragged point's position into changes to shared preview values."""
+        working[DIMENSIONS_KEY]=self.snapshot();result=PointPreview(self.data,working)
+        number=result.number_for(ident);node=result.nodes[number][0];target=node[LAYOUT_KEY]
+        refs=result.references(number)
+        variables=[ref for ref in sorted(refs) if ref in result.values]
+        variables += [('EXPR',root) for root in result.exact if expressions.refs(root)&refs and not (expressions.refs(root)<=result.values.keys())]
+        if not variables:return result
+        rows=range(3) if node['type']=='PTAXI' else PLANES[plane]
+        complete=False
+        try:complete=all(not empty(text) for text in result.fields(node).values())
+        except ValueError:pass
+        nonnegative=set()
+        for (n,key),root in result.forms.items():
+            if key=='PDIS':
+                term=root[2] if root[0]=='unary' else root
+                if term[0]=='ref':nonnegative.add(term[1:])
+        def get(var):return result.exact[var[1]] if var[0]=='EXPR' else result.values[var]
+        def put(var,value):
+            if not math.isfinite(value) or abs(value)>1e100:raise ValueError('共有仮寸法の範囲を超えています。')
+            if var[0]=='EXPR':result.exact[var[1]]=value
+            else:result.values[var]=max(0.,value) if var in nonnegative else value
+        def position():
+            result.cache={0:(ZERO,(0.,0.,1.))};result.problems={}
+            point=result.point(number)[0]
+            if complete and number in result.problems:raise ValueError(result.problems[number])
+            if not valid_layout(point):raise ValueError('仮寸法の表示範囲を超えています。')
+            return point
+        for _ in range(8):
+            current=position();columns=[];active=[]
+            for var in variables:
+                old=get(var);step=max(1.,abs(old))*1e-5
+                put(var,old+step)
+                try:changed=position()
+                finally:put(var,old)
+                column=[(changed[i]-current[i])/step for i in rows]
+                if max(map(abs,column),default=0)>1e-12:columns.append(column);active.append(var)
+            if not active:break
+            residual=[target[i]-current[i] for i in rows]
+            delta=least_squares(columns,residual)
+            if max(map(abs,delta),default=0)<1e-9:break
+            for var,value in zip(active,delta):put(var,get(var)+value)
+        position();result.cache={0:(ZERO,(0.,0.,1.))};result.problems={}
+        for n in result.nodes:result.point(n)
+        working[DIMENSIONS_KEY]=result.snapshot();return result
+
+    def snapshot(self):
+        values={}
+        for (family,pid),value in self.values.items():values.setdefault(family,{})[pid]=value
+        result={'scale':self.scale,'values':values,'expressions':[{'expression':self.root_text[root],'value':value} for root,value in self.exact.items() if root in self.root_text]}
+        validate_dimensions(result);return result
+
+
+def remember(data,definition):
+    """Persist current shared values during an edit, never as a redraw side effect."""
+    if definition.get('kind')!='PTSET':return
+    model=PointPreview(data,definition);state=model.snapshot()
+    positions=[(node,model.location(node['id'])) for node,_ in model.nodes.values()]
+    definition[DIMENSIONS_KEY]=state
+    for node,position in positions:
+        if valid_layout(position):node[LAYOUT_KEY]=list(position)
+    return model
+
+
+def merged_dimensions(first,second):
+    """Keep existing values when adding another element group to the set."""
+    validate_dimensions(first);validate_dimensions(second);result=copy.deepcopy(first)
+    factor=second['scale']/first['scale']
+    for family,group in second['values'].items():
+        target=result['values'].setdefault(family,{})
+        for pid,value in group.items():target.setdefault(pid,value*factor)
+    known={expressions.parse(item['expression']) for item in result['expressions']}
+    for item in second['expressions']:
+        root=expressions.parse(item['expression'])
+        if root not in known:result['expressions'].append(dict(item,value=item['value']*factor));known.add(root)
+    validate_dimensions(result);return result
+
+
+def least_squares(columns,target):
+    """Small full-rank solve (at most three position coordinates)."""
+    size=len(columns)
+    if size>len(target):raise ValueError('複数の共有 PARAM の変更量を一意に決められません。属性の式を分けてください。')
+    matrix=[[sum(a*b for a,b in zip(left,right)) for right in columns]+[sum(a*b for a,b in zip(left,target))] for left in columns]
+    tolerance=max((abs(v) for row in matrix for v in row[:-1]),default=0)*1e-10
+    for column in range(size):
+        pivot=max(range(column,size),key=lambda row:abs(matrix[row][column]))
+        if abs(matrix[pivot][column])<=tolerance:raise ValueError('複数の共有 PARAM の変更量を一意に決められません。属性の式を分けてください。')
+        matrix[column],matrix[pivot]=matrix[pivot],matrix[column];value=matrix[column][column]
+        matrix[column]=[v/value for v in matrix[column]]
+        for row in range(size):
+            if row==column:continue
+            factor=matrix[row][column];matrix[row]=[v-factor*x for v,x in zip(matrix[row],matrix[column])]
+    return [matrix[i][-1] for i in range(size)]

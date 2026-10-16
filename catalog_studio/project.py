@@ -167,6 +167,8 @@ def validate(data):
     _records(data.get('cates'), 'CATE', ('name', 'description', 'revision'), LIMITS['cates'])
     _records(data.get('definitions'), '共通定義', ('name', 'kind', 'revision'), LIMITS['definitions'])
     for definition in data['definitions']:
+        from .point_geometry import DIMENSIONS_KEY, validate_dimensions
+        if DIMENSIONS_KEY in definition:validate_dimensions(definition[DIMENSIONS_KEY])
         if not isinstance(definition.get('element_preset_id',''),str):raise ValueError('要素プリセットの参照は識別子です。')
         if definition['kind']=='GMSET' and pairing.PAIR_KEY in definition and not isinstance(definition[pairing.PAIR_KEY],str):raise ValueError('GMSET の PTSET 対応は識別子で保存してください。')
         if definition['kind'] not in element_schema.TYPES_BY_SET:

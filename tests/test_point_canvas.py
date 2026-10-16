@@ -6,7 +6,7 @@ from fractions import Fraction
 from pathlib import Path
 from catalog_studio import element_schema as schema, expressions, project
 from catalog_studio.integrated import IntegratedStudio
-from catalog_studio.point_geometry import Camera, PLANES, LAYOUT_KEY, axis_vector, formula, placement, position, schematic_placement, schematic_position
+from catalog_studio.point_geometry import Camera, PLANES, LAYOUT_KEY, DIMENSIONS_KEY, axis_vector, formula, placement, position, schematic_placement, schematic_position
 
 
 class PointGeometryTests(unittest.TestCase):
@@ -179,12 +179,29 @@ class PointCanvasGuiTests(unittest.TestCase):
         self.assertAlmostEqual(self.point[LAYOUT_KEY][0],self.point[LAYOUT_KEY][1]);self.assertEqual(self.point['attrs'],attrs)
         self.assertEqual(self.app.data['scoms'],scoms);self.assertEqual(self.errors,[])
 
-    def test_overlapping_dependent_can_be_selected_but_cannot_change_the_shared_dimension(self):
+    def test_overlapping_shared_point_can_be_selected_and_updates_the_shared_dimension(self):
         self.editor.definition()['elements']=[];self.axial((1.4,0,0));self.point=self.axial((.3,0,0))
         self.editor.refresh();self.editor.elements.selection_set(self.point['id']);self.editor.select_element();self.app.update()
-        before=copy.deepcopy(self.app.data);self.app.dirty=False;self.drag((2,0,0))
-        self.assertEqual(self.editor.element_id,self.point['id']);self.assertEqual(self.app.data,before);self.assertFalse(self.app.dirty)
-        self.assertEqual(self.view.positions[self.point['id']],(1.4,0,0));self.assertEqual(self.errors,[])
+        attrs=[copy.deepcopy(p['attrs']) for p in self.editor.definition()['elements']];self.app.dirty=False;self.drag((2,0,0))
+        self.assertEqual(self.editor.element_id,self.point['id']);self.assertTrue(self.app.dirty)
+        for point in self.editor.definition()['elements']:self.assertAlmostEqual(self.view.positions[point['id']][0],2,delta=.01)
+        self.assertEqual([p['attrs'] for p in self.editor.definition()['elements']],attrs);self.assertEqual(self.errors,[])
+
+    def test_later_parameter_assignment_reuses_existing_value_regardless_of_numb(self):
+        self.editor.definition()['elements']=[];later=self.axial((.4,0,0),distance='');later['attrs']['NUMB']='1'
+        first=self.axial((1.4,0,0));first['attrs']['NUMB']='20'
+        self.editor.refresh();self.editor.elements.selection_set(later['id']);self.editor.select_element();self.app.update()
+        table=self.editor.tables['main'];table.begin_edit('PDIS');table.editing['variable'].set('PARAM 3');self.assertTrue(table.finish_edit());self.app.update()
+        self.assertAlmostEqual(self.view.positions[later['id']][0],1.4);self.assertAlmostEqual(self.view.positions[first['id']][0],1.4)
+        self.assertEqual(self.editor.definition()[DIMENSIONS_KEY]['values']['PARAM']['P3'],1.4);self.assertEqual(self.errors,[])
+
+    def test_cancelled_shared_drag_does_not_commit_values_or_other_point_positions(self):
+        self.editor.definition()['elements']=[];first=self.axial((1.4,0,0));self.point=self.axial((-.3,0,0),'-X')
+        self.editor.refresh();self.app.update();before=copy.deepcopy(self.app.data)
+        self.drag((-2,0,0),release=False)
+        self.assertAlmostEqual(self.view.positions[first['id']][0],2,delta=.01)
+        self.view.cancel();self.app.update();self.assertEqual(self.app.data,before)
+        self.assertEqual(self.view.positions[first['id']][0],1.4);self.assertEqual(self.errors,[])
 
     def test_cartesian_drag_obeys_zero_and_shared_coordinate_expressions(self):
         attrs=copy.deepcopy(self.point['attrs']);self.drag((1.2,.8,0))
