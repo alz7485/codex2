@@ -3,7 +3,7 @@ import math
 import re
 from dataclasses import dataclass, field
 from . import element_schema as schema, expressions, presets, pairing
-from .point_geometry import schematic_position, axis_vector, Camera
+from .point_geometry import schematic_position, axis_vector, Camera, coordinate_expressions
 
 SCALE_KEY='schematic_scale'
 ZERO=(0.,0.,0.)
@@ -82,6 +82,10 @@ class Resolver:
                 if number<=0 or number in self.nodes:raise ValueError()
                 self.nodes[number]=(node,index)
             except (ValueError,TypeError):scene.issues.append(node['name']+'：ポイント番号が不正・重複しています。')
+        self.schematic=None
+        if not actual and pointset:
+            from .point_preview import PointPreview
+            self.schematic=PointPreview(data,pointset)
 
     def number(self,text):
         value=expressions.evaluate(text,self.contexts,self.attributes,self.parameters)
@@ -148,20 +152,7 @@ class Resolver:
             return ZERO,default
 
     def position_expression(self,text):
-        # Supported explicit coordinate expressions only; no implicit design positions.
-        text=str(text).strip();text=text[1:-1].strip() if text.startswith('(') and text.endswith(')') else text
-        pieces=[];start=0;depth=0
-        for index,char in enumerate(text):
-            if char in '([':depth+=1
-            elif char in ')]':depth-=1
-            elif depth==0 and char.upper() in 'XYZ' and (index==0 or text[index-1].isspace()):pieces.append(index)
-        if not pieces:raise ValueError('未対応の位置式：XYZ 座標を明示してください。')
-        result=[0.,0.,0.];used=set()
-        for i,start in enumerate(pieces):
-            axis=text[start].upper();end=pieces[i+1] if i+1<len(pieces) else len(text)
-            if axis in used:raise ValueError('位置式の座標が重複しています。')
-            used.add(axis);result['XYZ'.index(axis)]=self.number(text[start+1:end])
-        return tuple(result)
+        return tuple(self.number(part) for part in coordinate_expressions(text))
 
     def point(self,number):
         if number in self.cache:return self.cache[number]
@@ -170,8 +161,11 @@ class Resolver:
         self.active.add(number);node,index=self.nodes[number];attrs=node['attrs'];kind=node['type']
         try:
             if not self.actual:
-                position=schematic_position(node,index)
-                direction=self.axis(attrs.get('PAXI' if kind in ('PTAXI','PTMIX') else 'PTCDIR',attrs.get('PTCD','X')))[1]
+                if self.schematic and kind in schema.PT_TYPES:
+                    position,direction=self.schematic.point(number)
+                else:
+                    position=schematic_position(node,index)
+                    direction=self.axis(attrs.get('PAXI' if kind in ('PTAXI','PTMIX') else 'PTCDIR',attrs.get('PTCD','X')))[1]
             elif kind=='PTAXI':
                 origin,direction=self.axis(attrs.get('PAXI',''));position=add(origin,mul(direction,self.value(node,'PDIS')))
             elif kind in ('PTCAR','PTMIX','PTPOS'):

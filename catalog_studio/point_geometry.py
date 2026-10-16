@@ -38,19 +38,20 @@ def schematic_placement(kind,point,attrs=None,plane=None):
     direction_key='PAXI' if kind in ('PTAXI','PTMIX') else 'PTCDIR'
     if kind=='PTPOS' and 'PTCD' in previous and 'PTCDIR' not in previous:direction_key='PTCD'
     old=previous.get(direction_key,'')
-    try:axis_vector(old);simple=True
-    except ValueError:simple=not str(old).strip() or str(old).lower()=='unset'
-    if any(point) and simple:changes[direction_key]=direction
+    unset=not str(old).strip() or str(old).lower()=='unset'
+    if any(point) and unset:changes[direction_key]=direction
     if kind=='PTAXI':
-        if not simple:raise ValueError('複合軸の点は右の属性で編集してください。軸式は保持します。')
-        point=[point[i] if i==index else 0.0 for i in range(3)]
-        if not any(point):changes['PDIS']='0'
-        elif str(previous.get('PDIS','')).strip() in ('','0','0.0','unset'):changes['PDIS']=''
+        if not unset:
+            vector=axis_vector(old);distance=sum(p*v for p,v in zip(point,vector))
+            point=[distance*v for v in vector]
+        else:point=[point[i] if i==index else 0.0 for i in range(3)]
+        if str(previous.get('PDIS','')).strip().lower() in ('','unset'):
+            changes['PDIS']='0' if not any(point) else ''
     elif kind in ('PTCAR','PTMIX'):
         for i,key in enumerate(('PX','PY','PZ')):
             if plane and i not in PLANES[plane]:continue
-            if not point[i]:changes[key]='0'
-            elif str(previous.get(key,'')).strip() in ('','0','0.0','unset'):changes[key]=''
+            if str(previous.get(key,'')).strip().lower() in ('','unset'):
+                changes[key]='0' if not point[i] else ''
     elif kind!='PTPOS':raise ValueError('この種類の仮配置は未対応です。')
     return tuple(point),changes
 
@@ -61,6 +62,24 @@ def axis_vector(text):
     text=aliases.get(text,text).replace('+','')
     if text not in ('X','Y','Z','-X','-Y','-Z'):raise ValueError('この軸式の座標計算は未対応です。')
     result=[0,0,0];result['XYZ'.index(text[-1])]=-1 if text.startswith('-') else 1
+    return tuple(result)
+
+
+def coordinate_expressions(text):
+    """Split an explicit XYZ position into scalar expressions, without evaluating."""
+    text=str(text).strip()
+    if text.startswith('(') and text.endswith(')'):text=text[1:-1].strip()
+    pieces=[];depth=0
+    for index,char in enumerate(text):
+        if char in '([':depth+=1
+        elif char in ')]':depth-=1
+        elif depth==0 and char.upper() in 'XYZ' and (index==0 or text[index-1].isspace()):pieces.append(index)
+    if not pieces or text[:pieces[0]].strip():raise ValueError('未対応の位置式：XYZ 座標を明示してください。')
+    result=['0','0','0'];used=set()
+    for i,start in enumerate(pieces):
+        axis=text[start].upper();end=pieces[i+1] if i+1<len(pieces) else len(text)
+        if axis in used:raise ValueError('位置式の座標が重複しています。')
+        used.add(axis);result['XYZ'.index(axis)]=text[start+1:end].strip()
     return tuple(result)
 
 
@@ -107,10 +126,17 @@ class Camera:
         a,b=PLANES[plane];c=next(i for i in range(3) if i not in (a,b));right,up=self.basis()
         sx=(x-width/2)/self.zoom-right[c]*fixed;sy=-(y-height/2)/self.zoom-up[c]*fixed
         determinant=right[a]*up[b]-right[b]*up[a]
-        if abs(determinant)<1e-6:raise ValueError('配置面が横向きです。「面を正面」を押してください。')
+        if abs(determinant)<1e-6:raise ValueError('配置面が横向きです。視点を変えるか「正面」に切り替えてください。')
         result=[0,0,0];result[c]=fixed
         result[a]=(sx*up[b]-right[b]*sy)/determinant
         result[b]=(right[a]*sy-sx*up[a])/determinant
         return result
+    def unproject_axis(self,x,y,width,height,origin,vector):
+        start=self.project(origin,width,height)
+        end=self.project(tuple(a+b for a,b in zip(origin,vector)),width,height)
+        dx,dy=end[0]-start[0],end[1]-start[1];length=dx*dx+dy*dy
+        if length<1e-8:raise ValueError('軸が視線と重なっています。視点を変えてください。')
+        distance=((x-start[0])*dx+(y-start[1])*dy)/length
+        return tuple(a+distance*b for a,b in zip(origin,vector))
     def face(self,plane):
         self.yaw,self.pitch={'XY':(0,90),'XZ':(0,0),'YZ':(90,0)}[plane]

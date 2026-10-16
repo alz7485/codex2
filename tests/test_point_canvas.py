@@ -98,15 +98,15 @@ class PointCanvasGuiTests(unittest.TestCase):
         self.assertFalse(self.view.context_menu.winfo_ismapped())
         self.drag((1,.53,.8),release=False);self.assertEqual(self.point,original)
         self.view.canvas.event_generate('<ButtonRelease-1>',x=0,y=0);self.app.update()
-        self.assertEqual(self.point['attrs']['PX'],original['attrs']['PX']);self.assertEqual(self.point['attrs']['PY'],'')
-        self.assertEqual(self.point['attrs']['PZ'],original['attrs']['PZ']);self.assertEqual(self.point['attrs']['PTCDIR'],'X')
+        self.assertEqual(self.point['attrs']['PX'],original['attrs']['PX']);self.assertEqual(self.point['attrs']['PY'],'0')
+        self.assertEqual(self.point['attrs']['PZ'],original['attrs']['PZ']);self.assertEqual(self.point['attrs']['PTCDIR'],'-Y')
         self.assertIn(LAYOUT_KEY,self.point);self.assertIsNone(self.view.pending);self.assertEqual(self.errors,[])
 
     def test_drag_keeps_canvas_stable_and_escape_cancels_before_release(self):
         before=copy.deepcopy(self.app.data);size=(self.view.canvas.winfo_width(),self.view.canvas.winfo_height())
         self.drag((1,.5,.8),release=False)
         self.assertEqual((self.view.canvas.winfo_width(),self.view.canvas.winfo_height()),size)
-        self.assertEqual(self.view.pending['attrs'],{'PTCDIR':'X','PY':''})
+        self.assertEqual(self.view.pending['attrs'],{})
         self.view.canvas.event_generate('<Escape>');self.app.update();self.view.canvas.event_generate('<ButtonRelease-1>',x=0,y=0);self.app.update()
         self.assertEqual(self.app.data,before);self.assertIsNone(self.view.pending);self.assertEqual(self.errors,[])
 
@@ -116,14 +116,14 @@ class PointCanvasGuiTests(unittest.TestCase):
         self.view.canvas.event_generate('<ButtonRelease-1>',x=0,y=0);self.app.update()
         self.assertEqual(self.point['attrs']['PX'],'PARAM 3 / 3');self.assertIn('属性・配置が変更',self.view.note['text']);self.assertEqual(self.errors,[])
 
-    def test_distance_edits_and_scom_values_do_not_move_schematic_points(self):
+    def test_distance_edits_follow_the_older_point_but_scom_values_do_not_change_the_layout(self):
         other=schema.add_element(self.editor.definition(),'PTAXI');other['attrs'].update(PAXI='-X',PDIS='PARAM 3')
         self.editor.refresh();self.app.update();layout=self.view.positions[other['id']];self.click(layout)
         self.assertEqual(self.editor.element_id,other['id'])
         self.editor.tables['main'].selection_set('PDIS');self.app.update();self.editor.expression.set('PARAM 3 / 2');self.app.update()
-        self.assertEqual(self.view.positions[other['id']],layout)
+        expected=tuple(v/2 for v in layout);self.assertEqual(self.view.positions[other['id']],expected)
         self.app.data['scoms'][0]['values']['P3']=9000;self.view.refresh_options();self.app.update()
-        self.assertEqual(self.view.positions[other['id']],layout);self.assertEqual(self.errors,[])
+        self.assertEqual(self.view.positions[other['id']],expected);self.assertEqual(self.errors,[])
 
     def test_rotation_zoom_and_navigation_do_not_edit_data(self):
         before=copy.deepcopy(self.app.data);self.view.canvas.event_generate('<Button-3>',x=200,y=200);self.view.canvas.event_generate('<B3-Motion>',x=240,y=230);self.view.zoom(1.2);self.app.update()
@@ -165,17 +165,55 @@ class PointCanvasGuiTests(unittest.TestCase):
         self.click((-.8,-.7,0));self.editor.definition_id='missing';self.view.create_menu.invoke(0);self.app.update()
         self.assertEqual(self.app.data,before);self.assertIn('セット・基準面が変更',self.view.note['text']);self.assertEqual(self.errors,[])
 
+    def axial(self,seed,axis='X',distance='PARAM 3'):
+        point=schema.add_element(self.editor.definition(),'PTAXI');point['attrs'].update(PAXI=axis,PDIS=distance);point[LAYOUT_KEY]=list(seed);return point
+
+    def test_oblique_axis_drag_moves_shared_dependents_without_changing_formulas(self):
+        self.editor.definition()['elements']=[]
+        self.point=self.axial((.7,.7,0),'X45Y');other=self.axial((.2,0,0),'X','PARAM 3 / 2')
+        self.editor.refresh();self.app.update();attrs=copy.deepcopy(self.point['attrs']);scoms=copy.deepcopy(self.app.data['scoms'])
+        self.drag((1.8,.6,0),release=False)
+        candidate=self.view.pending['point'];self.assertAlmostEqual(candidate[0],candidate[1]);self.assertAlmostEqual(candidate[0],1.2,delta=.01)
+        self.assertEqual(self.point[LAYOUT_KEY],[.7,.7,0]);self.assertGreater(self.view.positions[other['id']][0],.8)
+        self.view.canvas.event_generate('<ButtonRelease-1>',x=0,y=0);self.app.update()
+        self.assertAlmostEqual(self.point[LAYOUT_KEY][0],self.point[LAYOUT_KEY][1]);self.assertEqual(self.point['attrs'],attrs)
+        self.assertEqual(self.app.data['scoms'],scoms);self.assertEqual(self.errors,[])
+
+    def test_overlapping_dependent_can_be_selected_but_cannot_change_the_shared_dimension(self):
+        self.editor.definition()['elements']=[];self.axial((1.4,0,0));self.point=self.axial((.3,0,0))
+        self.editor.refresh();self.editor.elements.selection_set(self.point['id']);self.editor.select_element();self.app.update()
+        before=copy.deepcopy(self.app.data);self.app.dirty=False;self.drag((2,0,0))
+        self.assertEqual(self.editor.element_id,self.point['id']);self.assertEqual(self.app.data,before);self.assertFalse(self.app.dirty)
+        self.assertEqual(self.view.positions[self.point['id']],(1.4,0,0));self.assertEqual(self.errors,[])
+
+    def test_cartesian_drag_obeys_zero_and_shared_coordinate_expressions(self):
+        attrs=copy.deepcopy(self.point['attrs']);self.drag((1.2,.8,0))
+        x,y,z=self.view.positions[self.point['id']]
+        self.assertEqual(y,0);self.assertAlmostEqual(z,x/2);self.assertEqual(self.point['attrs'],attrs);self.assertEqual(self.errors,[])
+
+    def test_earlier_reference_edit_invalidates_a_pending_drag(self):
+        self.editor.definition()['elements']=[];first=self.axial((1.4,0,0));self.point=self.axial((-.3,0,0),'-X')
+        self.editor.refresh();self.app.update();self.drag((-.8,0,0),release=False)
+        first['attrs']['PDIS']='PARAM 3 / 2';self.view.apply();self.app.update()
+        self.assertIn('属性・配置が変更',self.view.note['text']);self.assertEqual(self.point[LAYOUT_KEY],[-.3,0,0]);self.assertEqual(self.errors,[])
+
+    def test_unresolved_angle_cannot_be_replaced_by_mouse_placement(self):
+        self.editor.definition()['elements']=[];self.point=self.axial((.7,.7,0),'X(ANGL / 2)Y')
+        self.editor.refresh();self.app.update();before=copy.deepcopy(self.app.data)
+        self.view.propose(*self.pixels((1,0,0)),ident=self.point['id']);self.view.apply();self.app.update()
+        self.assertIsNone(self.view.pending);self.assertIn('ANGL',self.view.note['text']);self.assertEqual(self.app.data,before);self.assertEqual(self.errors,[])
+
 
 class SchematicGeometryTests(unittest.TestCase):
     def test_axial_placement_uses_direction_without_inventing_distance(self):
         point,attrs=schematic_placement('PTAXI',(-.73,.31,0))
         self.assertEqual(point,(-.73,0,0));self.assertEqual(attrs,{'PAXI':'-X','PDIS':''})
         point,attrs=schematic_placement('PTAXI',(-1,0,0),{'PAXI':'X','PDIS':'PARAM 3 / 2'})
-        self.assertNotIn('PDIS',attrs);self.assertEqual(attrs['PAXI'],'-X')
+        self.assertNotIn('PDIS',attrs);self.assertNotIn('PAXI',attrs)
 
     def test_move_preserves_coordinate_expression_outside_active_plane(self):
         point,attrs=schematic_placement('PTCAR',(1,.5,0),{'PX':'PARAM 3','PY':'0','PZ':'PARAM 4','PTCDIR':'X'},'XY')
-        self.assertNotIn('PZ',attrs);self.assertEqual(attrs['PY'],'')
+        self.assertNotIn('PZ',attrs);self.assertNotIn('PY',attrs);self.assertNotIn('PTCDIR',attrs)
 
     def test_complex_directions_are_never_rewritten(self):
         point,attrs=schematic_placement('PTPOS',(1,1,0),{'PTCD':'X(ANGL / 2)Y45U','PTCPOS':'original'})

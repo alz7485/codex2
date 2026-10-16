@@ -1,9 +1,10 @@
-"""Unitless point layout, independent of E3D distances and SCOM values."""
+"""Unitless point layout with shared, lowest-numbered-point PARAM dimensions."""
 import copy
 import tkinter as tk
 from tkinter import ttk
-from . import element_schema as schema, presets
-from .point_geometry import Camera, PLANES, LAYOUT_KEY, axis_vector, schematic_position, schematic_placement
+from . import element_schema as schema, presets, expressions
+from .point_geometry import Camera, PLANES, LAYOUT_KEY, schematic_position, schematic_placement
+from .point_preview import PointPreview, empty
 from . import theme
 
 
@@ -105,22 +106,33 @@ class PointCanvas(ttk.Frame):
                     c.create_line(*origin,*end,fill=color,width=2 if sign>0 else 1,arrow='last',tags=('axes',))
                     c.create_text(end[0]+8,end[1],text=('+' if sign>0 else '−')+'XYZ'[index],fill=color,tags=('axes',))
         definition=self.editor.definition()
-        for index,element in enumerate((definition or {}).get('elements',[])):
+        model=(self.pending or {}).get('preview') or (PointPreview(self.editor.data,definition) if definition else None)
+        self.preview_model=model
+        elements=enumerate((definition or {}).get('elements',[]))
+        for index,element in sorted(elements,key=lambda pair:pair[1]['id']==self.editor.element_id):
             if element['type'] not in schema.PT_TYPES:continue
-            point=schematic_position(element,index);self.positions[element['id']]=point;x,y=xy(point);self.hits[element['id']]=(x,y)
-            selected=element['id']==self.editor.element_id;color='#2269de' if selected else '#657c94';r=7 if selected else 5
+            try:point,vector=model.point(model.number_for(element['id']))
+            except ValueError:point,vector=schematic_position(element,index),(0,0,0)
+            self.positions[element['id']]=point;x,y=xy(point);self.hits[element['id']]=(x,y)
+            selected=element['id']==self.editor.element_id;color=theme.ACCENT if selected else '#657c94';r=11 if selected else 8
             if self.show_relations.get():c.create_line(*origin,x,y,fill='#b3c4d8',dash=(3,4),tags=('relations',))
-            c.create_oval(x-r,y-r,x+r,y+r,fill=color,outline='white',width=2)
-            if self.show_labels.get():c.create_text(x+11,y-10,text='P'+str(element['attrs'].get('NUMB','?')),anchor='w',fill=color,tags=('labels',))
-            try:
-                vector=axis_vector(schema.value(element,'PAXI' if element['type'] in ('PTAXI','PTMIX') else 'PTCDIR'))
-                c.create_line(x,y,*xy(tuple(point[i]+.25*vector[i] for i in range(3))),fill=color,arrow='last')
-            except ValueError:pass
-        message='模式表示：配置は距離・寸法比を表しません。'
+            if selected:c.create_oval(x-r-5,y-r-5,x+r+5,y+r+5,outline=theme.ACCENT,width=2,tags=('selected-point-halo',))
+            c.create_oval(x-r,y-r,x+r,y+r,fill=color,outline='white',width=2,tags=('point','selected-point' if selected else 'other-point'))
+            if self.show_labels.get():c.create_text(x+r+6,y-r-4,text='P'+str(element['attrs'].get('NUMB','?')),anchor='w',fill=color,font=(self.editor.host.ui_font,11 if selected else 10,'bold' if selected else 'normal'),tags=('labels',))
+            if any(vector):
+                c.create_line(x,y,*xy(tuple(point[i]+.3*vector[i] for i in range(3))),fill=color,width=3 if selected else 1.5,arrow='last')
+        message='仮寸法：同じ PARAM は NUMB の若い点を基準に共有します。'
         if not definition:message='左の PTSET 一覧からセットを選ぶか追加してください。'
+        elif self.editor.element_id:
+            try:
+                sources=model.sources(self.editor.element_id)
+                if sources:message+=' / '+'、'.join(f'{family} {pid[1:]}：P{number}' for family,pid,number in sources)
+                number=model.number_for(self.editor.element_id)
+                if number in model.problems:message+=' / '+model.problems[number]
+            except ValueError:pass
         self.note.configure(text=self.error_message or message,foreground='#ad6536' if self.error_message else '#738499')
         if self.pending:
-            x,y=xy(self.pending['point']);c.create_oval(x-9,y-9,x+9,y+9,outline='#dc9431',width=3)
+            x,y=xy(self.pending['point']);c.create_oval(x-18,y-18,x+18,y+18,outline='#dc9431',width=3)
             c.create_text(x+13,y+10,text='候補',anchor='w',fill='#b27324')
 
 
@@ -139,7 +151,7 @@ class PointCanvas(ttk.Frame):
         if self.orbit:
             self.view.set('立体');x,y,yaw,pitch=self.orbit;self.camera.yaw=yaw+(event.x-x)*.5;self.camera.pitch=max(-85,min(85,pitch+(event.y-y)*.5));self.redraw()
 
-    def pick(self,x,y):return next((ident for ident,point in sorted(self.hits.items(),key=lambda item:(item[1][0]-x)**2+(item[1][1]-y)**2) if (point[0]-x)**2+(point[1]-y)**2<=144),None)
+    def pick(self,x,y):return next((ident for ident,point in sorted(self.hits.items(),key=lambda item:((item[1][0]-x)**2+(item[1][1]-y)**2,item[0]!=self.editor.element_id)) if (point[0]-x)**2+(point[1]-y)**2<=(20 if ident==self.editor.element_id else 15)**2),None)
     def press(self,event):
         if not self.editor.commit_inline():return
         self.cancel();self.canvas.focus_set();ident=self.pick(event.x,event.y)
@@ -168,14 +180,34 @@ class PointCanvas(ttk.Frame):
             plane=self.plane.get();perpendicular=next(i for i in range(3) if i not in PLANES[plane])
             element=next((r for r in e.definition()['elements'] if r['id']==ident),None)
             if ident and not element:raise ValueError('要素が変更されています。選択し直してください。')
-            fixed=self.positions[ident][perpendicular] if element else 0
-            point=self.camera.unproject(x,y,self.canvas.winfo_width(),self.canvas.winfo_height(),plane,fixed)
+            model=PointPreview(e.data,e.definition())
+            if element:
+                if element['type']!='PTPOS' or not empty(element['attrs'].get('PTCPOS','')):
+                    for text in model.fields(element).values():
+                        if not empty(text):expressions.parse(text,model.parameters)
+                direction_key='PAXI' if element['type'] in ('PTAXI','PTMIX') else 'PTCDIR'
+                direction=schema.value(element,direction_key)
+                if not empty(direction):model.axis(direction)
+            if element and element['type']=='PTAXI' and not empty(element['attrs'].get('PAXI','')):
+                origin,vector=model.axis(element['attrs']['PAXI'])
+                point=self.camera.unproject_axis(x,y,self.canvas.winfo_width(),self.canvas.winfo_height(),origin,vector)
+                # Keep the axis expression and let the shared dimensions decide
+                # which distance is editable, including reference-point axes.
+                attrs={}
+            else:
+                fixed=self.positions[ident][perpendicular] if element else 0
+                point=self.camera.unproject(x,y,self.canvas.winfo_width(),self.canvas.winfo_height(),plane,fixed)
+                attrs=None
             kind=element['type'] if element else kind
-            point,attrs=schematic_placement(kind,point,element['attrs'] if element else None,plane if element else None)
+            if attrs is None:point,attrs=schematic_placement(kind,point,element['attrs'] if element else None,plane if element else None)
+            working=copy.deepcopy(e.definition())
+            target=next(r for r in working['elements'] if r['id']==ident) if element else schema.add_element(working,kind)
+            target['attrs'].update(attrs);target[LAYOUT_KEY]=list(point)
+            proposed=PointPreview(e.data,working);point=proposed.location(target['id'])
             base=copy.deepcopy(element['attrs']) if element else None
             layout=copy.deepcopy(element.get(LAYOUT_KEY)) if element else None
             if self.pending and self.pending['id']==ident and ident:base=self.pending['base'];layout=self.pending['layout']
-            self.pending={'id':ident,'base':base,'layout':layout,'attrs':attrs,'point':point,'kind':kind,'preset':presets.selected_id(e.data,e.definition()),'definition':e.definition_id}
+            self.pending={'id':ident,'base':base,'layout':layout,'attrs':attrs,'point':point,'kind':kind,'preset':presets.selected_id(e.data,e.definition()),'definition':e.definition_id,'preview':proposed,'snapshot':copy.deepcopy(e.definition()['elements'])}
             self.redraw()
         except (ValueError,KeyError) as exc:self.error_message=str(exc);self.pending=None;self.redraw()
 
@@ -187,9 +219,13 @@ class PointCanvas(ttk.Frame):
         try:
             if not e.commit_inline():return
             if p['definition']!=e.definition_id or p['preset']!=presets.selected_id(e.data,e.definition()):raise ValueError('セット・プリセットが変更されています。候補を作り直してください。')
+            if e.definition()['elements']!=p['snapshot']:raise ValueError('属性・配置が変更されています。候補を作り直してください。')
             if p['id']:
                 element=next((r for r in e.definition()['elements'] if r['id']==p['id']),None)
                 if not element or element['attrs']!=p['base'] or element.get(LAYOUT_KEY)!=p['layout']:raise ValueError('属性・配置が変更されています。候補を作り直してください。')
+                current=PointPreview(e.data,e.definition()).location(element['id'])
+                if all(element['attrs'].get(k)==v for k,v in p['attrs'].items()) and max(abs(a-b) for a,b in zip(current,p['point']))<1e-9:
+                    self.cancel();return
             else:element=schema.add_element(e.definition(),p['kind'])
             element['attrs'].update(p['attrs']);element[LAYOUT_KEY]=list(p['point'])
             e.element_id=element['id'];e.field=None;e.select_first_section();e.host.mark();self.pending=None;e.refresh();self.cancel()
