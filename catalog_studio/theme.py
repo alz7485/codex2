@@ -37,6 +37,8 @@ def apply(root,family):
     style.configure('TButton',padding=(12,7),background=SURFACE,foreground=INK,bordercolor=BORDER,lightcolor=SURFACE,darkcolor=SURFACE,relief='flat',borderwidth=1,focusthickness=0)
     style.map('TButton',background=[('disabled',SUBTLE),('pressed',SELECT),('active',SUBTLE)],foreground=[('disabled','#9aa6b7')],bordercolor=[('focus',ACCENT),('active','#a7b8cd')])
     style.configure('Compact.TButton',padding=(8,4),font=(family,9))
+    style.configure('AttributeTool.TButton',padding=(6,4),font=(family,9),background=SELECT,foreground='#244c87',bordercolor='#a8bfdf',lightcolor=SELECT,darkcolor=SELECT,relief='raised',borderwidth=1)
+    style.map('AttributeTool.TButton',background=[('disabled','#f1f3f6'),('pressed','#c5d8fb'),('active','#dae7ff')],foreground=[('disabled','#a1acbb')],bordercolor=[('disabled','#dce2eb'),('focus',ACCENT),('active','#7c9fce')],relief=[('pressed','sunken'),('!pressed','raised')])
     style.configure('Compact.Primary.TButton',padding=(7,3),width=0,font=(family,9))
     style.configure('Primary.TButton',background=ACCENT,foreground='white',bordercolor=ACCENT,lightcolor=ACCENT,darkcolor=ACCENT)
     style.map('Primary.TButton',background=[('disabled','#aec3e8'),('pressed',ACCENT_HOVER),('active',ACCENT_HOVER)],foreground=[('disabled','#eef3fb'),('!disabled','white')],bordercolor=[('focus','#83a9f6'),('!focus',ACCENT)])

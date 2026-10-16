@@ -2,6 +2,7 @@
 import tkinter as tk
 from tkinter import ttk
 from . import element_schema as schema, expressions, presets, theme
+from .value_choices import DIRECTION_FIELDS, is_point_reference, point_choices
 
 LITERALS={'NUMB','DESC','PURP','PSKEY','GTYP','SKEY','PKEY','LEVEL','OBST','NAPP','CLFLA','TUFLA','TVISI','BVISI'}
 
@@ -14,6 +15,9 @@ class ValueEditor(tk.Toplevel):
         self.resizable(True,False);self.configure(bg=theme.SURFACE)
         self.data=editor.data;self.definition=editor.definition();self.element=editor.element()
         self.variable=tk.StringVar(value=context['value']);self.reference_menu=None;self.reference_menus={};self.reference_rows={};self.insertion_context=None
+        self.direction_buttons={};self.point_picker=None
+        self.points=point_choices(self.data,self.definition,self.element,key)
+        self.multiple_points=key=='PTS' and self.points is not None
         self.uses_parameters=key not in LITERALS
         body=ttk.Frame(self,padding=14);body.pack(fill='both',expand=True);body.columnconfigure(0,weight=1)
         header=ttk.Frame(body);header.grid(row=0,column=0,sticky='ew')
@@ -21,25 +25,37 @@ class ValueEditor(tk.Toplevel):
         ttk.Label(header,text=schema.meaning(self.element['type'],key),style='Muted.TLabel').pack(side='left',padx=10)
         ttk.Label(body,text=self.element['name'],style='Muted.TLabel',wraplength=410).grid(row=1,column=0,sticky='w',pady=(3,8))
         choices=context.get('choices',())
+        if key in DIRECTION_FIELDS:choices=()
         self.entry=ttk.Combobox(body,textvariable=self.variable,values=choices,state='normal',exportselection=False,font=(editor.host.ui_font,12)) if choices else ttk.Entry(body,textvariable=self.variable,exportselection=False,font=(editor.host.ui_font,12))
         self.entry.grid(row=2,column=0,sticky='ew')
         self.caption=ttk.Label(body,text='',style='AttributeMeaning.TLabel',wraplength=410)
         self.caption.grid(row=3,column=0,sticky='w',pady=(4,8))
         if self.uses_parameters:
-            self.insert_button=ttk.Button(body,text='PARAM を挿入 ▾',command=self.open_references,style='Compact.TButton')
-            self.insert_button.grid(row=4,column=0,sticky='w')
+            inserts=ttk.Frame(body);inserts.grid(row=4,column=0,sticky='ew')
+            self.insert_button=ttk.Button(inserts,text='PARAM を挿入 ▾',command=self.open_references,style='AttributeTool.TButton')
+            self.insert_button.pack(side='left')
+            if self.points is not None:
+                self.point_variable=tk.StringVar(value='ポイントを選択')
+                self.point_picker=ttk.Combobox(inserts,textvariable=self.point_variable,values=self.points,state='readonly',width=14,exportselection=False,postcommand=self.refresh_points)
+                self.point_picker.pack(side='left',padx=(8,0));self.point_picker.bind('<<ComboboxSelected>>',self.insert_point)
             tools=ttk.Frame(body);tools.grid(row=5,column=0,sticky='ew',pady=(8,0))
             self.operator_buttons={}
             for label,text in (('+',' + '),('−',' - '),('×',' * '),('÷',' / '),('( )','( )')):
-                button=ttk.Button(tools,text=label,width=3,command=lambda value=text:self.insert_text(value),style='Compact.TButton')
+                button=ttk.Button(tools,text=label,width=3,command=lambda value=text:self.insert_text(value),style='AttributeTool.TButton')
                 button.pack(side='left',padx=(0,3));self.operator_buttons[label]=button
-            self.half_button=ttk.Button(tools,text='÷2',width=4,command=self.half,style='Compact.TButton');self.half_button.pack(side='left',padx=(0,3))
-            self.normalize_button=ttk.Button(tools,text='式を整理',width=8,command=self.normalize,style='Compact.TButton');self.normalize_button.pack(side='right')
+            self.half_button=ttk.Button(tools,text='÷2',width=4,command=self.half,style='AttributeTool.TButton');self.half_button.pack(side='left',padx=(0,3))
+            self.normalize_button=ttk.Button(tools,text='式を整理',width=8,command=self.normalize,style='AttributeTool.TButton');self.normalize_button.pack(side='right')
+        if key in DIRECTION_FIELDS and ('PTCDIR' if key=='PTCD' else key) in schema.fields(self.element['type']):
+            self.direction_row=ttk.Frame(body);self.direction_row.grid(row=6,column=0,sticky='ew',pady=(8,0))
+            for index,direction in enumerate(schema.DIRECTIONS):
+                self.direction_row.columnconfigure(index,weight=1)
+                button=ttk.Button(self.direction_row,text=direction,width=3,command=lambda value=direction:self.insert_text(value),style='AttributeTool.TButton')
+                button.grid(row=0,column=index,sticky='ew',padx=(0,3 if index<len(schema.DIRECTIONS)-1 else 0));self.direction_buttons[direction]=button
         self.error=ttk.Label(body,text='',foreground='#bc3434',wraplength=410)
-        self.error.grid(row=6,column=0,sticky='ew',pady=(6,0))
-        footer=ttk.Frame(body);footer.grid(row=7,column=0,sticky='ew',pady=(10,0))
+        self.error.grid(row=7,column=0,sticky='ew',pady=(6,0))
+        footer=ttk.Frame(body);footer.grid(row=8,column=0,sticky='ew',pady=(10,0))
         self.confirm_button=ttk.Button(footer,text='確定',width=7,command=self.apply,style='Primary.TButton');self.confirm_button.pack(side='right')
-        self.cancel_button=ttk.Button(footer,text='取消',width=7,command=self.cancel);self.cancel_button.pack(side='right',padx=(0,6))
+        self.cancel_button=ttk.Button(footer,text='取消',width=7,command=self.cancel,style='AttributeTool.TButton');self.cancel_button.pack(side='right',padx=(0,6))
         self.variable.trace_add('write',lambda *_:self.update_caption());self.update_caption()
         self.bind('<Escape>',lambda _:self.cancel());self.bind('<Return>',lambda _:self.apply())
         # Combobox popdowns must keep their own Enter / Escape behavior.
@@ -50,13 +66,31 @@ class ValueEditor(tk.Toplevel):
         x=max(self.winfo_vrootx(),min(x,self.winfo_vrootx()+self.winfo_vrootwidth()-width))
         y=max(self.winfo_vrooty(),min(y,self.winfo_vrooty()+self.winfo_vrootheight()-height))
         self.geometry(f'{width}x{height}+{x}+{y}');self.minsize(400,height)
-        self.deiconify();self.grab_set();self.entry.focus_set();self.entry.selection_range(0,'end');self.entry.icursor('end')
+        self.deiconify();self.grab_set();self.entry.focus_set()
+        if not self.multiple_points:self.entry.selection_range(0,'end')
+        self.entry.icursor('end')
 
     def as_editing(self):
         return {'iid':self.key,'variable':self.variable,'entry':self.entry,'context':self.context,'dialog':self}
 
     def update_caption(self):
-        self.caption.configure(text=presets.expression_names(self.data,self.definition,self.variable.get()) if self.uses_parameters else '')
+        self.caption.configure(text=self.editor.parameter_caption(self.key,self.variable.get()) if self.uses_parameters else '')
+
+    def refresh_points(self):
+        current=self.editor.data is self.data and self.editor.definition() is self.definition and self.editor.element() is self.element
+        self.points=(point_choices(self.data,self.definition,self.element,self.key) or ()) if current else ()
+        self.point_picker.configure(values=self.points)
+
+    def insert_point(self,_=None):
+        point=self.point_variable.get();self.refresh_points()
+        if point not in self.points:
+            self.report('ポイントが変更されています。候補を選び直してください。');return
+        try:a,b=self.entry.index('sel.first'),self.entry.index('sel.last')
+        except tk.TclError:a=b=self.entry.index('insert')
+        current=self.variable.get()
+        prefix_space=a and not current[a-1].isspace() and not (self.key in DIRECTION_FIELDS and current[a-1]=='-')
+        text=(' ' if prefix_space else '')+point+(' ' if b<len(current) and not current[b].isspace() else '')
+        self.insert_text(text);self.point_variable.set('ポイントを選択');self.error.configure(text='')
 
     def open_references(self):
         if self.reference_menu is not None:
@@ -111,6 +145,8 @@ class ValueEditor(tk.Toplevel):
         self.variable.set('('+self.variable.get()+') / 2');self.entry.selection_clear();self.entry.icursor('end');self.entry.focus_set()
 
     def normalize(self):
+        if is_point_reference(self.key,self.variable.get()):
+            self.error.configure(text='');return
         try:self.variable.set(expressions.normalized(self.variable.get(),presets.rules(self.data,self.definition)));self.error.configure(text='')
         except ValueError as exc:self.report(str(exc))
 

@@ -308,7 +308,6 @@ class ConstructionEditor(ttk.Frame):
         if not element or not schema.known(element['type']) or section=='extra':return None
         original=schema.value(element,key);choices=()
         if key=='OBST':choices=tuple(schema.OBST_CHOICES)
-        elif key in ('PAXI','PAAX','PBAX','PCAX','PLAXI','PTCDIR'):choices=schema.DIRECTIONS
         elif key in ('CLFLA','TUFLA','TVISI','BVISI'):choices=('','TRUE','FALSE')
         elif key=='NAPP':choices=tuple(str(i) for i in range(8))
         elif key=='PSKEY':choices=schema.PSKEY_CHOICES
@@ -545,6 +544,7 @@ class ConstructionEditor(ttk.Frame):
         return raw if getattr(self,'simple_layout',False) or key in literal else presets.display_expression(self.data,self.definition(),raw)
 
     def parameter_caption(self,key,value):
+        from .value_choices import is_point_reference
         element=self.element()
         literal={'NUMB','DESC','PURP','PSKEY','GTYP','SKEY','PKEY','LEVEL','OBST','NAPP','CLFLA','TUFLA','TVISI','BVISI'}
         if not element or not schema.known(element['type']):return ''
@@ -553,6 +553,7 @@ class ConstructionEditor(ttk.Frame):
             if default is not None:return '未設定：実寸評価時は '+default
         if key=='PSKEY':return 'ISODRAFT の端部記号を追加（標準記号に重ね描き）'
         if key in literal:return ''
+        if is_point_reference(key,value):return 'ポイント参照：'+str(value).strip()
         return presets.expression_names(self.data,self.definition(),value)
 
     def update_expression_caption(self):

@@ -1,7 +1,8 @@
 import copy
 import tkinter as tk
+from tkinter import ttk
 import unittest
-from catalog_studio import element_library,element_schema as schema,presets
+from catalog_studio import element_library,element_schema as schema,presets, pairing
 from catalog_studio.element_presets_ui import PresetEditor
 from catalog_studio.integrated import IntegratedStudio
 
@@ -92,3 +93,86 @@ class ValueEditorTests(unittest.TestCase):
         other=dialog.reference_menus['IPARAM'];self.assertEqual(other.entrycget(0,'state'),'disabled')
         dialog.dismiss_references();dialog.variable.set('IPARAM[99]');dialog.confirm_button.invoke();self.app.update()
         self.assertEqual(self.editor.element()['attrs']['PDIS'],'IPARAM[99]')
+
+    def use_sparse_points(self):
+        pointset=self.editor.definition();pointset['elements']=[]
+        for number in (1,2,7):
+            point=schema.add_element(pointset,'PTAXI');point['attrs'].update(NUMB=str(number),PAXI='X',PDIS='0')
+        self.editor.element_id=pointset['elements'][0]['id'];self.editor.refresh();self.app.update()
+        return pointset
+
+    def use_geometry(self,pointset,kind='SCYL'):
+        definition=next(d for d in self.app.data['definitions'] if d['kind']=='GMSET')
+        definition['elements']=[];schema.add_element(definition,kind)
+        pairing.assign(self.app.data,definition,pointset['id']);self.app.definition_id=definition['id']
+        self.app.switch('gmset');self.app.update();self.editor=self.app.geometry_editor;self.table=self.editor.tables['main']
+        return definition
+
+    def test_direction_buttons_below_operators_keep_draft_and_support_angle_entry(self):
+        self.use_sparse_points();before=copy.deepcopy(self.app.data);dialog=self.open('PAXI')
+        self.assertEqual(tuple(dialog.point_picker['values']),('P0','P2','P7'))
+        self.assertIsInstance(dialog.entry,ttk.Entry);self.assertNotIsInstance(dialog.entry,ttk.Combobox)
+        self.assertLessEqual(abs((dialog.point_picker.winfo_rooty()+dialog.point_picker.winfo_height()/2)-(dialog.insert_button.winfo_rooty()+dialog.insert_button.winfo_height()/2)),1)
+        self.assertGreater(dialog.point_picker.winfo_rootx(),dialog.insert_button.winfo_rootx())
+        self.assertGreater(dialog.direction_row.winfo_rooty(),dialog.operator_buttons['+'].winfo_rooty())
+        self.assertEqual(tuple(dialog.direction_buttons),schema.DIRECTIONS)
+        dialog.direction_buttons['-Y'].invoke();self.assertEqual(dialog.variable.get(),'-Y')
+        self.assertEqual(self.app.data,before)
+        dialog.variable.set('X45');dialog.entry.selection_clear();dialog.entry.icursor('end')
+        dialog.direction_buttons['Y'].invoke();self.assertEqual(dialog.variable.get(),'X45Y')
+        dialog.cancel_button.invoke();self.app.update();self.assertEqual(self.app.data,before)
+        dialog=self.open('PAXI');dialog.direction_buttons['-Z'].invoke();dialog.confirm_button.invoke();self.app.update()
+        self.assertEqual(self.editor.element()['attrs']['PAXI'],'-Z')
+
+    def test_point_dropdown_uses_bound_set_and_does_not_commit_on_selection(self):
+        pointset=self.use_sparse_points();self.use_geometry(pointset)
+        before=copy.deepcopy(self.app.data);dialog=self.open('PAXI')
+        self.assertEqual(tuple(dialog.point_picker['values']),('P0','P1','P2','P7'))
+        dialog.point_picker.current(3);dialog.point_picker.event_generate('<<ComboboxSelected>>');self.app.update()
+        self.assertEqual(dialog.variable.get(),'P7');self.assertEqual(self.app.data,before)
+        self.assertEqual(dialog.caption['text'],'ポイント参照：P7')
+        dialog.normalize_button.invoke();self.assertEqual(dialog.variable.get(),'P7')
+        self.assertTrue(dialog.winfo_exists());dialog.confirm_button.invoke();self.app.update()
+        self.assertEqual(self.editor.element()['attrs']['PAXI'],'P7')
+        dialog=self.open('PAXI');dialog.variable.set('Z70-X');dialog.confirm_button.invoke();self.app.update()
+        self.assertEqual(self.editor.element()['attrs']['PAXI'],'Z70-X')
+        dialog=self.open('PDIA');self.assertNotIsInstance(dialog.entry,ttk.Combobox)
+        self.assertEqual(dialog.direction_buttons,{});self.assertIsNone(dialog.point_picker);dialog.cancel()
+
+    def test_line_point_picker_inserts_without_replacing_list_and_cancel_is_transactional(self):
+        pointset=self.use_sparse_points();definition=self.use_geometry(pointset,'LINE')
+        definition['elements'][0]['attrs']['PTS']='P2 P7';self.editor.refresh();self.app.update()
+        before=copy.deepcopy(self.app.data);dialog=self.open('PTS')
+        self.assertEqual(tuple(dialog.point_picker['values']),('P0','P1','P2','P7'))
+        dialog.point_picker.set('P2');dialog.point_picker.event_generate('<<ComboboxSelected>>');self.app.update()
+        self.assertEqual(dialog.variable.get(),'P2 P7 P2');self.assertEqual(self.app.data,before)
+        dialog.normalize_button.invoke();self.assertEqual(dialog.variable.get(),'P2 P7 P2')
+        dialog.entry.selection_range(3,5)
+        dialog.point_picker.set('P0');dialog.point_picker.event_generate('<<ComboboxSelected>>');self.app.update()
+        self.assertEqual(dialog.variable.get(),'P2 P0 P2')
+        dialog.cancel_button.invoke();self.app.update();self.assertEqual(self.app.data,before)
+
+    def test_point_picker_preserves_negative_axis_when_replacing_selected_point(self):
+        pointset=self.use_sparse_points();self.use_geometry(pointset);before=copy.deepcopy(self.app.data)
+        dialog=self.open('PAXI');dialog.variable.set('-P1');dialog.entry.selection_range(1,3)
+        dialog.point_picker.set('P7');dialog.point_picker.event_generate('<<ComboboxSelected>>');self.app.update()
+        self.assertEqual(dialog.variable.get(),'-P7');self.assertEqual(self.app.data,before)
+        dialog.confirm_button.invoke();self.app.update()
+        self.assertEqual(self.editor.element()['attrs']['PAXI'],'-P7')
+
+    def test_point_options_refresh_after_point_removed_without_rewriting_manual_value(self):
+        pointset=self.use_sparse_points();self.use_geometry(pointset);dialog=self.open('PAXI')
+        dialog.variable.set('P7');pointset['elements'].pop();dialog.refresh_points();self.app.update()
+        self.assertEqual(tuple(dialog.point_picker['values']),('P0','P1','P2'))
+        self.assertEqual(dialog.variable.get(),'P7');dialog.cancel()
+
+    def test_non_direction_attributes_do_not_show_direction_buttons(self):
+        for key in ('PDIS','NUMB','PCON','PBOR','DESC','PSKEY'):
+            with self.subTest(attribute=key):
+                dialog=self.open(key)
+                self.assertEqual(dialog.direction_buttons,{})
+                self.assertFalse(hasattr(dialog,'direction_row'))
+                dialog.cancel()
+        pointset=self.editor.definition();self.use_geometry(pointset,'LINE');dialog=self.open('PTS')
+        self.assertEqual(dialog.direction_buttons,{})
+        self.assertFalse(hasattr(dialog,'direction_row'));dialog.cancel()
