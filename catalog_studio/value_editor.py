@@ -36,7 +36,7 @@ class ValueEditor(tk.Toplevel):
             self.insert_button.pack(side='left')
             if self.points is not None:
                 self.point_variable=tk.StringVar(value='ポイントを選択')
-                self.point_picker=ttk.Combobox(inserts,textvariable=self.point_variable,values=self.points,state='readonly',width=14,exportselection=False,postcommand=self.refresh_points)
+                self.point_picker=ttk.Combobox(inserts,textvariable=self.point_variable,values=self.points,state='readonly',width=14,exportselection=False,postcommand=self.refresh_points,style='AttributePoint.TCombobox')
                 self.point_picker.pack(side='left',padx=(8,0));self.point_picker.bind('<<ComboboxSelected>>',self.insert_point)
             tools=ttk.Frame(body);tools.grid(row=5,column=0,sticky='ew',pady=(8,0))
             self.operator_buttons={}
