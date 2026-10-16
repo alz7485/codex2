@@ -6,6 +6,8 @@ Python / Tkinter で、CATE・SCOM、ポイント・形状定義、SPEC、説明
 
 [開発用の仕様・ユーザー要件・未確認事項](https://github.com/alz7485/codex2/blob/main/docs/knowledge/README.md)を継続参照用に保存しています。ユーザー提示の資料と会話の整理であり、E3D 4.0 実機で全項目を確認した仕様書や、全機能の実装済み一覧ではありません。写真原本は含みません。
 
+[次の開発設計](docs/design/export-workflow.md)では、出力前確認 → 依存関係を固定したレビュー → 実機確認済み範囲の出力、の順序と画面・データ・受入条件を定めています。[実機確認ケース](docs/design/e3d-verification.md)も整理しました。いずれも今後の設計で、現行アプリの新機能や実機確認済みの結果を示すものではありません。
+
 ## 起動
 
 Python 3.10 以降・Tkinter・Pillow が必要です。Windows は Tcl/Tk を含む公式 Python を使ってください。

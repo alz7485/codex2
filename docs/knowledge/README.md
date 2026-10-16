@@ -9,6 +9,8 @@
 | [仕様メモ](e3d-specification-notes.md) | コマンド、階層、PARAM、点・形状、表示、モデル設定など |
 | [ユーザー要件](user-requirements.md) | UI、共有仮PARAM、プリセット、管理・配布の決定事項 |
 | [未確認事項](open-questions.md) | 資料内の矛盾、E3D 4.0 との差、未確定の構文・実装課題 |
+| [次の開発設計](../design/export-workflow.md) | 対象別の診断、依存関係、出力計画、段階別の受入条件（未実装） |
+| [実機確認の設計](../design/e3d-verification.md) | E3D 4.0 の対応表へ採用するための確認ケースと証拠（未実施） |
 
 ## 読み方
 
