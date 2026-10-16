@@ -14,9 +14,12 @@ class PresetEditor(ttk.Frame):
         self.list=host.registered_browser.tree
         style=ttk.Style(self)
         if not hasattr(host,'parameter_grid_image'):
-            host.parameter_grid_image=tk.PhotoImage(master=host,width=2,height=2)
-            host.parameter_grid_image.put(theme.RULE,to=(0,1,2,2));host.parameter_grid_image.put(theme.RULE,to=(1,0,2,2))
-            style.element_create('ParameterCellRule','image',host.parameter_grid_image,border=(0,0,1,1),sticky='nswe')
+            # ttk tiles the image interior; a 1px interior causes thousands of
+            # draw calls per cell. Use a large transparent interior and keep
+            # the element's requested size independent of the image size.
+            host.parameter_grid_image=tk.PhotoImage(master=host,width=512,height=64)
+            host.parameter_grid_image.put(theme.RULE,to=(0,63,512,64));host.parameter_grid_image.put(theme.RULE,to=(511,0,512,64))
+            style.element_create('ParameterCellRule','image',host.parameter_grid_image,border=(0,0,1,1),width=0,height=0,sticky='nswe')
             style.layout('Parameter.Treeview.Cell',[('ParameterCellRule',{'sticky':'nswe','children':[('Treeitem.padding',{'sticky':'nswe','children':[('Treeitem.text',{'sticky':'nswe'})]})]})])
         toolbar=ttk.Frame(self);toolbar.pack(fill='x',pady=(0,8))
         ttk.Label(toolbar,text='プリセット名').pack(side='left',padx=(0,8))
@@ -33,7 +36,6 @@ class PresetEditor(ttk.Frame):
         tools=ttk.Frame(self.body);tools.pack(fill='x',pady=(0,5))
         ttk.Label(tools,text='PARAM 一覧',style='Heading.TLabel').pack(side='left')
         self.add_row_button=ttk.Button(tools,text='＋ 行追加',command=self.add_row,style='Compact.Primary.TButton');self.add_row_button.pack(side='left',padx=(12,0))
-        self.add_row_button.configure(width=8)
         self.message=ttk.Label(self.body,text='',foreground='#a15b38',wraplength=650)
         self.message.pack(side='bottom',fill='x',pady=(7,0))
         self.message.bind('<Configure>',lambda e:self.message.configure(wraplength=max(120,e.width-8)))

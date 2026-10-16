@@ -9,6 +9,8 @@
 3. `build_onedir.bat` をダブルクリック。
 4. 完了後、`dist\CatalogStudio\CatalogStudio.exe` を起動。
 
+修正版 ZIP に更新した場合も、`build_onedir.bat` を再実行してください。Python ソースの更新は、すでにビルド済みの EXE には反映されません。
+
 ビルド用の `.build-venv` を作成し、Pillow・ReportLab・PyInstaller をインストールします。初回インストールには PyPI への通信が必要です。
 
 **配布するときは `dist\CatalogStudio` フォルダー全体を ZIP にしてください。** `CatalogStudio.exe` 単体では動作しません。`_internal` 内の Tk ライブラリ、Python DLL、ReportLab 等も必要です。
@@ -32,6 +34,8 @@ Python Launcher (`py`) がない場合は、最初のコマンドを `python -m 
 ビルド後は以下を確認してください。
 
 - PTSET・GMSET 作成画面が開く。
+- 「その他の管理 → PARAM プリセット」で画面を開き、行選択・編集がスムーズにできる。
+- 「＋ 追加」「＋ 行追加」の文字が最後まで表示される。
 - 要素追加、属性編集、JSON 保存と再読み込みができる。
 - 以前の CATE・SCOM、SPEC、PDF 画面へ移動できる。
 - PDF が必要な場合、冊子を作成し PDF を保存できる。

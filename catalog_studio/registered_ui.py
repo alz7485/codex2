@@ -25,9 +25,9 @@ class RegisteredBrowser(ttk.Frame):
         holder = ttk.Frame(self)
         holder.pack(fill='both', expand=True)
         style=ttk.Style(self)
-        self.rule_image=tk.PhotoImage(master=self,width=2,height=2)
-        self.rule_image.put(theme.RULE,to=(0,1,2,2))
-        style.element_create('RegisteredRowRule','image',self.rule_image,border=(0,0,0,1),sticky='nswe')
+        self.rule_image=tk.PhotoImage(master=self,width=512,height=64)
+        self.rule_image.put(theme.RULE,to=(0,63,512,64))
+        style.element_create('RegisteredRowRule','image',self.rule_image,border=(0,0,0,1),width=0,height=0,sticky='nswe')
         style.layout('Ruled.Treeview.Item',[('RegisteredRowRule',{'sticky':'nswe','children':style.layout('Treeview.Item')})])
         self.tree = ttk.Treeview(holder, show='tree', selectmode='browse',style='Ruled.Treeview')
         self.tree.column('#0', width=240, minwidth=160)
@@ -66,7 +66,7 @@ class RegisteredBrowser(ttk.Frame):
         query = self.search.get().strip().casefold()
         visible=[r for r in records if query in (r.get('name',r.get('title',''))+' '+r.get('kind',r.get('type',''))+' '+label).casefold()]
         self.heading.configure(text=label+' ('+str(len(visible))+')')
-        self.add_button.configure(text='＋' if host.page=='rules' else '＋ 追加',width=2 if host.page=='rules' else 6)
+        self.add_button.configure(text='＋' if host.page=='rules' else '＋ 追加',width=2 if host.page=='rules' else 0)
         signature = (host.page, query, tuple((r['id'], r.get('name',r.get('title','')), r.get('kind',r.get('type',''))) for r in visible))
         if signature != self.signature:
             self.tree.delete(*self.tree.get_children())

@@ -3,6 +3,7 @@ import tempfile
 import tkinter as tk
 import unittest
 from pathlib import Path
+from time import perf_counter
 from unittest.mock import patch
 from catalog_studio import project, presets
 from catalog_studio.integrated import IntegratedStudio
@@ -103,3 +104,13 @@ class ParameterPresetUITests(unittest.TestCase):
                 self.assertTrue(widget.winfo_ismapped());self.assertLessEqual(widget.winfo_rootx()+widget.winfo_width(),self.app.winfo_rootx()+self.app.winfo_width())
                 self.assertLessEqual(widget.winfo_rooty()+widget.winfo_height(),self.app.winfo_rooty()+self.app.winfo_height())
         self.assertEqual(self.errors,[])
+
+    def test_large_preset_redraw_keeps_selection_responsive(self):
+        self.profile['parameters']=[{'id':f'P{n}','role':f'PARAM_{n}','meaning':f'寸法 {n}','english_name':f'Dimension {n}','unit':'mm'} for n in range(1,101)]
+        self.e.load(self.profile['id']);self.app.update()
+        started=perf_counter()
+        for pid in ('P1','P3','P5','P7','P9','P11'):
+            self.e.table.selection_set(pid);self.app.update_idletasks()
+        elapsed=perf_counter()-started
+        self.assertLess(elapsed,3.0,'行選択で表全体の再描画に時間がかかりすぎています。')
+        self.assertEqual(self.e.table.selection(),('P11',));self.assertEqual(self.errors,[])
