@@ -104,13 +104,14 @@ class IntegratedStudio(tk.Tk):
             ttk.Button(header,text=text,command=command,style=style).pack(side='right',padx=(7,0))
         menu_bar=tk.Frame(self,bg=theme.NAV,padx=18,pady=6);menu_bar.pack(fill='x')
         self.nav={}
-        self.more_nav_menu=tk.Menu(menu_bar,tearoff=False)
+        self.more_nav_button=tk.Menubutton(menu_bar,text='その他の管理 ▾',bg=theme.NAV,fg='#bbcadc',activebackground='#2b4160',activeforeground='white',relief='flat',borderwidth=0,font=(self.ui_font,10),cursor='hand2',padx=16,pady=8)
+        self.more_nav_menu=tk.Menu(self.more_nav_button,tearoff=False)
         for key,text in PAGES:
             if key in ('ptset','gmset','catalog','specs','books'):
                 button=tk.Button(menu_bar,text=text,command=lambda k=key:self.switch(k),bg=theme.NAV,fg='#bbcadc',activebackground='#2b4160',activeforeground='white',relief='flat',borderwidth=0,highlightthickness=0,font=(self.ui_font,10),cursor='hand2',padx=16,pady=8)
                 button.pack(side='left',padx=(0,5));self.nav[key]=button
             else:self.more_nav_menu.add_command(label=text,command=lambda k=key:self.switch(k))
-        self.more_nav_button=tk.Menubutton(menu_bar,text='その他の管理 ▾',menu=self.more_nav_menu,bg=theme.NAV,fg='#bbcadc',activebackground='#2b4160',activeforeground='white',relief='flat',borderwidth=0,font=(self.ui_font,10),cursor='hand2',padx=16,pady=8)
+        self.more_nav_button.configure(menu=self.more_nav_menu)
         self.more_nav_button.pack(side='left')
         footer=ttk.Frame(self,padding=(18,7),style='Status.TFrame');footer.pack(side='bottom',fill='x')
         ttk.Label(footer,text='Ctrl+S 保存    Ctrl+O 開く',style='Status.TLabel').pack(side='right')

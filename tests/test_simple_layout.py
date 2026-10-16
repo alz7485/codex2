@@ -21,6 +21,21 @@ class SimpleAuthoringTests(unittest.TestCase):
         if hasattr(self, 'app'):
             self.app.destroy()
 
+    def test_management_menu_opens_by_mouse_and_navigates_to_presets(self):
+        app=self.app;menu=app.more_nav_menu;button=app.more_nav_button
+        for page,label in (('rules','PARAM プリセット'),('texts','説明・材質'),('rules','PARAM プリセット')):
+            button.event_generate('<Motion>',x=15,y=15,warp=True);app.update()
+            button.event_generate('<ButtonPress-1>',x=15,y=15)
+            button.event_generate('<ButtonRelease-1>',x=15,y=15);app.update()
+            self.assertTrue(menu.winfo_ismapped())
+            index=next(i for i in range(menu.index('end')+1) if menu.entrycget(i,'label')==label)
+            y=menu.yposition(index)+5
+            menu.event_generate('<Motion>',x=20,y=y,warp=True);app.update()
+            menu.event_generate('<ButtonRelease-1>',x=20,y=y);app.update()
+            self.assertEqual(app.page,page);self.assertFalse(menu.winfo_ismapped())
+            if page=='rules':self.assertTrue(app.preset_editor.winfo_ismapped())
+        self.assertEqual(self.errors,[])
+
     def test_point_addition_can_be_cancelled_then_created_and_selected(self):
         e = self.app.geometry_editor
         before = copy.deepcopy(e.definition())
