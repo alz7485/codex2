@@ -89,8 +89,8 @@ class ParameterPresetUITests(unittest.TestCase):
             if 'text' in widget.keys():result.append(str(widget['text']))
             for child in widget.winfo_children():result.extend(labels(child))
             return result
-        visible=' '.join(labels(self.e));self.assertNotIn('CATE',visible);self.assertNotIn('STEXT',visible);self.assertNotIn('TEXT',visible)
-        self.assertEqual(self.e.table.heading('english')['text'],'意味の英語名');self.assertEqual(self.errors,[])
+        visible=' '.join(labels(self.e));self.assertNotIn('CATE',visible);self.assertNotIn('生成',visible)
+        self.assertEqual(self.e.table.heading('english')['text'],'STEXT');self.assertEqual(self.errors,[])
 
     def test_compact_layout_and_editable_cells_stay_visible_at_minimum_size(self):
         for size in ('1440x960','1120x780'):

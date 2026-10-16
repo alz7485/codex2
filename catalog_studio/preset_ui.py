@@ -9,7 +9,7 @@ from . import presets, project, theme, parameter_catalog as catalog
 class PresetEditor(ttk.Frame):
     def __init__(self,host):
         super().__init__(host.content);self.host=host;self.loading=True;self.cell=None
-        host.heading('PARAM プリセット','番号・日本語の意味・意味の英語名を編集します。')
+        host.heading('PARAM プリセット','番号・意味・STEXT（意味の英語名）を編集します。')
         self.pack(fill='both',expand=True)
         self.list=host.registered_browser.tree
         style=ttk.Style(self)
@@ -37,9 +37,11 @@ class PresetEditor(ttk.Frame):
         self.message=ttk.Label(self.body,text='',foreground='#a15b38',wraplength=650)
         self.message.pack(side='bottom',fill='x',pady=(7,0))
         self.message.bind('<Configure>',lambda e:self.message.configure(wraplength=max(120,e.width-8)))
-        self.table=host.table(self.body,[('number','番号',70),('meaning','意味（日本語）',310),('english','意味の英語名',350),('description','補足',1)],height=8)
+        self.table=host.table(self.body,[('number','番号',60),('meaning','意味',240),('english','STEXT',300),('description','補足',1)],height=8)
         self.table.configure(displaycolumns=('number','meaning','english'),style='Parameter.Treeview')
-        self.table.column('number',width=70,stretch=False);self.table.tag_configure('missing',foreground='#a15b38')
+        for key,width in (('number',60),('meaning',240),('english',300)):
+            self.table.column(key,width=width,minwidth=60 if key=='number' else 120,stretch=False)
+        self.table.tag_configure('missing',foreground='#a15b38')
         self.table.bind('<Double-1>',self.edit_at);self.table.bind('<Return>',lambda _:self.begin_cell(self.selected_id(),'meaning'))
         self.table.bind('<Button-3>',self.context)
         self.menu=tk.Menu(self,tearoff=False)
