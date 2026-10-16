@@ -1,4 +1,4 @@
-"""Editable PARAM meanings and English names, with explicit TEXT generation."""
+"""Edit PARAM preset contents independently of catalogue creation."""
 import copy
 import re
 import tkinter as tk
@@ -9,7 +9,7 @@ from . import presets, project, theme, parameter_catalog as catalog
 class PresetEditor(ttk.Frame):
     def __init__(self,host):
         super().__init__(host.content);self.host=host;self.loading=True;self.cell=None
-        host.heading('PARAM プリセット','番号・日本語の意味・STEXT 用の英語名を管理します。式と SCOM の値は保持します。')
+        host.heading('PARAM プリセット','番号・日本語の意味・意味の英語名を編集します。')
         self.pack(fill='both',expand=True)
         self.list=host.registered_browser.tree
         style=ttk.Style(self)
@@ -29,14 +29,15 @@ class PresetEditor(ttk.Frame):
         for key,label in (('period','登録時期'),('component','コンポーネント'),('description','補足')):
             row=ttk.Frame(self.details);row.pack(fill='x',pady=2);ttk.Label(row,text=label,width=18).pack(side='left')
             var=tk.StringVar();self.metadata[key]=var;entry=ttk.Entry(row,textvariable=var);entry.pack(side='left',fill='x',expand=True);self.metadata_widgets[key]=entry
-        self.split=ttk.Panedwindow(self,orient='vertical');self.split.pack(fill='both',expand=True)
-        upper=ttk.Frame(self.split);lower=ttk.LabelFrame(self.split,text='CATE の TEXT / STEXT',padding=10)
-        self.split.add(upper,weight=4);self.split.add(lower,weight=3)
-        tools=ttk.Frame(upper);tools.pack(fill='x',pady=(0,5))
+        self.body=ttk.Frame(self);self.body.pack(fill='both',expand=True)
+        tools=ttk.Frame(self.body);tools.pack(fill='x',pady=(0,5))
         ttk.Label(tools,text='PARAM 一覧',style='Heading.TLabel').pack(side='left')
         self.add_row_button=ttk.Button(tools,text='＋ 行追加',command=self.add_row,style='Compact.Primary.TButton');self.add_row_button.pack(side='right')
         self.add_row_button.configure(width=8)
-        self.table=host.table(upper,[('number','番号',70),('meaning','意味（日本語）',310),('english','意味の英語名 · STEXT',350),('description','補足',1)],height=8)
+        self.message=ttk.Label(self.body,text='',foreground='#a15b38',wraplength=650)
+        self.message.pack(side='bottom',fill='x',pady=(7,0))
+        self.message.bind('<Configure>',lambda e:self.message.configure(wraplength=max(120,e.width-8)))
+        self.table=host.table(self.body,[('number','番号',70),('meaning','意味（日本語）',310),('english','意味の英語名',350),('description','補足',1)],height=8)
         self.table.configure(displaycolumns=('number','meaning','english'),style='Parameter.Treeview')
         self.table.column('number',width=70,stretch=False);self.table.tag_configure('missing',foreground='#a15b38')
         self.table.bind('<Double-1>',self.edit_at);self.table.bind('<Return>',lambda _:self.begin_cell(self.selected_id(),'meaning'))
@@ -46,25 +47,6 @@ class PresetEditor(ttk.Frame):
             self.menu.add_command(label=label,command=fn)
         self.menu.add_separator();self.menu.add_command(label='参照種類別の役割',command=self.reference_roles)
         self.menu.add_command(label='プリセットを削除',command=self.delete)
-        row=ttk.Frame(lower);row.pack(fill='x')
-        ttk.Label(row,text='作成先 CATE').pack(side='left',padx=(0,5))
-        self.cate_choice=ttk.Combobox(row,state='readonly',width=25);self.cate_choice.pack(side='left',fill='x',expand=True)
-        self.cate_options={c['name']:c['id'] for c in host.data['cates']};self.cate_choice['values']=list(self.cate_options)
-        self.cate_choice.set(next((c['name'] for c in host.data['cates'] if c['id']==host.cate_id),next(iter(self.cate_options),'')))
-        self.text_mode=ttk.Combobox(row,state='readonly',values=('PARAM ごとに TEXT','1つの TEXT にまとめる'),width=23);self.text_mode.current(0);self.text_mode.pack(side='left',padx=(8,0))
-        row=ttk.Frame(lower);row.pack(fill='x',pady=5)
-        ttk.Label(row,text='TEXT 名',width=13).pack(side='left')
-        self.pattern=tk.StringVar(value='{cate}/PARAM{number}');self.pattern_entry=ttk.Entry(row,textvariable=self.pattern);self.pattern_entry.pack(side='left',fill='x',expand=True)
-        self.separator=ttk.Combobox(row,state='readonly',values=('改行','カンマ','スペース'),width=10);self.separator.current(0)
-        self.preview=host.table(lower,[('pid','PARAM',75),('name','TEXT 名',260),('old','現在の STEXT',260),('new','生成する STEXT',280),('action','操作',65)],height=4)
-        self.preview.configure(style='Parameter.Treeview')
-        bottom=ttk.Frame(lower);bottom.pack(side='bottom',fill='x',pady=(7,0),before=self.preview.master)
-        self.message=ttk.Label(bottom,text='',foreground='#a15b38',wraplength=650);self.message.pack(side='left',fill='x',expand=True)
-        self.generate_button=ttk.Button(bottom,text='TEXT を生成・更新',command=self.generate_texts);self.generate_button.pack(side='right',padx=(10,0),before=self.message)
-        self.message.bind('<Configure>',lambda e:self.message.configure(wraplength=max(120,e.width-8)))
-        self.cate_choice.bind('<<ComboboxSelected>>',lambda _:self.refresh_preview())
-        self.text_mode.bind('<<ComboboxSelected>>',self.change_text_mode);self.separator.bind('<<ComboboxSelected>>',lambda _:self.refresh_preview())
-        self.pattern.trace_add('write',lambda *_:self.refresh_preview())
         for var in self.metadata.values():var.trace_add('write',self.metadata_changed)
         self.load(presets.selected_id(host.data))
 
@@ -88,7 +70,7 @@ class PresetEditor(ttk.Frame):
     def has_changes(self):return self.draft!=self.baseline or bool(self.cell and self.cell['var'].get()!=self.cell['original'])
     def changed(self):
         self.state_label.configure(text='未保存の編集' if self.has_changes() else '保存済み')
-        self.refresh_preview()
+        self.message.configure(text='')
 
     def refresh_rows(self):
         selected=self.selected_id();self.table.delete(*self.table.get_children())
@@ -193,7 +175,7 @@ class PresetEditor(ttk.Frame):
         if live!=self.baseline:self.message.configure(text='保存先の規則が変更されています。再読込して編集してください。');return False
         try:catalog.save_preset(self.host.data,self.ident,self.draft)
         except ValueError as exc:self.message.configure(text=str(exc));return False
-        self.load(self.ident);self.host.mark('PARAM プリセットを保存しました。TEXT は「生成・更新」で反映できます。');return True
+        self.load(self.ident);self.host.mark('PARAM プリセットを保存しました。');return True
 
     def can_leave(self):
         if not self.finish_cell():return False
@@ -214,7 +196,7 @@ class PresetEditor(ttk.Frame):
 
     def toggle_details(self):
         if self.details.winfo_manager():self.details.pack_forget()
-        else:self.details.pack(fill='x',before=self.split,pady=(0,8))
+        else:self.details.pack(fill='x',before=self.body,pady=(0,8))
 
     def create(self,duplicate=False):
         if not self.can_leave():return
@@ -267,32 +249,3 @@ class PresetEditor(ttk.Frame):
         owner=self.record() if self.record() is not None else self.host.data
         def apply(value):project.validate_reference_roles(value);owner['reference_roles']=value
         json_dialog(self.host,'このプリセットの参照種類別の役割',owner.get('reference_roles',{}),apply)
-
-    def change_text_mode(self,_=None):
-        combined=self.text_mode.current()==1
-        self.pattern.set((self.cate_choice.get().rstrip('/')+'/PARAMETERS') if combined else '{cate}/PARAM{number}')
-        if combined:self.separator.pack(side='left',padx=(6,0))
-        else:self.separator.pack_forget()
-        self.refresh_preview()
-
-    def text_options(self):
-        combined=self.text_mode.current()==1
-        return {'combined':combined,'pattern':'{cate}/PARAM{number}' if combined else self.pattern.get(),'name':self.pattern.get() if combined else '', 'separator':{'改行':'\n','カンマ':', ','スペース':' '}.get(self.separator.get(),'\n')}
-
-    def refresh_preview(self):
-        if self.loading or not hasattr(self,'draft'):return
-        self.preview.delete(*self.preview.get_children());self.plan=None
-        try:self.plan=catalog.text_preview(self.host.data,self.draft,self.cate_options.get(self.cate_choice.get()),**self.text_options())
-        except ValueError as exc:self.message.configure(text=str(exc));self.generate_button.configure(state='disabled');return
-        for index,row in enumerate(self.plan):self.preview.insert('','end',iid=str(index),values=(row['pid'],row['name'],row['old'],row['STEXT'],row['action']))
-        self.message.configure(text='TEXT はまだ変更していません。日本語の意味は STEXT に含めません。')
-        self.generate_button.configure(state='disabled' if self.has_changes() else 'normal')
-        if self.has_changes():self.message.configure(text='プリセットを保存すると、このプレビューを TEXT に反映できます。')
-
-    def generate_texts(self):
-        if not self.finish_cell():return
-        if self.has_changes():self.message.configure(text='先にプリセットを保存してください。');return
-        try:
-            records=catalog.write_texts(self.host.data,self.draft,self.cate_options.get(self.cate_choice.get()),expected=self.plan,**self.text_options())
-        except ValueError as exc:self.message.configure(text=str(exc));return
-        self.host.mark(str(len(records))+' 件の TEXT / STEXT を生成・更新しました。');self.refresh_preview()

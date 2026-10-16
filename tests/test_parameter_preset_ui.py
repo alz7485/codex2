@@ -4,7 +4,7 @@ import tkinter as tk
 import unittest
 from pathlib import Path
 from unittest.mock import patch
-from catalog_studio import project, presets, parameter_catalog as catalog
+from catalog_studio import project, presets
 from catalog_studio.integrated import IntegratedStudio
 
 
@@ -33,17 +33,15 @@ class ParameterPresetUITests(unittest.TestCase):
             self.assertEqual(record['parameters'][0]['meaning'],'接続口径（呼び）');self.assertEqual(record['parameters'][0]['english_name'],'Connection Bore')
         self.assertEqual(self.app.data['texts'],[]);self.assertEqual(self.errors,[])
 
-    def test_preset_save_and_text_generation_are_separate_and_preview_shows_old_value(self):
-        self.assertEqual(len(self.e.preview.get_children()),5);self.assertEqual(self.app.data['texts'],[])
+    def test_preset_edits_save_without_changing_existing_catalogue_texts(self):
+        self.app.data['texts'].append({'id':'existing-text','type':'TEXT','name':'/PARAM1','parent_id':self.app.cate_id,'revision':'01','attrs':{'STEXT':'Original Bore'}})
+        before=copy.deepcopy(self.app.data['texts'])
         self.cell('P1','meaning','接続口径');self.cell('P1','english_name','Revised Connection Bore')
         self.assertEqual(self.profile['parameters'][0]['english_name'],'Connection Bore')
-        self.assertEqual(str(self.e.generate_button['state']),'disabled');self.assertTrue(self.e.save())
-        self.assertEqual(self.app.data['texts'],[]);self.e.generate_button.invoke();self.app.update()
-        text=self.app.data['texts'][0];self.assertEqual(text['attrs']['STEXT'],'Revised Connection Bore')
-        self.cell('P1','english_name','New Bore');self.assertTrue(self.e.save())
-        values=self.e.preview.item('0','values');self.assertIn('Revised Connection Bore',values);self.assertIn('New Bore',values)
-        self.assertEqual(text['attrs']['STEXT'],'Revised Connection Bore');self.e.generate_button.invoke();self.app.update()
-        self.assertEqual(text['attrs']['STEXT'],'New Bore');self.assertEqual(self.errors,[])
+        self.assertTrue(self.e.save());self.assertEqual(self.profile['parameters'][0]['english_name'],'Revised Connection Bore')
+        self.assertEqual(self.app.data['texts'],before);self.app.switch('ptset');self.app.switch('rules');self.app.update()
+        self.assertEqual(self.app.preset_editor.table.item('P1','values')[2],'Revised Connection Bore')
+        self.assertEqual(self.app.data['texts'],before);self.assertEqual(self.errors,[])
 
     def test_japanese_meaning_is_shown_beside_param_after_save_without_alias_rewrite(self):
         before=copy.deepcopy(self.app.data['scoms']);self.cell('P1','meaning','接続口径（呼び径）');self.cell('P1','english_name','Connection Bore');self.e.save()
@@ -82,12 +80,17 @@ class ParameterPresetUITests(unittest.TestCase):
         clone=presets.get(self.app.data,presets.selected_id(self.app.data));self.assertEqual(clone['parameters'][0]['english_name'],'Draft')
         self.cell('P1','english_name','Only Clone');self.e.save();self.assertEqual(self.profile['parameters'][0]['english_name'],'Draft');self.assertEqual(self.errors,[])
 
-    def test_combined_text_preview_and_missing_english_are_explicit(self):
-        self.e.text_mode.current(1);self.e.change_text_mode();self.e.separator.set('カンマ');self.e.refresh_preview();self.app.update()
-        self.assertEqual(len(self.e.preview.get_children()),1);self.e.generate_button.invoke();self.app.update()
-        text=self.app.data['texts'][0];self.assertEqual(text['type'],'TEXT');self.assertIn('Connection Bore, Outside Diameter',text['attrs']['STEXT'])
-        self.cell('P2','english_name','');self.e.save();self.assertEqual(str(self.e.generate_button['state']),'disabled');self.assertIn('P2',self.e.message['text'])
-        self.assertEqual(len(self.app.data['texts']),1);self.assertEqual(self.errors,[])
+    def test_preset_editor_is_independent_of_cate_and_allows_incomplete_english(self):
+        self.app.data['cates']=[];self.app.cate_id=None;self.app.switch('rules');self.app.update();self.e=self.app.preset_editor
+        self.cell('P2','english_name','');self.cell('P1','meaning','接続口径');self.assertTrue(self.e.save())
+        self.assertEqual(self.profile['parameters'][1]['english_name'],'');self.assertEqual(self.app.data['texts'],[])
+        def labels(widget):
+            result=[]
+            if 'text' in widget.keys():result.append(str(widget['text']))
+            for child in widget.winfo_children():result.extend(labels(child))
+            return result
+        visible=' '.join(labels(self.e));self.assertNotIn('CATE',visible);self.assertNotIn('STEXT',visible);self.assertNotIn('TEXT',visible)
+        self.assertEqual(self.e.table.heading('english')['text'],'意味の英語名');self.assertEqual(self.errors,[])
 
     def test_compact_layout_and_editable_cells_stay_visible_at_minimum_size(self):
         for size in ('1440x960','1120x780'):
@@ -96,7 +99,7 @@ class ParameterPresetUITests(unittest.TestCase):
             self.e.begin_cell('P1','english_name');self.app.update();entry=self.e.cell['entry']
             self.assertTrue(entry.winfo_ismapped());self.assertLessEqual(entry.winfo_rootx()+entry.winfo_width(),self.app.winfo_rootx()+self.app.winfo_width())
             self.e.cancel_cell()
-            for widget in (self.e.save_button,self.e.generate_button,self.app.registered_browser.add_button):
+            for widget in (self.e.save_button,self.e.add_row_button,self.app.registered_browser.add_button):
                 self.assertTrue(widget.winfo_ismapped());self.assertLessEqual(widget.winfo_rootx()+widget.winfo_width(),self.app.winfo_rootx()+self.app.winfo_width())
                 self.assertLessEqual(widget.winfo_rooty()+widget.winfo_height(),self.app.winfo_rooty()+self.app.winfo_height())
         self.assertEqual(self.errors,[])
