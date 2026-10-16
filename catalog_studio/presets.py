@@ -33,9 +33,12 @@ def label(data,record=None):
     return preset['name'] if preset else '参照先不明：'+ident
 
 
+def meaning(parameter):return parameter.get('meaning',parameter['role'])
+
+
 def caption(parameter):
     description=parameter.get('description','')
-    return parameter['role'] + ('：'+description if description else '')
+    return meaning(parameter) + ('：'+description if description else '')
 
 
 _DISPLAY_REFERENCE = re.compile(
@@ -49,7 +52,7 @@ _DISPLAY_REFERENCE = re.compile(
 def display_expression(data, record, text):
     """Add preset names for display only, keeping spelling and stored text intact."""
     from .expressions import ALIASES
-    names={p['id']:p['role'] for p in rules(data,record)}
+    names={p['id']:meaning(p) for p in rules(data,record)}
     others=reference_roles(data,record)
     def annotate(match):
         if match.group('quoted') is not None:return match[0]
@@ -66,7 +69,7 @@ def display_expression(data, record, text):
 def expression_names(data,record,text):
     """Names for a separate caption; never rewrite the expression itself."""
     from .expressions import ALIASES
-    names={p['id']:p['role'] for p in rules(data,record)}
+    names={p['id']:meaning(p) for p in rules(data,record)}
     others=reference_roles(data,record);references={}
     for match in _DISPLAY_REFERENCE.finditer(str(text)):
         if match.group('quoted') is not None:continue
@@ -91,15 +94,17 @@ def require_compatible(data,scom,definition):
         raise ValueError('PARAM プリセットが異なります：SCOM '+label(data,scom)+' / 定義 '+label(data,definition))
 
 
-def add(data,name,source=None):
+def add(data,name,source=None,empty=False):
     records=data.setdefault('parameter_presets',[])
     if len(records)>=1000:raise ValueError('プリセット数の上限です。')
     if not name.strip() or name=='既存規則（従来データ）' or any(p['name'].casefold()==name.casefold() for p in records):raise ValueError('プリセット名が空か重複しています。')
     source_record={'parameter_preset_id':source or ''}
     if source and not get(data,source):raise ValueError('複製元プリセットが見つかりません。')
     record={'id':uuid.uuid4().hex,'name':name,'period':'','component':'','description':'',
-            'parameters':copy.deepcopy(rules(data,source_record)),
-            'reference_roles':copy.deepcopy(reference_roles(data,source_record))}
+            'parameters':[] if empty else copy.deepcopy(rules(data,source_record)),
+            'reference_roles':{} if empty else copy.deepcopy(reference_roles(data,source_record))}
+    if source and not empty:
+        for key in ('period','component','description'):record[key]=get(data,source).get(key,'')
     records.append(record);return record
 
 

@@ -4,7 +4,7 @@ import re
 import uuid
 from . import element_schema as schema, expressions
 
-TEXT_TYPES = {'SDTE': ('RTEX','STEX','TTEX','SKEY'), 'SMTE': ('XTEX','YTEX','ZTEX')}
+TEXT_TYPES = {'SDTE': ('RTEX','STEX','TTEX','SKEY'), 'SMTE': ('XTEX','YTEX','ZTEX'), 'TEXT': ('STEXT',)}
 TABLE_TYPES = {
     'CATA': (), 'SECT': (), 'CCTA': (), 'COCO': ('CTYPE',), 'COCDES': ('DESC','COCONNECTION'),
     'BTSE': (), 'BLTP': ('NUMBER','BDIA','BTHK','BTYPE'),
@@ -15,9 +15,9 @@ TABLE_TYPES = {
 PARENTS = {'CATA':(), 'SECT':('CATA',), 'CCTA':(), 'COCO':('CCTA',),'COCDES':('CCTA',),
            'BTSE':('SECT',), 'BLTP':('BTSE',), 'BLTAB':(), 'BLIST':('BLTAB',), 'SBOLT':('BLIST',),
            'LTAB':('BLTAB',), 'DTAB':('LTAB',), 'TABWLD':(), 'NOMTAB':('TABWLD',), 'BRTAB':('TABWLD',),
-           'SDTE':('CATE','SECT'), 'SMTE':('CATE','SECT')}
+           'SDTE':('CATE','SECT'), 'SMTE':('CATE','SECT'), 'TEXT':('CATE',)}
 
-MEANINGS = {'CTYPE':'接続コードの組（2 コード）', 'COCONNECTION':'接続コードとの関連（原文保持）',
+MEANINGS = {'STEXT':'PARAM の意味の英語名', 'CTYPE':'接続コードの組（2 コード）', 'COCONNECTION':'接続コードとの関連（原文保持）',
             'NUMBER':'ボルト穴の番号', 'BDIA':'ボルト直径', 'BTHK':'ボルト長さ', 'BTYPE':'ボルト種別',
             'NSTD':'標準長さ表の参照', 'BITEM':'長さ計算に加える付属品', 'BITL':'付属品の長さ',
             'BLEN':'標準ボルト長さの配列', 'RTEX':'ISODRAFT 説明', 'STEX':'詳細用テキスト',
@@ -105,6 +105,7 @@ def companion_issues(data):
     tables = {r['id']:r for r in data.get('tables',[])}
     for text in data.get('texts',[]):
         if text['parent_id'] not in cates and tables.get(text['parent_id'],{}).get('type') != 'SECT': result.append(text['name'] + '：所属 CATE / SECT が見つかりません。')
+        if text['type']=='TEXT' and text['parent_id'] not in cates:result.append(text['name']+'：TEXT の所属 CATE が見つかりません。')
         skey = text['attrs'].get('SKEY','')
         if skey and len(str(skey)) != 4: result.append(text['name'] + '：SKEY は 4 文字です。')
         if text.get('isodraft') and text['type'] == 'SDTE' and (not text['attrs'].get('RTEX') or not skey): result.append(text['name'] + '：ISODRAFT 用には RTEX と SKEY を設定してください。')

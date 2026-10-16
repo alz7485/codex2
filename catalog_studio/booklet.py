@@ -83,7 +83,7 @@ def snapshot(data, scom_ids=None, spec_ids=None, title="カタログ本", editio
     for key, ids in (("scoms", selected_scoms), ("specs", selected_specs),
                      ("cates", cate_ids), ("definitions", definition_ids)):
         book[key] = copy.deepcopy([item for item in data.get(key, []) if item["id"] in ids])
-    book['texts']=copy.deepcopy([r for r in data.get('texts',[]) if r['id'] in text_ids])
+    book['texts']=copy.deepcopy([r for r in data.get('texts',[]) if r['id'] in text_ids or (r['type']=='TEXT' and r.get('parent_id') in cate_ids)])
     # Shared tables are project context; freeze the complete table collection.
     book['tables']=copy.deepcopy(data.get('tables',[]))
     owners={r.get('parent_id') for r in book['texts']+book['tables']}
@@ -204,7 +204,7 @@ def generate_pdf(book, path):
             story.append(p('PARAM プリセット：'+presets.label(book,group[0]),'h2'))
             chunks=[rules[n:n+4] for n in range(0,len(rules),4)] or [[]]
             for chunk in chunks:
-                header=['SCOM','呼び径','改訂']+[f"{parameter['id']}\n{parameter.get('role','')}\n{parameter.get('unit','')}" for parameter in chunk]
+                header=['SCOM','呼び径','改訂']+[f"{parameter['id']}\n{presets.meaning(parameter)}\n{parameter.get('unit','')}" for parameter in chunk]
                 rows=[header]+[[scom.get('name',''),scom.get('size',''),scom.get('revision','')]+[number(scom.get('values',{}).get(parameter['id'])) for parameter in chunk] for scom in group]
                 col_widths=[130,55,42]
                 if chunk:col_widths += [(width-sum(col_widths))/len(chunk)]*len(chunk)
@@ -236,17 +236,17 @@ def generate_pdf(book, path):
         story.extend([PageBreak(), p("共通定義とパラメータ", "h1"),
                       p("GMSET・PTSET は式として保存し、実数値は SCOM の寸法表に掲載しています。")])
         story.append(p("既存規則（従来データ）", "h2"))
-        rows = [["番号", "役割・日本語説明", "単位"]] + [[parameter["id"], presets.caption(parameter),
+        rows = [["番号", "意味・補足", "意味の英語名", "単位"]] + [[parameter["id"], presets.caption(parameter),parameter.get('english_name',''),
                                                      parameter.get("unit", "")] for parameter in parameters]
-        story.append(table(rows, [65, width - 130, 65]))
+        story.append(table(rows, [50, width - 270,155,65]))
         if book.get('reference_roles'):
             story.append(table([['参照種類','番号','役割']]+[[family,pid,role] for family,roles in book['reference_roles'].items() for pid,role in roles.items()],[120,60,width-180]))
         for preset in book.get('parameter_presets',[]):
             story.append(p('PARAM プリセット：'+preset['name'],'h2'))
             story.append(p('登録時期：'+preset['period']+' / コンポーネント：'+preset['component'],'small'))
             story.append(p(preset['description']))
-            rows=[['番号','表示名・日本語説明','単位・値型']]+[[r['id'],r['role']+'\n'+r.get('description',''),r['unit']+' / '+r.get('value_type','number')] for r in preset['parameters']]
-            story.append(table(rows,[65,width-160,95]))
+            rows=[['番号','意味・補足','意味の英語名','単位・値型']]+[[r['id'],presets.caption(r),r.get('english_name',''),r['unit']+' / '+r.get('value_type','number')] for r in preset['parameters']]
+            story.append(table(rows,[50,width-290,155,85]))
             if preset.get('reference_roles'):story.append(table([['参照種類','番号','役割']]+[[family,pid,role] for family,roles in preset['reference_roles'].items() for pid,role in roles.items()],[120,60,width-180]))
         for definition in definitions.values():
             story.extend([p(definition.get("name", ""), "h2"),

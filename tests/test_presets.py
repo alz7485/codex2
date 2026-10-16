@@ -100,7 +100,7 @@ class PresetGuiTests(unittest.TestCase):
     def test_preset_management_and_current_default_dont_relabel_old_scom(self):
         app=self.app;profile=presets.add(app.data,'現在登録');profile['parameters'][0].update(role='胴部径',description='日本語の詳細説明')
         old=copy.deepcopy(app.data['scoms'][0]);app.switch('rules');app.update();editor=app.preset_editor
-        editor.list.selection_set('preset:'+profile['id']);app.update()
+        editor.list.selection_set('parameter_presets:'+profile['id']);app.update()
         self.assertEqual(presets.selected_id(app.data),profile['id']);self.assertEqual(app.data['scoms'][0],old)
         self.assertIn('日本語の詳細説明',app.preset_editor.table.item('P1','values'))
         app.switch('catalog');app.update();self.assertIn('大径側外径',app.scom_detail.cget('text'));self.assertNotIn('胴部径',app.scom_detail.cget('text'))
@@ -126,6 +126,6 @@ class PresetGuiTests(unittest.TestCase):
         self.assertEqual(scom['values']['P1'],'BW')
         app.data['active_parameter_preset_id']=profile['id'];app.switch('rules');app.update()
         parameter=profile['parameters'][0]
-        def rename(title,fields,apply):apply({k:('新しい説明' if k=='description' else str(initial)) for k,_,initial,_ in fields})
-        with patch.object(app,'form',side_effect=rename):app.preset_editor.parameter_form(parameter)
+        app.preset_editor.edit_value(parameter['id'],'description','新しい説明')
+        self.assertTrue(app.preset_editor.save())
         self.assertEqual(parameter['description'],'新しい説明');self.assertEqual(app.data['parameters'][0]['role'],'大径側外径');self.assertEqual(self.errors,[])

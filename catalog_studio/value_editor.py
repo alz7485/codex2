@@ -73,7 +73,7 @@ class ValueEditor(tk.Toplevel):
                 self.reference_rows[(family,pid)]=(target,index)
             if not roles:target.add_command(label='設定名が登録されていません',state='disabled')
             target.bind('<Escape>',lambda _:self.dismiss_references())
-        populate(menu,'PARAM',{p['id']:p['role'] for p in presets.rules(self.data,self.definition)})
+        populate(menu,'PARAM',{p['id']:presets.meaning(p) for p in presets.rules(self.data,self.definition)})
         menu.add_separator()
         other_roles=presets.reference_roles(self.data,self.definition)
         for family in schema.REFERENCE_TYPES[1:]:

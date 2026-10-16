@@ -122,6 +122,8 @@ def validate_parameters(parameters):
     for p in parameters:
         if not re.fullmatch(r'P[1-9]\d*',p['id']) or not model.valid_role(p['role']) or p['role'] in roles or 'value' in p:raise ValueError('パラメータ番号・役割を確認してください。値は SCOM に保存します。')
         if p.get('value_type','number') not in ('number','word'):raise ValueError('パラメータの値型を確認してください。')
+        for key in ('meaning','english_name'):
+            if key in p and (not isinstance(p[key],str) or len(p[key])>2000 or '\x00' in p[key]):raise ValueError('意味・英語名は2000文字以内の文字列で指定してください。')
         if 'description' in p and not isinstance(p['description'],str):raise ValueError('日本語説明は文字列です。')
         roles.add(p['role'])
 

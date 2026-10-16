@@ -57,7 +57,7 @@ class RegisteredBrowser(ttk.Frame):
             self.search.set('')
         categories={'ptset':('PTSET','definitions'), 'gmset':('GMSET','definitions'), 'catalog':('SCOM','scoms'), 'specs':('スペック','specs'), 'structural':('構造材・NGMSET','definitions'), 'texts':('説明・材質','texts'), 'tables':('共通テーブル','tables'), 'books':('カタログ本','books'), 'rules':('PARAM プリセット','parameter_presets')}
         label,collection=categories.get(host.page,('確認・マクロ',None))
-        if host.page in ('ptset','gmset'):self.add_button.pack(side='right')
+        if host.page in ('ptset','gmset','rules'):self.add_button.pack(side='right')
         else:self.add_button.pack_forget()
         records=[r for r in data.get(collection,[]) if isinstance(r,dict) and 'id' in r] if collection else []
         if host.page in ('ptset','gmset'):records=[r for r in records if r['kind']==host.page.upper()]
@@ -66,6 +66,7 @@ class RegisteredBrowser(ttk.Frame):
         query = self.search.get().strip().casefold()
         visible=[r for r in records if query in (r.get('name',r.get('title',''))+' '+r.get('kind',r.get('type',''))+' '+label).casefold()]
         self.heading.configure(text=label+' ('+str(len(visible))+')')
+        self.add_button.configure(text='＋' if host.page=='rules' else '＋ 追加',width=2 if host.page=='rules' else 6)
         signature = (host.page, query, tuple((r['id'], r.get('name',r.get('title','')), r.get('kind',r.get('type',''))) for r in visible))
         if signature != self.signature:
             self.tree.delete(*self.tree.get_children())
@@ -92,6 +93,7 @@ class RegisteredBrowser(ttk.Frame):
                 self.tree.see(target)
 
     def add_definition(self):
+        if self.host.page=='rules':self.host.preset_editor.add();return
         if self.host.page not in ('ptset','gmset'):return
         if self.host.commit_definition_name() is False:return
         self.host.definition_form(self.host.page.upper())
@@ -125,7 +127,7 @@ class RegisteredBrowser(ttk.Frame):
         elif collection=='parameter_presets':
             ident='' if record['id']=='legacy' else record['id']
             if host.data.get('active_parameter_preset_id','')==ident:return
-            host.data['active_parameter_preset_id']=ident;host.mark();host.render_page();return
+            host.preset_editor.select_preset(ident);return
         elif collection=='books':
             host.selected_book=record['id'];host.books_table.selection_set(record['id']);host.update_book_info();return
         elif collection in ('texts','tables'):

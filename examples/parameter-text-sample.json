@@ -1,0 +1,367 @@
+{
+  "format": "catalog-studio-integrated",
+  "version": 2,
+  "name": "PARAM の意味・英語名と TEXT / STEXT の作成例",
+  "parameters": [
+    {
+      "id": "P1",
+      "role": "大径側外径",
+      "unit": "mm"
+    },
+    {
+      "id": "P2",
+      "role": "小径側外径",
+      "unit": "mm"
+    },
+    {
+      "id": "P3",
+      "role": "全長",
+      "unit": "mm"
+    },
+    {
+      "id": "P4",
+      "role": "大径側呼び径",
+      "unit": "mm"
+    },
+    {
+      "id": "P5",
+      "role": "小径側呼び径",
+      "unit": "mm"
+    }
+  ],
+  "cates": [
+    {
+      "id": "cate-reducer",
+      "name": "/REDUCER-CATE",
+      "description": "同心レデューサー（モックアップ参考値）",
+      "revision": "01"
+    }
+  ],
+  "definitions": [
+    {
+      "id": "gm-reducer",
+      "name": "/REDUCER-GEOM",
+      "kind": "GMSET",
+      "revision": "01",
+      "elements": [
+        {
+          "id": "cone-body",
+          "type": "cone",
+          "name": "円錐台 本体",
+          "attrs": {
+            "大径": "P1",
+            "小径": "P2",
+            "長さ": "P3",
+            "位置": "P3 / 2",
+            "方向": "Z"
+          }
+        }
+      ],
+      "parameter_preset_history": [
+        {
+          "preset_id": "",
+          "elements": [
+            {
+              "id": "cone-body",
+              "type": "cone",
+              "name": "円錐台 本体",
+              "attrs": {
+                "大径": "大径側外径",
+                "小径": "小径側外径",
+                "長さ": "全長",
+                "位置": "全長 / 2",
+                "方向": "Z"
+              }
+            }
+          ]
+        }
+      ],
+      "parameter_preset_id": "0a5c3257894d4a15869dff15af79fa2f"
+    },
+    {
+      "id": "pt-reducer",
+      "name": "/REDUCER-POINTS",
+      "kind": "PTSET",
+      "revision": "01",
+      "elements": [
+        {
+          "id": "point-large",
+          "type": "point",
+          "name": "接続点 1",
+          "attrs": {
+            "位置": "0",
+            "方向": "-Z",
+            "接続口径": "P4"
+          }
+        },
+        {
+          "id": "point-small",
+          "type": "point",
+          "name": "接続点 2",
+          "attrs": {
+            "位置": "P3",
+            "方向": "Z",
+            "接続口径": "P5"
+          }
+        }
+      ],
+      "parameter_preset_history": [
+        {
+          "preset_id": "",
+          "elements": [
+            {
+              "id": "point-large",
+              "type": "point",
+              "name": "接続点 1",
+              "attrs": {
+                "位置": "0",
+                "方向": "-Z",
+                "接続口径": "大径側呼び径"
+              }
+            },
+            {
+              "id": "point-small",
+              "type": "point",
+              "name": "接続点 2",
+              "attrs": {
+                "位置": "全長",
+                "方向": "Z",
+                "接続口径": "小径側呼び径"
+              }
+            }
+          ]
+        }
+      ],
+      "parameter_preset_id": "0a5c3257894d4a15869dff15af79fa2f"
+    }
+  ],
+  "scoms": [
+    {
+      "id": "scom-65-40",
+      "name": "/REDUCER-65X40",
+      "cate_id": "cate-reducer",
+      "size": "65 × 40",
+      "revision": "01",
+      "gmset_id": "gm-reducer",
+      "ptset_id": "pt-reducer",
+      "values": {
+        "P1": 76.3,
+        "P2": 48.6,
+        "P3": 89,
+        "P4": 65,
+        "P5": 40
+      },
+      "parameter_preset_history": [
+        {
+          "preset_id": ""
+        }
+      ],
+      "parameter_preset_id": "0a5c3257894d4a15869dff15af79fa2f"
+    },
+    {
+      "id": "scom-80-50",
+      "name": "/REDUCER-80X50",
+      "cate_id": "cate-reducer",
+      "size": "80 × 50",
+      "revision": "01",
+      "gmset_id": "gm-reducer",
+      "ptset_id": "pt-reducer",
+      "values": {
+        "P1": 89.1,
+        "P2": 60.5,
+        "P3": 89,
+        "P4": 80,
+        "P5": 50
+      },
+      "parameter_preset_history": [
+        {
+          "preset_id": ""
+        }
+      ],
+      "parameter_preset_id": "0a5c3257894d4a15869dff15af79fa2f"
+    },
+    {
+      "id": "scom-100-65",
+      "name": "/REDUCER-100X65",
+      "cate_id": "cate-reducer",
+      "size": "100 × 65",
+      "revision": "01",
+      "gmset_id": "gm-reducer",
+      "ptset_id": "pt-reducer",
+      "values": {
+        "P1": 114.3,
+        "P2": 76.3,
+        "P3": 102,
+        "P4": 100,
+        "P5": 65
+      },
+      "parameter_preset_history": [
+        {
+          "preset_id": ""
+        }
+      ],
+      "parameter_preset_id": "0a5c3257894d4a15869dff15af79fa2f"
+    }
+  ],
+  "specs": [
+    {
+      "id": "spec-cs150",
+      "name": "/CS-150-SPEC",
+      "description": "炭素鋼クラスの選択表（仮データ・E3D選択構文は未検証）",
+      "revision": "01",
+      "entries": [
+        {
+          "id": "entry-65-40",
+          "type": "REDU",
+          "bore1": "65",
+          "bore2": "40",
+          "scom_id": "scom-65-40",
+          "description": "同心レデューサー"
+        },
+        {
+          "id": "entry-80-50",
+          "type": "REDU",
+          "bore1": "80",
+          "bore2": "50",
+          "scom_id": "scom-80-50",
+          "description": "同心レデューサー"
+        },
+        {
+          "id": "entry-100-65",
+          "type": "REDU",
+          "bore1": "100",
+          "bore2": "65",
+          "scom_id": "scom-100-65",
+          "description": "同心レデューサー"
+        }
+      ]
+    }
+  ],
+  "books": [],
+  "texts": [
+    {
+      "id": "ff023ed72b2c4955b1e6663eefd6aa75",
+      "type": "TEXT",
+      "name": "/REDUCER-CATE/PARAM1",
+      "parent_id": "cate-reducer",
+      "revision": "01",
+      "attrs": {
+        "STEXT": "Large Outside Diameter"
+      },
+      "parameter_text_source": {
+        "preset_id": "0a5c3257894d4a15869dff15af79fa2f",
+        "parameters": "P1"
+      }
+    },
+    {
+      "id": "953b12632db54b4681d492869eb3fc50",
+      "type": "TEXT",
+      "name": "/REDUCER-CATE/PARAM2",
+      "parent_id": "cate-reducer",
+      "revision": "01",
+      "attrs": {
+        "STEXT": "Small Outside Diameter"
+      },
+      "parameter_text_source": {
+        "preset_id": "0a5c3257894d4a15869dff15af79fa2f",
+        "parameters": "P2"
+      }
+    },
+    {
+      "id": "88ed257d1f4941db9ae60bed66a2153a",
+      "type": "TEXT",
+      "name": "/REDUCER-CATE/PARAM3",
+      "parent_id": "cate-reducer",
+      "revision": "01",
+      "attrs": {
+        "STEXT": "Face-to-Face Length"
+      },
+      "parameter_text_source": {
+        "preset_id": "0a5c3257894d4a15869dff15af79fa2f",
+        "parameters": "P3"
+      }
+    },
+    {
+      "id": "c74bb5f4f226402da97b1ab1213cf7b2",
+      "type": "TEXT",
+      "name": "/REDUCER-CATE/PARAM4",
+      "parent_id": "cate-reducer",
+      "revision": "01",
+      "attrs": {
+        "STEXT": "Large-end Nominal Bore"
+      },
+      "parameter_text_source": {
+        "preset_id": "0a5c3257894d4a15869dff15af79fa2f",
+        "parameters": "P4"
+      }
+    },
+    {
+      "id": "8f308fdca8504f30853b1307210343ae",
+      "type": "TEXT",
+      "name": "/REDUCER-CATE/PARAM5",
+      "parent_id": "cate-reducer",
+      "revision": "01",
+      "attrs": {
+        "STEXT": "Small-end Nominal Bore"
+      },
+      "parameter_text_source": {
+        "preset_id": "0a5c3257894d4a15869dff15af79fa2f",
+        "parameters": "P5"
+      }
+    }
+  ],
+  "tables": [],
+  "parameter_presets": [
+    {
+      "id": "0a5c3257894d4a15869dff15af79fa2f",
+      "name": "配管部品の PARAM 規則",
+      "period": "2026年登録",
+      "component": "同心レデューサー",
+      "description": "自作の表示例。番号の意味はこのプリセットで定義します。",
+      "parameters": [
+        {
+          "id": "P1",
+          "role": "大径側外径",
+          "unit": "mm",
+          "meaning": "大径側の外径",
+          "english_name": "Large-end Outside Diameter",
+          "description": ""
+        },
+        {
+          "id": "P2",
+          "role": "小径側外径",
+          "unit": "mm",
+          "meaning": "小径側の外径",
+          "english_name": "Small-end Outside Diameter",
+          "description": ""
+        },
+        {
+          "id": "P3",
+          "role": "全長",
+          "unit": "mm",
+          "meaning": "面間寸法",
+          "english_name": "Face-to-Face Length",
+          "description": ""
+        },
+        {
+          "id": "P4",
+          "role": "大径側呼び径",
+          "unit": "mm",
+          "meaning": "大径側の呼び径",
+          "english_name": "Large-end Nominal Bore",
+          "description": ""
+        },
+        {
+          "id": "P5",
+          "role": "小径側呼び径",
+          "unit": "mm",
+          "meaning": "小径側の呼び径",
+          "english_name": "Small-end Nominal Bore",
+          "description": ""
+        }
+      ],
+      "reference_roles": {}
+    }
+  ],
+  "active_parameter_preset_id": "0a5c3257894d4a15869dff15af79fa2f"
+}

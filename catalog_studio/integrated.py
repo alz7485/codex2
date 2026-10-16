@@ -125,6 +125,7 @@ class IntegratedStudio(tk.Tk):
         self.registered_browser.refresh()
 
     def switch(self,page):
+        if self.page=='rules' and hasattr(self,'preset_editor') and self.preset_editor.winfo_exists() and not self.preset_editor.can_leave():return
         if self.commit_definition_name() is False:return
         if page=='catalog':
             s=project.get(self.data,'scoms',self.scom_id)
@@ -541,7 +542,7 @@ class IntegratedStudio(tk.Tk):
         self.formula_entry=ttk.Entry(formula,textvariable=self.formula,font=(self.ui_font,14));self.formula_entry.pack(fill='x')
         self.direction=ttk.Combobox(formula,values=model.DIRECTIONS,state='readonly');self.direction.bind('<<ComboboxSelected>>',self.direction_changed)
         self.parambar=ttk.Frame(formula);self.parambar.pack(fill='x',pady=8)
-        self.param_choice=ttk.Combobox(self.parambar,values=[p['id']+'：'+p['role'] for p in presets.rules(self.data,self.definition())],state='readonly');self.param_choice.pack(side='left',fill='x',expand=True)
+        self.param_choice=ttk.Combobox(self.parambar,values=[p['id']+'：'+presets.meaning(p) for p in presets.rules(self.data,self.definition())],state='readonly');self.param_choice.pack(side='left',fill='x',expand=True)
         if presets.rules(self.data,self.definition()):self.param_choice.current(0)
         ttk.Button(self.parambar,text='挿入',command=self.insert_parameter).pack(side='left',padx=3)
         ttk.Button(self.parambar,text='÷ 2',command=self.half_formula).pack(side='left')
@@ -561,6 +562,7 @@ class IntegratedStudio(tk.Tk):
     def definition(self):return project.get(self.data,'definitions',self.definition_id)
     def element(self):return next((e for e in (self.definition() or {}).get('elements',[]) if e['id']==self.element_id),None)
     def commit_definition_name(self):
+        if self.page=='rules' and hasattr(self,'preset_editor') and self.preset_editor.winfo_exists():return self.preset_editor.finish_cell()
         if self.page in ('ptset','gmset','structural') and hasattr(self,'geometry_editor') and self.geometry_editor.winfo_exists():
             if not self.geometry_editor.commit_inline():return False
             self.geometry_editor.commit_name()
@@ -891,11 +893,13 @@ class IntegratedStudio(tk.Tk):
             self.status.configure(text='構成確認用コメントファイルを保存しました：'+path)
     def guard(self):
         if self.commit_definition_name() is False:return False
-        if not self.dirty:return True
+        pending=self.page=='rules' and hasattr(self,'preset_editor') and self.preset_editor.has_changes()
+        if not self.dirty and not pending:return True
         answer=messagebox.askyesnocancel('未保存の変更','変更を保存しますか？',parent=self)
         return False if answer is None else self.save_project() if answer else True
     def save_project(self):
         if self.commit_definition_name() is False:return False
+        if self.page=='rules' and self.preset_editor.has_changes() and not self.preset_editor.save():return False
         path=self.path or filedialog.asksaveasfilename(parent=self,defaultextension='.json',initialfile='catalog-integrated-project.json',filetypes=[('プロジェクト JSON','*.json')])
         if not path:return False
         try:project.save(self.data,path)
