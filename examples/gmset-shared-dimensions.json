@@ -1,0 +1,306 @@
+{
+  "format": "catalog-studio-integrated",
+  "version": 2,
+  "name": "点と形状の PARAM 共有仮寸法 · 自作サンプル",
+  "parameters": [
+    {
+      "id": "P1",
+      "role": "大径側外径",
+      "unit": "mm"
+    },
+    {
+      "id": "P2",
+      "role": "小径側外径",
+      "unit": "mm"
+    },
+    {
+      "id": "P3",
+      "role": "全長",
+      "unit": "mm"
+    },
+    {
+      "id": "P4",
+      "role": "大径側呼び径",
+      "unit": "mm"
+    },
+    {
+      "id": "P5",
+      "role": "小径側呼び径",
+      "unit": "mm"
+    }
+  ],
+  "cates": [
+    {
+      "id": "cate-reducer",
+      "name": "/REDUCER-CATE",
+      "description": "同心レデューサー（モックアップ参考値）",
+      "revision": "01"
+    }
+  ],
+  "definitions": [
+    {
+      "id": "f2da5d4ad44b442ab647e268e556bb22",
+      "name": "/DEMO-SHARED-PTSET",
+      "kind": "PTSET",
+      "revision": "01",
+      "elements": [
+        {
+          "id": "397a08d114264d89aedf777839ce3d1e",
+          "type": "PTAXI",
+          "name": "共有仮寸法 · PARAM 3",
+          "attrs": {
+            "NUMB": "1",
+            "PCON": "unset",
+            "PBOR": "PARAM 4",
+            "PAXI": "X45Y",
+            "PDIS": "PARAM 3",
+            "PSKEY": "unset",
+            "DESC": "unset",
+            "PURP": "unset"
+          },
+          "schematic_position": [
+            0.9000000000000001,
+            0.9,
+            0.0
+          ]
+        },
+        {
+          "id": "ea1844447c7c403eab16fa6bc1ad4507",
+          "type": "PTAXI",
+          "name": "同じ仮寸法を共有",
+          "attrs": {
+            "NUMB": "2",
+            "PCON": "unset",
+            "PBOR": "PARAM 4",
+            "PAXI": "X",
+            "PDIS": "PARAM 3",
+            "PSKEY": "unset",
+            "DESC": "unset",
+            "PURP": "unset"
+          },
+          "schematic_position": [
+            1.2727922061357857,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "id": "3ccd9171f92640c793bcf120774472a6",
+          "type": "PTAXI",
+          "name": "半分の距離",
+          "attrs": {
+            "NUMB": "3",
+            "PCON": "unset",
+            "PBOR": "PARAM 4",
+            "PAXI": "X45Y",
+            "PDIS": "PARAM 3 / 2",
+            "PSKEY": "unset",
+            "DESC": "unset",
+            "PURP": "unset"
+          },
+          "schematic_position": [
+            0.45000000000000007,
+            0.45,
+            0.0
+          ]
+        },
+        {
+          "id": "44d8aa6d85d9429eb9dc17232325cd46",
+          "type": "PTCAR",
+          "name": "座標式で位置を指定",
+          "attrs": {
+            "NUMB": "4",
+            "PCON": "unset",
+            "PBOR": "PARAM 4",
+            "PX": "PARAM 3",
+            "PY": "-PARAM 3 / 2",
+            "PZ": "0",
+            "PTCDIR": "Y",
+            "PSKEY": "unset",
+            "DESC": "unset",
+            "PURP": "unset"
+          },
+          "schematic_position": [
+            1.2727922061357857,
+            -0.6363961030678928,
+            0.0
+          ]
+        }
+      ],
+      "schematic_dimensions": {
+        "scale": 1.0,
+        "values": {
+          "PARAM": {
+            "P3": 1.2727922061357857,
+            "P1": 0.65
+          }
+        },
+        "expressions": [
+          {
+            "expression": "PARAM[3]",
+            "value": 1.2727922061357857
+          },
+          {
+            "expression": "PARAM[1]",
+            "value": 0.65
+          }
+        ]
+      }
+    },
+    {
+      "id": "ebcf90cc22884d448bb445e65e13e98b",
+      "name": "/DEMO-SHARED-GMSET",
+      "kind": "GMSET",
+      "revision": "01",
+      "elements": [
+        {
+          "id": "6c8a60e1d55043d4850cc63ab7d40583",
+          "type": "SCYL",
+          "name": "全長を共有する円筒",
+          "attrs": {
+            "PAXI": "X",
+            "PHEI": "PARAM 3",
+            "PDIA": "PARAM 1",
+            "PDIS": "0",
+            "TVISI": "TRUE",
+            "BVISI": "TRUE",
+            "LEVEL": "",
+            "CLFLA": "",
+            "TUFLA": "",
+            "OBST": "",
+            "DESC": "",
+            "GTYP": "",
+            "PURP": ""
+          }
+        },
+        {
+          "id": "dad2a863d29a448680ef5dfeb561f139",
+          "type": "SCYL",
+          "name": "半分の長さの円筒",
+          "attrs": {
+            "PAXI": "P4",
+            "PHEI": "PARAM 3 / 2",
+            "PDIA": "PARAM 1 / 2",
+            "PDIS": "0",
+            "TVISI": "TRUE",
+            "BVISI": "TRUE",
+            "LEVEL": "",
+            "CLFLA": "",
+            "TUFLA": "",
+            "OBST": "",
+            "DESC": "",
+            "GTYP": "",
+            "PURP": ""
+          }
+        }
+      ],
+      "paired_ptset_id": "f2da5d4ad44b442ab647e268e556bb22",
+      "schematic_dimensions": {
+        "scale": 1.0,
+        "values": {
+          "PARAM": {
+            "P3": 1.2727922061357857,
+            "P1": 0.65
+          }
+        },
+        "expressions": [
+          {
+            "expression": "PARAM[3]",
+            "value": 1.2727922061357857
+          },
+          {
+            "expression": "PARAM[1]",
+            "value": 0.65
+          }
+        ]
+      }
+    }
+  ],
+  "scoms": [
+    {
+      "id": "scom-65-40",
+      "name": "/REDUCER-65X40",
+      "cate_id": "cate-reducer",
+      "size": "65 × 40",
+      "revision": "01",
+      "gmset_id": "ebcf90cc22884d448bb445e65e13e98b",
+      "ptset_id": "f2da5d4ad44b442ab647e268e556bb22",
+      "values": {
+        "P1": 76.3,
+        "P2": 48.6,
+        "P3": 89,
+        "P4": 65,
+        "P5": 40
+      }
+    },
+    {
+      "id": "scom-80-50",
+      "name": "/REDUCER-80X50",
+      "cate_id": "cate-reducer",
+      "size": "80 × 50",
+      "revision": "01",
+      "gmset_id": "ebcf90cc22884d448bb445e65e13e98b",
+      "ptset_id": "f2da5d4ad44b442ab647e268e556bb22",
+      "values": {
+        "P1": 89.1,
+        "P2": 60.5,
+        "P3": 89,
+        "P4": 80,
+        "P5": 50
+      }
+    },
+    {
+      "id": "scom-100-65",
+      "name": "/REDUCER-100X65",
+      "cate_id": "cate-reducer",
+      "size": "100 × 65",
+      "revision": "01",
+      "gmset_id": "ebcf90cc22884d448bb445e65e13e98b",
+      "ptset_id": "f2da5d4ad44b442ab647e268e556bb22",
+      "values": {
+        "P1": 114.3,
+        "P2": 76.3,
+        "P3": 102,
+        "P4": 100,
+        "P5": 65
+      }
+    }
+  ],
+  "specs": [
+    {
+      "id": "spec-cs150",
+      "name": "/CS-150-SPEC",
+      "description": "炭素鋼クラスの選択表（仮データ・E3D選択構文は未検証）",
+      "revision": "01",
+      "entries": [
+        {
+          "id": "entry-65-40",
+          "type": "REDU",
+          "bore1": "65",
+          "bore2": "40",
+          "scom_id": "scom-65-40",
+          "description": "同心レデューサー"
+        },
+        {
+          "id": "entry-80-50",
+          "type": "REDU",
+          "bore1": "80",
+          "bore2": "50",
+          "scom_id": "scom-80-50",
+          "description": "同心レデューサー"
+        },
+        {
+          "id": "entry-100-65",
+          "type": "REDU",
+          "bore1": "100",
+          "bore2": "65",
+          "scom_id": "scom-100-65",
+          "description": "同心レデューサー"
+        }
+      ]
+    }
+  ],
+  "books": [],
+  "texts": [],
+  "tables": []
+}

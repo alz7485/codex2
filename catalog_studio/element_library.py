@@ -63,6 +63,9 @@ def reorder(data,definition,ident,target):
     if definition['kind']=='PTSET':
         from .point_preview import remember
         remember(data,definition)
+    elif definition['kind']=='GMSET':
+        from .geometry_preview import remember
+        remember(data,definition)
     siblings[:]=ordered
     for element,attrs in updates:element['attrs'].update(attrs)
     return True
@@ -93,6 +96,9 @@ def register(data,definition,name,description=''):
     if definition['kind']=='PTSET':
         from .point_preview import PointPreview, DIMENSIONS_KEY
         record[DIMENSIONS_KEY]=PointPreview(data,definition).snapshot()
+    else:
+        from .geometry_preview import GeometryPreview, DIMENSIONS_KEY
+        record[DIMENSIONS_KEY]=GeometryPreview(data,definition).snapshot()
     data.setdefault('element_presets',[]).append(record);return record
 
 
@@ -105,6 +111,9 @@ def update(data,ident,working,name,description=''):
     if working['kind']=='PTSET':
         from .point_preview import PointPreview, DIMENSIONS_KEY
         metadata[DIMENSIONS_KEY]=PointPreview(data,working).snapshot()
+    else:
+        from .geometry_preview import GeometryPreview, DIMENSIONS_KEY
+        metadata[DIMENSIONS_KEY]=GeometryPreview(data,working).snapshot()
     record.update(name=name,description=description,parameter_preset_id=presets.selected_id(data,working),elements=fresh_elements(working['elements']),**metadata)
     return record
 
@@ -135,13 +144,24 @@ def recall(data,definition,ident,replace=False):
         from .point_preview import PointPreview, DIMENSIONS_KEY, merged_dimensions
         dimensions=PointPreview(data,record).snapshot()
         if existing:dimensions=merged_dimensions(PointPreview(data,definition).snapshot(),dimensions)
+    else:
+        from .geometry_preview import GeometryPreview, DIMENSIONS_KEY, merged_dimensions, pointset_for
+        dimensions=GeometryPreview(data,record).snapshot()
+        target=dict(definition,elements=existing)
+        if replace or not definition['elements']:
+            target['parameter_preset_id']=profile
+            if presets.selected_id(data,definition)!=profile:target.pop(DIMENSIONS_KEY,None)
+        if existing or pointset_for(data,target):dimensions=merged_dimensions(GeometryPreview(data,target).snapshot(),dimensions)
     if replace or not definition['elements']:
         definition['parameter_preset_id']=profile
         definition['element_preset_id']=ident
     else:definition.pop('element_preset_id',None)
     if replace:definition['elements'][:]=result
     else:definition['elements'].extend(result)
-    if dimensions is not None:definition[DIMENSIONS_KEY]=dimensions
+    if definition['kind']=='GMSET':
+        from .geometry_preview import store
+        store(data,definition,dimensions)
+    else:definition[DIMENSIONS_KEY]=dimensions
     return result
 
 

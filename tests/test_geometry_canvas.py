@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 from catalog_studio import geometry_scene as geo, element_schema as schema, project
 from catalog_studio.integrated import IntegratedStudio
+from catalog_studio.point_geometry import DIMENSIONS_KEY
 from test_geometry_scene import fixture
 
 
@@ -39,17 +40,17 @@ class GeometryCanvasTests(unittest.TestCase):
         self.assertIn('X 100',self.view.note['text']);self.assertEqual(self.data,before)
         self.assertEqual(self.errors,[])
 
-    def test_drag_changes_only_draft_scale_on_release_and_is_saved_with_group(self):
+    def test_drag_changes_shared_draft_values_only_on_release_and_saves_them(self):
         attrs=copy.deepcopy(self.node['attrs']);values=copy.deepcopy(self.scom['values']);self.app.dirty=False
         self.drag(release=False)
         self.assertIsNotNone(self.view.drag);self.assertNotIn(geo.SCALE_KEY,self.node)
         self.assertFalse(self.app.dirty)
         self.view.release();self.app.update()
-        self.assertNotEqual(self.node[geo.SCALE_KEY],[1,1,1]);self.assertTrue(self.app.dirty)
+        self.assertIn(DIMENSIONS_KEY,self.gm);self.assertIn(DIMENSIONS_KEY,self.pt);self.assertNotIn(geo.SCALE_KEY,self.node);self.assertTrue(self.app.dirty)
         self.assertEqual(self.node['attrs'],attrs);self.assertEqual(self.scom['values'],values)
         with tempfile.TemporaryDirectory() as folder:
             path=Path(folder)/'project.json';project.save(self.data,path)
-            restored=project.load(path);self.assertEqual(restored['definitions'][1]['elements'][0][geo.SCALE_KEY],self.node[geo.SCALE_KEY])
+            restored=project.load(path);self.assertEqual(restored['definitions'][1][DIMENSIONS_KEY],self.gm[DIMENSIONS_KEY])
         self.assertEqual(self.errors,[])
 
     def test_escape_and_mode_change_discard_uncommitted_resize(self):
@@ -154,4 +155,35 @@ class GeometryCanvasTests(unittest.TestCase):
         self.assertLessEqual(self.view.transparency_label.winfo_rootx()+self.view.transparency_label.winfo_width(),self.view.display_viewport.winfo_rootx()+self.view.display_viewport.winfo_width())
         self.assertGreater(self.canvas.winfo_height(),200)
         self.view.display_buttons['ワイヤー'].invoke();self.app.update();self.drag()
-        self.assertIn(geo.SCALE_KEY,self.node);self.assertEqual(self.errors,[])
+        self.assertIn(DIMENSIONS_KEY,self.gm);self.assertEqual(self.errors,[])
+
+    def test_resizing_either_shape_updates_shared_shapes_and_point_overlay(self):
+        other=schema.add_element(self.gm,'SCYL');other['attrs'].update(PAXI='-X',PDIS='0',PDIA='PARAM 1 / 2',PHEI='PARAM 3 / 2')
+        self.e.refresh();self.app.update();before=copy.deepcopy(self.scom)
+        def extent(ident):
+            mesh=next(m for m in self.view.scene.meshes if m.ident==ident)
+            return max(p[0] for p in mesh.vertices)-min(p[0] for p in mesh.vertices)
+        for selected in (other,self.node):
+            self.e.elements.selection_set(selected['id']);self.e.select_element();self.app.update()
+            previous=extent(self.node['id']);self.drag()
+            self.assertGreater(extent(self.node['id']),previous)
+            self.assertAlmostEqual(extent(other['id'])*2,extent(self.node['id']))
+            self.assertAlmostEqual(self.view.scene.points[2][0][0]*2,extent(self.node['id']))
+        self.assertEqual(self.scom,before);self.assertEqual(self.errors,[])
+
+    def test_later_attribute_assignment_uses_existing_shared_value(self):
+        other=schema.add_element(self.gm,'SCYL');other['attrs'].update(PAXI='Y',PDIS='0',PDIA='PARAM 1',PHEI='')
+        self.e.refresh();self.e.elements.selection_set(other['id']);self.e.select_element();self.app.update()
+        before=self.view.scene.points[2][0][0]*2
+        table=self.e.tables['main'];table.begin_edit('PHEI');table.editing['dialog'].variable.set('PARAM 3');table.editing['dialog'].confirm_button.invoke();self.app.update()
+        mesh=next(m for m in self.view.scene.meshes if m.ident==other['id'])
+        self.assertAlmostEqual(max(p[1] for p in mesh.vertices)-min(p[1] for p in mesh.vertices),before);self.assertEqual(self.errors,[])
+
+    def test_stale_point_or_shared_value_edit_discards_a_pending_resize(self):
+        self.drag(release=False);self.pt['elements'][0]['attrs']['PDIS']='PARAM 3 / 4';before=copy.deepcopy(self.data)
+        self.view.release();self.app.update()
+        self.assertEqual(self.data,before);self.assertIn('変更されています',self.view.issue_label['text']);self.assertEqual(self.errors,[])
+
+    def test_unparameterized_shapes_keep_independent_draft_resize(self):
+        self.node['attrs'].update(PHEI='1.2',PDIA='0.6');self.e.refresh();self.app.update();self.drag()
+        self.assertIn(geo.SCALE_KEY,self.node);self.assertEqual(self.node['attrs']['PHEI'],'1.2');self.assertEqual(self.errors,[])

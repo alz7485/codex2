@@ -34,6 +34,14 @@ class ConstructionEditor(ttk.Frame):
     @property
     def data(self): return self.host.data
     def definition(self): return project.get(self.data, 'definitions', self.definition_id)
+
+    def remember_preview(self,definition=None):
+        if self.kind=='PTSET':
+            from .point_preview import remember
+        elif self.kind=='GMSET':
+            from .geometry_preview import remember
+        else:return
+        remember(self.data,definition or self.definition())
     def element(self): return next((e for e in schema.walk((self.definition() or {}).get('elements', [])) if e['id'] == self.element_id), None)
 
     def build(self):
@@ -309,11 +317,9 @@ class ConstructionEditor(ttk.Frame):
             if schema.value(element,key)!=original and value!=schema.value(element,key):raise ValueError('属性が変更されています。セルを選び直してください。')
             if key=='OBST':value=schema.OBST_CHOICES.get(value,value)
             if value==schema.value(element,key):return
-            if self.kind=='PTSET':
-                from .point_preview import remember
-                remember(self.data,definition)
+            self.remember_preview(definition)
             schema.set_value(element,key,value)
-            if self.kind=='PTSET':remember(self.data,definition)
+            self.remember_preview(definition)
             self.host.mark()
             if self.element() is element:
                 self.tables['main' if getattr(self,'unified_attributes',False) else section].item(key,values=(key,schema.meaning(element['type'],key),self.display_field_value(element,key)))
@@ -558,11 +564,9 @@ class ConstructionEditor(ttk.Frame):
         if self.busy or not self.element() or not self.field or self.attribute_section() == 'extra' or not schema.known(self.element()['type']): return
         value = self.expression.get()
         if self.field == 'OBST': value = schema.OBST_CHOICES.get(value, value)
-        if self.kind=='PTSET':
-            from .point_preview import remember
-            remember(self.data,self.definition())
+        self.remember_preview()
         schema.set_value(self.element(), self.field, value)
-        if self.kind=='PTSET':remember(self.data,self.definition())
+        self.remember_preview()
         self.tables[self.section].item(self.field, values=(self.field, schema.meaning(self.element()['type'],self.field), self.display_field_value(self.element(),self.field)))
         if self.kind=='PTSET' and self.field=='NUMB':self.elements.item(self.element_id,values=(value,self.element()['name'],self.element()['type']) if getattr(self,'simple_layout',False) else (value,self.element()['type']))
         self.host.mark(); self.update_validation();self.redraw_points();self.draw()
@@ -670,9 +674,7 @@ class ConstructionEditor(ttk.Frame):
         if not e:return
         siblings=self.siblings(e)
         if len(siblings)>=200 or e['type']=='SLOO': self.validation_note.configure(text='輪郭は 1 つ。頂点を追加・複製してください。');return
-        if self.kind=='PTSET':
-            from .point_preview import remember
-            remember(self.data,d)
+        self.remember_preview(d)
         copied = copy.deepcopy(e)
         for node in schema.walk([copied]): node['id']=uuid.uuid4().hex
         name = e['name'] + ' コピー'; n = 1
@@ -688,9 +690,7 @@ class ConstructionEditor(ttk.Frame):
         if not self.commit_inline():return
         e = self.element()
         if e and messagebox.askyesno('要素を削除', '要素を削除しますか？ 使用先にも影響します。', parent=self.host):
-            if self.kind=='PTSET':
-                from .point_preview import remember
-                remember(self.data,self.definition())
+            self.remember_preview()
             self.siblings(e).remove(e); self.element_id = None; self.host.mark(); self.refresh()
 
     def select_scom(self, _=None):

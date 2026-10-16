@@ -47,6 +47,7 @@ class Scene:
     points:dict=field(default_factory=dict)
     issues:list=field(default_factory=list)
     actual:bool=False
+    preview:object=field(default=None,repr=False)
 
     def vertices(self):return [p for mesh in self.meshes for p in mesh.vertices]+[p[0] for p in self.points.values()]
 
@@ -275,11 +276,11 @@ def build_mesh(node,resolver):
             if r.actual and any(t.startswith('T') for t in tokens):raise ValueError('LINE の接線点 T の曲線表示は未対応です。')
             mesh.vertices=[r.point(int(t[1:]))[0] for t in tokens]
         elif r.actual:mesh.vertices=[r.position_expression(node['attrs'].get(k,'')) for k in ('PTSPOS','PTEPOS')]
-        else:mesh.vertices=[(-.7,0,0),(.7,0,0)]
+        else:mesh.vertices=[r.position_expression(node['attrs'][k]) if str(node['attrs'].get(k,'')).strip().lower() not in ('','unset') else default for k,default in (('PTSPOS',(-.7,0,0)),('PTEPOS',(.7,0,0)))]
         mesh.lines=[tuple(range(len(mesh.vertices)))]
     elif kind in ('SCTO','SRTO'):
         start,tangent_a=axis('PAAX');end,tangent_b=axis('PBAX',AXES[1])
-        if not r.actual:start,tangent_a,end,tangent_b=(1.,0.,0.),(0.,-1.,0.),(0.,1.,0.),(-1.,0.,0.)
+        if not r.actual and all(str(node['attrs'].get(key,'')).strip().lower() in ('','unset') for key in ('PAAX','PBAX')):start,tangent_a,end,tangent_b=(1.,0.,0.),(0.,-1.,0.),(0.,1.,0.),(-1.,0.,0.)
         normal=unit(cross(tangent_a,tangent_b));ra=cross(normal,tangent_a);rb=cross(normal,tangent_b)
         denominator=dot(cross(ra,rb),normal)
         if abs(denominator)<1e-10:raise ValueError('トーラスの端面軸から円弧を決定できません。')
@@ -313,7 +314,7 @@ def build_mesh(node,resolver):
         radii=[value('大径' if kind=='cone' else '直径',.7,True)/2,value('小径' if kind=='cone' else '直径',.4,True)/2]
         rings_mesh(mesh,[circle(at(origin,direction,center-height/2),direction,radii[0]),circle(at(origin,direction,center+height/2),direction,radii[1])])
     else:raise ValueError('この種類の3D形状は未対応です。')
-    if not r.actual:
+    if not r.actual and not (getattr(r,'has_dimensions',lambda _:False)(node)):
         scale=node.get(SCALE_KEY,(1,1,1))
         if valid_scale(scale) and mesh.vertices:
             center=tuple((min(p[i] for p in mesh.vertices)+max(p[i] for p in mesh.vertices))/2 for i in range(3))
@@ -321,7 +322,7 @@ def build_mesh(node,resolver):
     return mesh
 
 
-def build_scene(data,definition,scom=None,actual=False):
+def build_scene(data,definition,scom=None,actual=False,preview_state=None):
     scene=Scene(actual=actual)
     if not definition:return scene
     pt=pairing.resolve(data,definition)['pointset']
@@ -334,7 +335,12 @@ def build_scene(data,definition,scom=None,actual=False):
             presets.require_compatible(data,scom,definition)
             if pt:presets.require_compatible(data,scom,pt)
         except ValueError as exc:scene.issues.append(str(exc));return scene
-    resolver=Resolver(data,definition,pt,scom,actual,scene)
+    if actual:resolver=Resolver(data,definition,pt,scom,True,scene)
+    else:
+        from .geometry_preview import GeometryPreview
+        resolver=GeometryPreview(data,definition,preview_state);scene.preview=resolver
+        scene.issues.extend(resolver.scene.issues)
+        if pt and not resolver.pointset:scene.issues.append('PTSET と GMSET の PARAM プリセットが異なるため、仮値を共有できません。')
     scene.points[0]=(ZERO,AXES[2],'P0')
     for number,(node,_) in resolver.nodes.items():
         try:scene.points[number]=(*resolver.point(number),node['name'])

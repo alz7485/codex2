@@ -6,6 +6,7 @@ from tkinter import ttk
 from PIL import ImageTk
 from . import geometry_scene as geometry, project, theme
 from .surface_render import alpha_surface, inside_polygon, feature_edges
+from . import geometry_preview
 
 
 class GeometryCanvas(ttk.Frame):
@@ -17,7 +18,7 @@ class GeometryCanvas(ttk.Frame):
         self.render_mode=tk.StringVar(value=settings.get('mode','ソリッド'))
         self.transparency=tk.DoubleVar(value=settings.get('transparency',0))
         self.render_job=None;self.surface_image=None;self.surface_bitmap=None;self.pick_faces=[]
-        self.drag=None;self.orbit=None;self.handles={};self.screen_points={};self.refreshing=False
+        self.drag=None;self.orbit=None;self.handles={};self.screen_points={};self.refreshing=False;self.resize_issue=''
         self.columnconfigure(0,weight=1);self.rowconfigure(3,weight=1)
         controls=ttk.Frame(self);controls.grid(row=0,column=0,sticky='ew',pady=(0,6))
         self.mode_buttons={}
@@ -126,11 +127,13 @@ class GeometryCanvas(ttk.Frame):
         self.surface_image=None;self.surface_bitmap=None;self.pick_faces=[]
         scom=project.get(e.data,'scoms',e.preview_scom_id)
         definition=e.definition()
+        if self.drag and self.drag['context']!=geometry_preview.context(e.data,definition):
+            self.drag=None;self.resize_issue='属性・PTSET・共有仮値が変更されています。ハンドルを選び直してください。'
         if self.drag and self.drag.get('candidate'):
             definition=copy.deepcopy(definition)
             node=next((n for n in definition['elements'] if n['id']==self.drag['node']['id']),None)
             if node:node[geometry.SCALE_KEY]=self.drag['candidate']
-        self.scene=geometry.build_scene(e.data,definition,scom,self.actual)
+        self.scene=geometry.build_scene(e.data,definition,scom,self.actual,preview_state=self.drag.get('candidate_state') if self.drag else None)
         meshes=[m for m in self.scene.meshes if not m.negative or self.show_negative.get()]
         width,height=max(c.winfo_width(),100),max(c.winfo_height(),100)
         vertices=[p for m in meshes for p in m.vertices]+([p[0] for p in self.scene.points.values()] if self.show_points.get() else [])
@@ -200,8 +203,8 @@ class GeometryCanvas(ttk.Frame):
         if self.actual and meshes:
             points=[p for m in meshes for p in m.vertices]
             dimensions='\n外形：'+' / '.join('XYZ'[i]+' '+format(max(p[i] for p in points)-min(p[i] for p in points),'.5g') for i in range(3))+'（SCOM の単位）'
-        self.note.configure(text=('SCOM 実寸：寸法比を保持して全体表示 / 右ドラッグ：回転'+dimensions if self.actual else '仮サイズ：色付きハンドルをドラッグして大きさを調整\n距離・単位なし / 属性・PARAM 式は変更しません / 右ドラッグ：回転')+'\n負形状は橙色の輪郭で重ねて表示します。')
-        messages=self.scene.issues
+        self.note.configure(text=('SCOM 実寸：寸法比を保持して全体表示 / 右ドラッグ：回転'+dimensions if self.actual else '共有仮寸法：どの形状のハンドルからも同じ PARAM を更新\n対応する PTSET の点・他の形状も追従 / 距離・単位なし\n属性・PARAM 式は保持 / 右ドラッグ：回転')+'\n負形状は橙色の輪郭で重ねて表示します。')
+        messages=self.scene.issues+([self.resize_issue] if self.resize_issue else [])
         self.issue_label.configure(text=('表示できない項目：'+str(len(messages))+' 件\n'+'\n'.join(messages[:2])+ ('\nほか '+str(len(messages)-2)+' 件' if len(messages)>2 else '')) if messages else '')
 
     def parent_selected(self,ident):
@@ -225,11 +228,13 @@ class GeometryCanvas(ttk.Frame):
     def press(self,event):
         self.canvas.focus_set()
         if not self.editor.commit_inline():return
+        self.resize_issue=''
         if not self.actual:
             hit=next((i for i,h in self.handles.items() if math.hypot(event.x-h['screen'][0],event.y-h['screen'][1])<=10),None)
             if hit is not None:
                 node=self.editor.element();handle=self.handles[hit]
-                self.drag={'data':self.editor.data,'definition':self.editor.definition_id,'node':node,'axis':hit,'origin':(event.x,event.y),'screen':handle['screen'],'center':handle['start'],'old':copy.deepcopy(node.get(geometry.SCALE_KEY)),'scale':list(node.get(geometry.SCALE_KEY,(1,1,1)))}
+                self.drag={'data':self.editor.data,'definition':self.editor.definition_id,'node':node,'axis':hit,'origin':(event.x,event.y),'screen':handle['screen'],'center':handle['start'],'extent':handle['extent'],'old':copy.deepcopy(node.get(geometry.SCALE_KEY)),'scale':list(node.get(geometry.SCALE_KEY,(1,1,1))),
+                           'context':geometry_preview.context(self.editor.data,self.editor.definition()),'state':self.scene.preview.snapshot()}
                 return
         hits=self.canvas.find_overlapping(event.x-3,event.y-3,event.x+3,event.y+3)
         for item in reversed(hits):
@@ -245,23 +250,40 @@ class GeometryCanvas(ttk.Frame):
         if not self.drag:return
         d=self.drag
         if self.actual or d['data'] is not self.editor.data or d['definition']!=self.editor.definition_id:self.cancel();return
+        if d['context']!=geometry_preview.context(self.editor.data,self.editor.definition()):
+            self.drag=None;self.resize_issue='属性・PTSET・共有仮値が変更されています。ハンドルを選び直してください。';self.redraw();return
         vector=(d['screen'][0]-d['center'][0],d['screen'][1]-d['center'][1]);length=math.hypot(*vector)
         if length<4:return
         delta=((event.x-d['origin'][0])*vector[0]+(event.y-d['origin'][1])*vector[1])/length
-        scale=list(d['scale']);scale[d['axis']]=max(.02,min(50,scale[d['axis']]*max(.05,1+delta/length)))
-        d['candidate']=scale;self.redraw()
+        ratio=max(.05,min(50,1+delta/length))
+        try:
+            preview=geometry_preview.GeometryPreview(self.editor.data,self.editor.definition(),d['state'])
+            state=preview.resize(d['node']['id'],d['axis'],d['extent']*ratio)
+            if state is None:
+                if preview.has_dimensions(d['node']):raise ValueError('この軸の寸法には変更できる PARAM がありません。別のハンドルを選んでください。')
+                scale=list(d['scale']);scale[d['axis']]=max(.02,min(50,scale[d['axis']]*ratio));d['candidate']=scale;d.pop('candidate_state',None)
+            else:d['candidate_state']=state;d.pop('candidate',None)
+            self.resize_issue=''
+        except (ValueError,OverflowError) as exc:
+            d.pop('candidate',None);d.pop('candidate_state',None);self.resize_issue=str(exc)
+        self.redraw()
 
     def release(self,_=None):
         if not self.drag:return
         d=self.drag;self.drag=None
         if d['data'] is self.editor.data and d['definition']==self.editor.definition_id and any(n is d['node'] for n in (self.editor.definition() or {}).get('elements',[])):
-            if d.get('candidate') is not None and d['candidate']!=d['old']:
+            if d['context']!=geometry_preview.context(self.editor.data,self.editor.definition()):
+                self.resize_issue='属性・PTSET・共有仮値が変更されています。ハンドルを選び直してください。'
+            elif d.get('candidate_state') is not None and d['candidate_state']!=d['state']:
+                geometry_preview.store(self.editor.data,self.editor.definition(),d['candidate_state'])
+                self.editor.host.mark('PARAM の共有仮値を更新しました。点と形状に反映しています。')
+            elif d.get('candidate') is not None and d['candidate']!=d['old']:
                 d['node'][geometry.SCALE_KEY]=d['candidate']
                 self.editor.host.mark('仮のサイズを変更しました。PARAM 式・SCOM の値は保持しています。')
         self.redraw()
 
     def cancel(self,redraw=True):
-        self.drag=None
+        self.drag=None;self.resize_issue=''
         if redraw and self.winfo_exists():self.redraw()
 
     def orbit_start(self,event):self.orbit=(event.x,event.y,self.camera.yaw,self.camera.pitch)

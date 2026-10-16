@@ -42,6 +42,9 @@ class GeometrySceneTests(unittest.TestCase):
         self.assertEqual(self.scene().points[2][0],(-60,0,0))
 
     def test_cycle_missing_point_and_missing_values_never_invent_actual_geometry(self):
+        invalid=copy.deepcopy(self.pt);invalid['elements'][1]['attrs']['NUMB']=invalid['elements'][0]['attrs']['NUMB']
+        draft_data=copy.deepcopy(self.data);draft_data['definitions'][0]=invalid
+        self.assertTrue(any('番号が不正・重複' in message for message in geo.build_scene(draft_data,draft_data['definitions'][1]).issues))
         self.pt['elements'][0]['attrs']['PAXI']='P2';self.pt['elements'][1]['attrs']['PAXI']='P1'
         scene=self.scene();self.assertEqual(scene.meshes,[]);self.assertTrue(any('循環' in s for s in scene.issues))
         self.pt['elements'][1]['attrs']['PAXI']='X';self.cylinder['attrs']['PAXI']='P99'
