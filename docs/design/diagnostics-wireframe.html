@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Catalog Studio — 出力前確認の設計モック</title>
+  <style>
+    :root { color-scheme: light; --ink:#26354b; --muted:#65758a; --navy:#152337; --blue:#2864dc; --pale:#eaf1ff; --line:#cbd5e2; }
+    * { box-sizing:border-box; }
+    body { margin:0; color:var(--ink); background:#eef2f7; font:15px/1.65 system-ui,"Yu Gothic",sans-serif; }
+    header { color:white; background:var(--navy); padding:18px max(24px,calc((100vw - 1200px)/2)); }
+    header strong { font-size:22px; letter-spacing:.02em; }
+    header p { margin:2px 0 14px; color:#b6c6dc; font-size:13px; }
+    nav { display:flex; gap:12px; align-items:center; color:#b6c6dc; font-size:14px; }
+    nav span { color:white; }
+    main { max-width:1248px; margin:24px auto; padding:0 24px; }
+    .notice { padding:14px 18px; background:white; border:1px solid #afc5e8; border-left:4px solid var(--blue); border-radius:8px; margin-bottom:20px; }
+    .notice strong { display:block; }
+    .muted, small { color:var(--muted); }
+    .layout { display:grid; grid-template-columns:270px minmax(0,1fr); gap:20px; align-items:start; }
+    .card { background:white; border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+    .padding { padding:20px; }
+    h1 { font-size:23px; margin:0; }
+    h2 { font-size:17px; margin:0 0 12px; }
+    h3 { font-size:15px; margin:0 0 8px; }
+    p { margin:0 0 12px; }
+    button, input, select { font:inherit; }
+    button { border:1px solid #a8bfdf; border-radius:5px; background:var(--pale); color:#244c87; padding:7px 12px; cursor:pointer; }
+    button:hover:not(:disabled) { background:#dae7ff; border-color:#7c9fce; }
+    button:active:not(:disabled) { background:#c5d8fb; }
+    button:disabled { cursor:default; color:#8b97a7; background:#f1f3f6; border-color:#dce2eb; }
+    button.primary { color:white; background:var(--blue); border-color:var(--blue); }
+    button.primary:hover:not(:disabled) { background:#1d52bd; }
+    :focus-visible { outline:3px solid #8bb0ff; outline-offset:3px; }
+    .modes { display:grid; gap:9px; margin-bottom:18px; }
+    label { cursor:pointer; }
+    input[type=checkbox], input[type=radio] { accent-color:var(--blue); margin-right:8px; }
+    .choices { border-top:1px solid var(--line); padding-top:16px; min-height:180px; }
+    .record { display:block; margin-bottom:10px; padding:10px; border:1px solid #d4deeb; border-radius:6px; }
+    .record small { display:block; padding-left:25px; font-size:12px; }
+    .hint { font-size:13px; padding:12px; background:#f6f8fc; border-radius:6px; }
+    .toolbar { display:flex; align-items:center; justify-content:space-between; gap:16px; }
+    .toolbar p { margin:4px 0 0; font-size:13px; }
+    .badges { display:flex; gap:8px; flex-wrap:wrap; margin-top:18px; }
+    .badge { display:inline-block; border:1px solid var(--line); border-radius:20px; padding:3px 10px; font-size:12px; background:#f6f8fc; }
+    .good { background:#eef8f3; border-color:#acd6bd; color:#246645; }
+    .warning { background:#fff6e7; border-color:#e5c27f; color:#825407; }
+    .bad { background:#fff0ef; border-color:#e1b0ab; color:#a3342b; }
+    .result-meta { border-top:1px solid var(--line); border-bottom:1px solid var(--line); background:#f6f8fc; padding:14px 20px; font-size:13px; }
+    .result-meta p { margin:0; }
+    .result-meta p+p { margin-top:4px; }
+    .counts { display:flex; flex-wrap:wrap; gap:18px; margin-top:12px; font-size:13px; }
+    .table-wrap { overflow:auto; }
+    table { width:100%; border-collapse:collapse; text-align:left; font-size:13px; }
+    th { background:#f6f8fc; color:var(--muted); font-size:12px; font-weight:600; padding:12px 16px; white-space:nowrap; }
+    td { padding:16px; border-top:1px solid var(--line); vertical-align:top; }
+    tbody tr { cursor:pointer; }
+    tbody tr:hover { background:#f5f8ff; }
+    tr[aria-selected=true] { background:var(--pale); outline:2px solid #aac2eb; outline-offset:-2px; }
+    td small { display:block; font-size:12px; }
+    code { font-family:ui-monospace,monospace; font-size:12px; }
+    .empty { margin:24px 20px; padding:26px; text-align:center; border:1px dashed var(--line); border-radius:7px; }
+    .empty p { margin:0; }
+    .actions { display:flex; flex-wrap:wrap; gap:12px; align-items:center; border-top:1px solid var(--line); padding:16px 20px; }
+    .actions small { flex:1; }
+    .guide { margin-top:20px; padding:16px; font-size:13px; }
+    .guide ol { margin:8px 0 0; padding-left:20px; }
+    footer { color:var(--muted); font-size:12px; margin:18px 0 30px; }
+    dialog { width:min(520px,calc(100vw - 32px)); border:1px solid #afc5e8; border-radius:10px; color:var(--ink); padding:0; box-shadow:0 12px 60px #15233733; }
+    dialog::backdrop { background:#15233766; }
+    dialog .padding { padding:24px; }
+    dialog label { display:block; font-size:14px; margin-bottom:6px; }
+    dialog input[type=number] { width:100%; padding:9px 11px; border:1px solid #afbdd0; border-radius:5px; }
+    dialog input:read-only { background:#f6f8fc; }
+    .required { color:#a3342b; }
+    .edit-note { margin:12px 0 0; min-height:42px; font-size:13px; }
+    [hidden] { display:none !important; }
+    @media(max-width:760px) { .layout { grid-template-columns:1fr; } main { padding:0 14px; } .choices { min-height:0; } .toolbar { align-items:flex-start; } }
+  </style>
+</head>
+<body>
+  <header>
+    <strong>Catalog Studio</strong>
+    <p>カタログを組み立て、部品ごとの値を確認する</p>
+    <nav aria-label="作業カテゴリの表示"><span>PTSET</span> → <span>GMSET</span> → <span>SCOM</span> → <span>スペック</span></nav>
+  </header>
+  <main>
+    <div class="notice">
+      <strong>段階Aの設計モックです。Pythonアプリには未実装です。</strong>
+      <span class="muted">架空データで「出力前確認 → 問題の属性を編集 → 再確認」を試せます。実データの保存・E3Dへの出力は行いません。</span>
+    </div>
+    <div class="layout">
+      <aside>
+        <section class="card padding" aria-labelledby="target-heading">
+          <h2 id="target-heading">確認する対象</h2>
+          <div class="modes" id="modes">
+            <label><input type="radio" name="mode" value="project">プロジェクト全体</label>
+            <label><input type="radio" name="mode" value="scom" checked>SCOMを選択</label>
+            <label><input type="radio" name="mode" value="spec">SPECを選択</label>
+          </div>
+          <div class="choices" id="scom-choices">
+            <label class="record"><input type="checkbox" data-part="a" checked>SCOM A<small>/DEMO-PART-A · PARAM 3 = 80 mm</small></label>
+            <label class="record"><input type="checkbox" data-part="b">SCOM B<small id="b-value">/DEMO-PART-B · PARAM 3 は未入力</small></label>
+          </div>
+          <div class="choices" id="spec-choices" hidden>
+            <label class="record"><input type="checkbox" id="spec-selected" checked>DEMO-SPEC<small>全2行からSCOM A・Bを参照</small></label>
+            <p class="muted">SPECの全行と参照部品を含めます。</p>
+          </div>
+          <div class="choices" id="project-choices" hidden>
+            <p>SCOM A・BとDEMO-SPECを確認します。</p><p class="muted">共有するPTSET・GMSETも参照先として確認します。</p>
+          </div>
+          <p class="hint" id="selection-summary" aria-live="polite"></p>
+        </section>
+        <section class="card guide">
+          <h3>試せる操作</h3>
+          <ol>
+            <li>Aだけを選ぶと、Bの不足は確認を妨げません。</li>
+            <li>初期状態のB・SPEC・全体では、BのPARAM 3不足が出ます。</li>
+            <li>チェックを全部外すと「対象なし」になります。</li>
+          </ol>
+        </section>
+      </aside>
+      <section class="card" aria-labelledby="review-heading">
+        <div class="padding">
+          <div class="toolbar">
+            <div><h1 id="review-heading">出力前確認</h1><p class="muted">入力・参照を確認して、問題の属性へ移動します。</p></div>
+            <button class="primary" id="inspect">再確認</button>
+          </div>
+          <div class="badges" aria-live="polite">
+            <span class="badge" id="freshness"></span>
+            <span class="badge">E3D実機：未確認</span>
+          </div>
+        </div>
+        <div class="result-meta">
+          <p id="report-scope"></p>
+          <p id="included"></p>
+          <div class="counts"><span id="error-count"></span><span>要確認 0</span><span>案内 0</span></div>
+        </div>
+        <div class="table-wrap" id="diagnostic-table">
+          <table role="grid" aria-label="診断一覧">
+            <thead><tr><th>種別</th><th>対象 / 属性</th><th>内容</th></tr></thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+        <div class="empty" id="empty" hidden><strong id="empty-title"></strong><p class="muted" id="empty-description"></p></div>
+        <div class="actions">
+          <button id="open-editor" disabled>編集箇所を開く</button>
+          <small id="row-help">診断行を選ぶと、該当するSCOMの属性へ移動できます。</small>
+        </div>
+      </section>
+    </div>
+    <footer>このページはローカルだけで動く設計用画面です。外部通信やブラウザ保存はなく、再読み込みで初期状態に戻ります。診断0件はE3Dでの動作保証を意味しません。</footer>
+  </main>
+  <dialog id="editor" aria-labelledby="edit-heading">
+    <form id="edit-form" novalidate>
+      <div class="padding">
+        <p class="muted">出力前確認 → SCOM B → PARAM 3</p>
+        <h2 id="edit-heading">SCOM Bの属性を編集</h2>
+        <p><code>/DEMO-PART-B</code><br><small>共有GMSETの高さ式 <code>PARAM[3]</code> に使う、この部品の実値です。</small></p>
+        <label for="parameter">PARAM 3 · 全長 / mm</label>
+        <input id="parameter" type="number" step="any" placeholder="例：100" autocomplete="off">
+        <p class="edit-note muted" id="edit-note" aria-live="polite">入力しただけでは診断結果も部品値も変わりません。</p>
+      </div>
+      <div class="actions">
+        <button type="button" id="cancel-edit">取消して確認へ戻る</button>
+        <button type="submit" class="primary" id="commit-edit">確定</button>
+        <button type="button" class="primary" id="return-to-review" hidden>確認へ戻る</button>
+      </div>
+    </form>
+  </dialog>
+  <script>
+    'use strict';
+    const byId = id => document.getElementById(id);
+    const parts = {a:{name:'SCOM A', value:80}, b:{name:'SCOM B', value:null}};
+    const state = {mode:'scom', selected:new Set(['a']), spec:true, revision:0, report:null, selectedIssue:null, committed:false};
+    const editor = byId('editor');
+
+    function selection() {
+      const roots = state.mode === 'project' ? ['project'] : state.mode === 'spec' ? (state.spec ? ['demo-spec'] : []) : [...state.selected].sort();
+      const included = state.mode === 'project' || (state.mode === 'spec' && state.spec) ? ['a','b'] : state.mode === 'scom' ? roots : [];
+      const label = state.mode === 'project' ? 'プロジェクト全体' : state.mode === 'spec' ? '選択SPEC：' + (roots.length ? 'DEMO-SPEC' : '0件') : '選択SCOM：' + (roots.map(id => parts[id].name).join('・') || '0件');
+      return {roots, included, label, signature:JSON.stringify([state.mode, roots])};
+    }
+
+    function renderSelection() {
+      for (const mode of ['scom','spec','project']) byId(mode + '-choices').hidden = state.mode !== mode;
+      const current = selection();
+      byId('selection-summary').textContent = current.roots.length ? current.label + ' / 確認する部品 ' + current.included.length + '件' : '対象が0件です。確認する対象を選んでください。';
+      byId('b-value').textContent = '/DEMO-PART-B · PARAM 3 ' + (parts.b.value === null ? 'は未入力' : '= ' + parts.b.value + ' mm');
+    }
+
+    function inspect() {
+      const current = selection();
+      const issues = current.included.filter(id => parts[id].value === null).map(id => ({id:'missing-' + id, part:id, code:'PARAM_MISSING', field:'P3', message:'PARAM 3の実値が未入力です。共有定義は変更せず、SCOM側に値を入力してください。'}));
+      state.report = {...current, revision:state.revision, issues};
+      state.selectedIssue = null;
+      render();
+    }
+
+    function selectIssue(id) {
+      state.selectedIssue = id;
+      byId('rows').querySelectorAll('tr').forEach(row => row.setAttribute('aria-selected', String(row.dataset.issue === id)));
+      byId('open-editor').disabled = !state.report.issues.some(issue => issue.id === id);
+    }
+
+    function renderReport() {
+      const report = state.report;
+      const stale = report.revision !== state.revision || report.signature !== selection().signature;
+      const badge = byId('freshness');
+      badge.textContent = stale ? '確認後に変更あり · 再確認してください' : !report.roots.length ? '対象なし · 未確認' : report.issues.length ? '入力・参照：修正が必要' : '入力・参照：確認済み';
+      badge.className = 'badge ' + (stale ? 'warning' : !report.roots.length ? '' : report.issues.length ? 'bad' : 'good');
+      byId('report-scope').textContent = (stale ? '前回の確認対象：' : '確認対象：') + report.label;
+      byId('included').textContent = report.included.length ? '含まれる部品：' + report.included.map(id => parts[id].name).join('・') + ' / 共有PTSET・GMSET各1件' : '含まれる部品・定義：0件（全体への自動切替は行いません）';
+      byId('error-count').textContent = (stale ? '前回結果 · ' : '') + '修正が必要 ' + report.issues.length;
+      byId('rows').replaceChildren();
+      for (const issue of report.issues) {
+        const row = document.createElement('tr');
+        row.tabIndex = 0; row.dataset.issue = issue.id; row.setAttribute('aria-selected', String(state.selectedIssue === issue.id));
+        const severity = document.createElement('td');
+        const tag = document.createElement('span'); tag.className = 'badge bad'; tag.textContent = '修正が必要'; severity.append(tag);
+        const target = document.createElement('td');
+        target.textContent = parts[issue.part].name + ' / PARAM 3';
+        const path = document.createElement('small'); path.textContent = 'SCOM → 実値 → PARAM 3'; target.append(path);
+        const detail = document.createElement('td'); detail.textContent = issue.message;
+        const code = document.createElement('small'); code.textContent = issue.code + ' · ' + issue.field; detail.append(code);
+        row.append(severity, target, detail);
+        row.addEventListener('click', () => selectIssue(issue.id));
+        row.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); selectIssue(issue.id); byId('open-editor').focus(); } });
+        row.addEventListener('dblclick', () => { selectIssue(issue.id); openEditor(); });
+        byId('rows').append(row);
+      }
+      byId('diagnostic-table').hidden = report.issues.length === 0;
+      byId('empty').hidden = report.issues.length !== 0;
+      byId('empty-title').textContent = report.roots.length ? (stale ? '前回確認では、対象の入力・参照に問題はありませんでした' : '選択対象の入力・参照に問題はありません') : '確認する対象が選択されていません';
+      byId('empty-description').textContent = report.roots.length ? (!report.included.includes('b') && parts.b.value === null ? '対象外のSCOM Bは未入力でも、SCOM Aの確認を妨げません。' : 'E3D実機での互換性は、別途確認が必要です。') : '左側で対象を選び、「再確認」を押してください。';
+      byId('open-editor').disabled = !report.issues.some(issue => issue.id === state.selectedIssue);
+      byId('row-help').textContent = stale ? '表示している診断は前回結果です。編集を終えたら再確認してください。' : '行を選択 → 編集箇所を開く → 確定または取消 → 再確認';
+    }
+
+    function render() { renderSelection(); renderReport(); }
+
+    function openEditor() {
+      if (!state.report.issues.some(issue => issue.id === state.selectedIssue)) return;
+      state.committed = false;
+      byId('parameter').value = parts.b.value ?? '';
+      byId('parameter').readOnly = false;
+      byId('edit-note').textContent = '入力しただけでは診断結果も部品値も変わりません。空欄のまま確定して、未完成の状態も保持できます。';
+      byId('edit-note').className = 'edit-note muted';
+      byId('commit-edit').hidden = byId('cancel-edit').hidden = false;
+      byId('return-to-review').hidden = true;
+      editor.showModal(); byId('parameter').focus();
+    }
+
+    byId('modes').addEventListener('change', event => { state.mode = event.target.value; render(); });
+    document.querySelectorAll('[data-part]').forEach(input => input.addEventListener('change', () => { input.checked ? state.selected.add(input.dataset.part) : state.selected.delete(input.dataset.part); render(); }));
+    byId('spec-selected').addEventListener('change', event => { state.spec = event.target.checked; render(); });
+    byId('inspect').addEventListener('click', inspect);
+    byId('open-editor').addEventListener('click', openEditor);
+    byId('parameter').addEventListener('input', () => { byId('edit-note').textContent = '編集中です。確定するまで部品値と診断結果は変わりません。'; byId('edit-note').className = 'edit-note muted'; });
+    byId('edit-form').addEventListener('submit', event => {
+      event.preventDefault();
+      if (state.committed) return;
+      const input = byId('parameter'), raw = input.value.trim(), value = raw === '' ? null : Number(raw);
+      if (input.validity.badInput || (value !== null && (!Number.isFinite(value) || value <= 0))) {
+        byId('edit-note').textContent = 'この架空部品の全長は、0より大きい有限の数値で入力してください。';
+        byId('edit-note').className = 'edit-note required'; input.focus(); return;
+      }
+      const changed = value !== parts.b.value;
+      if (changed) { parts.b.value = value; state.revision += 1; }
+      state.committed = true; input.readOnly = true;
+      byId('edit-note').textContent = changed ? 'このページ内の部品値に反映しました。確認へ戻り、「再確認」で診断を更新してください。' : '値は変更されていません。確認画面へ戻れます。';
+      byId('edit-note').className = 'edit-note muted';
+      byId('commit-edit').hidden = byId('cancel-edit').hidden = true;
+      byId('return-to-review').hidden = false; byId('return-to-review').focus(); render();
+    });
+    byId('cancel-edit').addEventListener('click', () => { editor.close(); byId('open-editor').focus(); });
+    byId('return-to-review').addEventListener('click', () => { editor.close(); byId('inspect').focus(); });
+    editor.addEventListener('cancel', event => { event.preventDefault(); editor.close(); (state.committed ? byId('inspect') : byId('open-editor')).focus(); });
+    inspect();
+  </script>
+</body>
+</html>

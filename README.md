@@ -8,6 +8,8 @@ Python / Tkinter で、CATE・SCOM、ポイント・形状定義、SPEC、説明
 
 [次の開発設計](https://github.com/alz7485/codex2/blob/main/docs/design/export-workflow.md)では、出力前確認 → 依存関係を固定したレビュー → 実機確認済み範囲の出力、の順序と画面・データ・受入条件を定めています。[実機確認ケース](https://github.com/alz7485/codex2/blob/main/docs/design/e3d-verification.md)も整理しました。いずれも今後の設計で、現行アプリの新機能や実機確認済みの結果を示すものではありません。
 
+[確認画面の詳細設計](https://github.com/alz7485/codex2/blob/main/docs/design/scoped-diagnostics.md)では、診断から該当属性へ戻る操作、取消、修正後の再確認を具体化しています。単体HTMLの設計モックも用意しています。
+
 ## 起動
 
 Python 3.10 以降・Tkinter・Pillow が必要です。Windows は Tcl/Tk を含む公式 Python を使ってください。
