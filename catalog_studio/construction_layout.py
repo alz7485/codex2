@@ -69,6 +69,9 @@ def build_simple(editor):
     name=ttk.Label(left, textvariable=e.def_name, style='Heading.TLabel', wraplength=210)
     name.pack(anchor='w',fill='x',pady=(0,4))
     name.bind('<Configure>',lambda event:name.configure(wraplength=max(110,event.width-4)))
+    if not getattr(e.host,'is_preset_editor',False):
+        e.import_macro_button=ttk.Button(left,text='作成マクロを読み込む',command=e.host.import_creation_macro)
+        e.import_macro_button.pack(fill='x',pady=(0,8))
     row = ttk.Frame(left)
     row.pack(fill='x', pady=(0, 8))
     ttk.Label(row, text='要素', style='Heading.TLabel').pack(side='left')

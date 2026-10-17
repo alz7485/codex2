@@ -1,0 +1,17 @@
+$* Synthetic example for Catalog Studio import, not an E3D runtime test.
+NEW PTSET /DEMO-READ-POINTS
+DESC |Sample connector points|
+NEW PTAXI
+NUMB 1 PAXI -X PDIS (PARA[3] / 2)
+PBOR (PARA[1])
+NEW PTCAR
+NUMB 2 PX (PARA[3] / 2) PY 0 PZ 0 PTCDIR X
+PBOR (PARA[1])
+END PTSET
+
+NEW GMSET /DEMO-READ-SHAPES
+NEW SCYL
+PAXI -X PDIS (PARA[3] / 2)
+PHEI (-PARA[3]) PDIA (PARA[2])
+OBST 2 TUFL TRUE CLFL FALSE
+END GMSET

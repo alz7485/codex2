@@ -112,6 +112,8 @@ class IntegratedStudio(tk.Tk):
                 button.pack(side='left',padx=(0,5));self.nav[key]=button
             else:self.more_nav_menu.add_command(label=text,command=lambda k=key:self.switch(k))
         self.more_nav_button.configure(menu=self.more_nav_menu)
+        self.more_nav_menu.add_separator()
+        self.more_nav_menu.add_command(label='PTSET・GMSET の作成マクロを読み込む',command=self.import_creation_macro)
         self.more_nav_button.pack(side='left')
         footer=ttk.Frame(self,padding=(18,7),style='Status.TFrame');footer.pack(side='bottom',fill='x')
         ttk.Label(footer,text='Ctrl+S 保存    Ctrl+O 開く',style='Status.TLabel').pack(side='right')
@@ -909,6 +911,11 @@ class IntegratedStudio(tk.Tk):
     def reset_selection(self):
         for collection,attr in [('cates','cate_id'),('scoms','scom_id'),('definitions','definition_id'),('specs','spec_id')]:setattr(self,attr,next((x['id'] for x in self.data[collection]),None))
         self.element_id=None;self.field=None;self.selected_book=None
+    def import_creation_macro(self):
+        current=self.grab_current()
+        if current is not None:current.focus_set();return
+        from .macro_import_ui import MacroImportDialog
+        return MacroImportDialog(self)
     def open_project(self):
         if not self.guard():return
         path=filedialog.askopenfilename(parent=self,title='プロジェクト JSON を読み込み（E3D 出力は未対応）',filetypes=[('プロジェクト JSON','*.json')])
