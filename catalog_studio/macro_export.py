@@ -93,9 +93,14 @@ def creation_text(definitions):
 
 
 def save(path, text):
-    """Write UTF-8 atomically, retaining an existing file on any failure."""
+    """Write Shift-JIS (CP932) strictly and atomically, retaining existing files."""
     destination = Path(path)
-    raw = text.replace('\r\n', '\n').replace('\n', '\r\n').encode('utf-8')
+    normalized = text.replace('\r\n', '\n').replace('\n', '\r\n')
+    try:
+        raw = normalized.encode('cp932', errors='strict')
+    except UnicodeEncodeError as exc:
+        unsupported = normalized[exc.start:exc.end]
+        raise ValueError('Shift-JIS（CP932）で表現できない文字があります：' + repr(unsupported) + '。文字を変更してから保存してください。') from exc
     temporary = None
     try:
         with tempfile.NamedTemporaryFile(dir=destination.parent, prefix='.catalog-macro-', delete=False) as stream:

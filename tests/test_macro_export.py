@@ -123,5 +123,32 @@ END''').definitions
             self.assertEqual(list(Path(folder).iterdir()), [path])
             macro_export.save(path, macro_export.creation_text(self.records()))
             text, encoding = macro_import.read_text(path)
-            self.assertEqual(encoding, 'utf-8-sig')
+            self.assertEqual(path.read_bytes(), text.replace('\r\n', '\n').replace('\n', '\r\n').encode('cp932'))
             self.assertEqual(len(macro_import.parse(text).definitions), 2)
+
+    def test_sjis_japanese_names_descriptions_and_cp932_extensions(self):
+        records = self.records()[:1]
+        records[0]['name'] = '/接続点サンプル'
+        records[0]['attrs']['DESC'] = '日本語の説明①'
+        source = macro_export.creation_text(records)
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder)/'sample.mac'
+            macro_export.save(path, source)
+            self.assertEqual(path.read_bytes(), source.replace('\n', '\r\n').encode('cp932'))
+            text, encoding = macro_import.read_text(path)
+            self.assertEqual(encoding, 'cp932')
+            imported = macro_import.parse(text).definitions[0]
+            self.assertEqual(imported['name'], records[0]['name'])
+            self.assertEqual(imported['attrs']['DESC'], records[0]['attrs']['DESC'])
+
+    def test_unencodable_character_preserves_existing_file_without_replacement(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder)/'sample.mac'
+            path.write_bytes(b'original')
+            with self.assertRaisesRegex(ValueError, 'Shift-JIS.*CP932'):
+                macro_export.save(path, "NEW PTSET /TEST\nDESC '説明😀'\nEND\n")
+            self.assertEqual(path.read_bytes(), b'original')
+            self.assertEqual(list(Path(folder).iterdir()), [path])
+            path.unlink()
+            with self.assertRaises(ValueError): macro_export.save(path, '😀')
+            self.assertFalse(path.exists())
