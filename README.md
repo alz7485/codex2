@@ -28,6 +28,16 @@ DETAIL／PROPは、このツールではSPEC用の関連データとして管理
 
 ![SCOM・DETAIL・PROPを組み合わせたスペック登録](docs/spec-combination.png)
 
+## PTSET・GMSET を MAC ファイルへ出力
+
+PTSET／GMSET画面で **「作成マクロを出力 (.mac)」** を押すと、選択中のセットの `NEW PTSET /名前` または `NEW GMSET /名前` から始まる内容を確認し、UTF-8・CRLFの `.mac` へ保存できます。PTSETとGMSETはそれぞれの画面から個別に出力します。
+
+式、単位の文字列、符号付き高さ、点参照、子要素の順序と明示的な `/名前` を保持します。画面用の要素名は実機名へ変換しません。未入力・`unset` の属性は省略し、新規要素のDB既定値に従います。仮PARAM値・仮位置・SCOM実値・適用PTSETの編集対応情報は含めません。未対応の要素や保持できない属性値は、保存前に理由を表示して止めます。
+
+[サンプルMAC](examples/creation-export-sample.mac)は、長さ200・外径89.1の円筒と両端のP1/P2を定義する架空の例です。数値入力の単位は実機の作業単位に依存し、この例はmmを前提にしています。
+
+これは作成テキストの出力です。実行時は適切なカタログ所有先を選び、既存名と重複しないことを確認してください。所有階層の作成、既存DBの更新、SCOM/SPECとの関連付けは含みません。E3D 4.0実機での実行は未確認です。従来の「構成確認出力」は引き続き全行コメントです。
+
 ## 既存 PTSET・GMSET の作成マクロを読み込む
 
 PTSET／GMSET画面の **「作成マクロを読み込む」**、または **「その他の管理 → PTSET・GMSET の作成マクロを読み込む」** から開きます。
@@ -211,7 +221,7 @@ PARAM / IPARAM / APARAM / OPARAM / DES PARAM / DES APARAM / DES OPARAM を区別
 
 ![新しい PARAM プリセットの作成](docs/parameter-preset-create.png)
 
-[意味・英語名のサンプル JSON](examples/parameter-text-sample.json)を同梱しています。プリセットと CATE 内の TEXT を含む架空の自作例です。CATE 側の英語名参照を使う作成操作は、プリセット編集とは別に扱います。E3D へ実行するマクロ生成は引き続き未実装です。
+[意味・英語名のサンプル JSON](examples/parameter-text-sample.json)を同梱しています。プリセットと CATE 内の TEXT を含む架空の自作例です。CATE 側の英語名参照を使う作成操作は、プリセット編集とは別に扱います。カタログ全体・SPECの実行マクロ生成は引き続き未実装です。PTSET/GMSETの個別作成テキスト出力は上記を参照してください。
 
 [プリセットの混在サンプル JSON](examples/parameter-presets-sample.json)と[サンプル PDF](examples/parameter-presets-book.pdf)を同梱しています。サンプルは架空の説明で、AVEVA の標準パラメータ規則を示すものではありません。
 

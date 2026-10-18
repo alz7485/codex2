@@ -1,0 +1,31 @@
+$* Synthetic straight-cylinder example; E3D 4.0 runtime unverified.
+$* Distances in this sample assume mm working units.
+$* Select the intended catalogue owner before running.
+NEW PTSET /SAMPLE-PTSET
+NEW PTAX
+NUM 1
+PAXI -Y
+PDIS 100
+PBOR 80
+PCON BWD
+END
+NEW PTAX
+NUM 2
+PAXI Y
+PDIS 100
+PBOR 80
+PCON BWD
+END
+END
+
+NEW GMSET /SAMPLE-GMSET
+NEW SCYL
+PAXI -Y
+PDIS 100
+PDIA 89.1
+PHEI -200
+OBST 2
+TUFL TRUE
+CLFL FALSE
+END
+END

@@ -72,6 +72,9 @@ def build_simple(editor):
     if not getattr(e.host,'is_preset_editor',False):
         e.import_macro_button=ttk.Button(left,text='作成マクロを読み込む',command=e.host.import_creation_macro)
         e.import_macro_button.pack(fill='x',pady=(0,8))
+        from .macro_export_ui import open_export
+        e.export_macro_button=ttk.Button(left,text='作成マクロを出力 (.mac)',command=lambda:open_export(e))
+        e.export_macro_button.pack(fill='x',pady=(0,8))
     row = ttk.Frame(left)
     row.pack(fill='x', pady=(0, 8))
     ttk.Label(row, text='要素', style='Heading.TLabel').pack(side='left')

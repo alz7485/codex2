@@ -6,6 +6,8 @@
 
 参照: [ユーザー要件](../knowledge/user-requirements.md)、[仕様メモ](../knowledge/e3d-specification-notes.md)、[矛盾・未確認事項](../knowledge/open-questions.md)、[実機確認ケース](e3d-verification.md)。
 
+2026-10-18追記：最新のユーザー依頼により、PTSET/GMSET単体の作成テキストをNEW形式の.macへ保存する機能を先行追加した。実機確認済み対応表によるカタログ全体の出力（段階C）を完了したものではない。操作と制限はルートREADME参照。
+
 ## 1. 目的と現在との差
 
 選択した SCOM または SPEC について、必要な定義・参照先を確認し、修正すべき場所へ戻れるようにする。その確認時点の構成を固定し、将来は E3D 4.0 で確かめた範囲から実行用ファイルを生成する。
