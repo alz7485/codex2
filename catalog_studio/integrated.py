@@ -17,7 +17,7 @@ BLUE = theme.ACCENT
 NAVY = theme.CHROME
 BG = theme.WORKSPACE
 MUTED = theme.MUTED
-PAGES = [('ptset', 'PTSET 作成'), ('gmset', 'GMSET 作成'), ('catalog', 'SCOM 登録'), ('specs', 'スペック登録'), ('structural', '構造材・NGMSET'), ('texts','説明・材質'), ('tables','共通テーブル'), ('books', 'カタログ本・PDF'), ('rules', 'PARAM プリセット'), ('checks', '確認・マクロ')]
+PAGES = [('ptset', 'PTSET 作成'), ('gmset', 'GMSET 作成'), ('catalog', 'カタログ作成'), ('specs', 'スペック登録'), ('structural', '構造材・NGMSET'), ('texts','説明・材質'), ('tables','共通テーブル'), ('books', 'カタログ本・PDF'), ('rules', 'PARAM プリセット'), ('checks', '確認・マクロ')]
 
 
 class Preview:
@@ -204,18 +204,48 @@ class IntegratedStudio(tk.Tk):
         return {item['name']:item['id'] for item in self.data[collection] if kind is None or item.get('kind')==kind}
 
     def build_catalog(self):
-        self.heading('SCOM 登録 / CATE・SCOM','SCOM のパラメータ値を入力し、形状・ポイント定義へ結び付けます。', [('SCOM を追加',self.add_scom),('CATE を追加',self.add_cate)])
+        from .catalog_members_ui import CatalogMembers, bundle_form
+        from .catalog_workspace import COLLECTIONS
+        self.heading('カタログ作成','CATE と配下の SDTE・TEXT・SCOM、スペック登録用の DETAIL・PROP を作成します。', [('SCOM を追加',self.add_scom),('CATE を追加',self.add_cate),('CATE 一式を作成',lambda:bundle_form(self))])
         split=ttk.Panedwindow(self.content,orient='horizontal');split.pack(fill='both',expand=True)
         left=ttk.Frame(split,padding=8);middle=ttk.Frame(split,padding=10);right=ttk.Frame(split,padding=10)
+        for frame,width in ((left,240),(middle,560),(right,300)):
+            frame.configure(width=width);frame.pack_propagate(False)
         split.add(left,weight=1);split.add(middle,weight=4);split.add(right,weight=2)
-        self.balance(split,(.18,.72))
+        self.catalog_panes=split;initialized=False
+        def arrange(event):
+            nonlocal initialized
+            if initialized or event.widget is not split or event.width<600:return
+            initialized=True;split.sashpos(0,int(event.width*.23));split.sashpos(1,int(event.width*.73))
+        split.bind('<Configure>',arrange)
+        self.catalog_notebook=ttk.Notebook(middle);self.catalog_notebook.pack(fill='both',expand=True)
+        scom_page=ttk.Frame(self.catalog_notebook);members_page=ttk.Frame(self.catalog_notebook)
+        self.catalog_notebook.add(scom_page,text='SCOM');self.catalog_notebook.add(members_page,text='SDTE・TEXT・DETAIL・PROP')
+        self.catalog_members=CatalogMembers(self,members_page);self.catalog_members.pack(fill='both',expand=True)
+        if getattr(self,'catalog_tab','scom')=='members':self.catalog_notebook.select(members_page)
+        self.catalog_notebook.bind('<<NotebookTabChanged>>',lambda _:setattr(self,'catalog_tab','members' if self.catalog_notebook.index('current')==1 else 'scom'))
+        middle=scom_page
         ttk.Label(left,text='CATA / '+self.data['name'],style='Heading.TLabel',wraplength=190).pack(anchor='w',pady=8)
-        self.catalog_tree=ttk.Treeview(left,show='tree',height=14);self.catalog_tree.pack(fill='both',expand=True)
+        tree_holder=ttk.Frame(left);tree_holder.pack(fill='both',expand=True)
+        self.catalog_tree=ttk.Treeview(tree_holder,show='tree',height=14);self.catalog_tree.column('#0',width=420,minwidth=150)
+        self.catalog_tree.grid(row=0,column=0,sticky='nsew')
+        scroll=ttk.Scrollbar(tree_holder,command=self.catalog_tree.yview);scroll.grid(row=0,column=1,sticky='ns')
+        horizontal=ttk.Scrollbar(tree_holder,orient='horizontal',command=self.catalog_tree.xview);horizontal.grid(row=1,column=0,sticky='ew')
+        self.catalog_tree.configure(yscrollcommand=scroll.set,xscrollcommand=horizontal.set)
+        tree_holder.rowconfigure(0,weight=1);tree_holder.columnconfigure(0,weight=1)
         for cate in self.data['cates']:
             self.catalog_tree.insert('','end',iid='cate:'+cate['id'],text='CATE '+cate['name'],open=True)
             for scom in self.data['scoms']:
                 if scom['cate_id']==cate['id']:self.catalog_tree.insert('cate:'+cate['id'],'end',iid='scom:'+scom['id'],text='SCOM '+scom['name'])
+            for record in self.data.get('texts',[]):
+                if record['parent_id']==cate['id'] and record['type'] in ('SDTE','TEXT'):
+                    self.catalog_tree.insert('cate:'+cate['id'],'end',iid='member:texts:'+record['id'],text=record['type']+' '+record['name'])
+            related=[(collection,record,kind) for kind,collection in COLLECTIONS.items() for record in self.data.get(collection,[]) if record['cate_id']==cate['id']]
+            if related:
+                branch='related:'+cate['id'];self.catalog_tree.insert('cate:'+cate['id'],'end',iid=branch,text='SPEC 用の関連データ',open=True)
+                for collection,record,kind in related:self.catalog_tree.insert(branch,'end',iid='member:'+collection+':'+record['id'],text=kind+' '+record['name'])
         selected='scom:'+str(self.scom_id) if project.get(self.data,'scoms',self.scom_id) else 'cate:'+str(self.cate_id)
+        if getattr(self,'catalog_tab','scom')=='members' and getattr(self,'catalog_member_key',None):selected='member:'+self.catalog_member_key
         if self.catalog_tree.exists(selected):self.catalog_tree.selection_set(selected)
         self.catalog_tree.bind('<<TreeviewSelect>>',self.catalog_select)
         ttk.Button(left,text='CATE の情報を編集',command=self.edit_cate).pack(fill='x',pady=6)
@@ -254,15 +284,25 @@ class IntegratedStudio(tk.Tk):
         selected=self.catalog_tree.selection()
         if not selected:return
         typ,ident=selected[0].split(':',1)
+        if typ=='related':return
+        if typ=='member':
+            collection,record_id=ident.split(':',1);record=project.get(self.data,collection,record_id)
+            if not record:return
+            cate=record.get('parent_id') if collection=='texts' else record['cate_id']
+            self.cate_id=cate;self.catalog_member_key=ident;self.catalog_tab='members'
+            self.scom_id=next((s['id'] for s in self.data['scoms'] if s['cate_id']==cate),None)
+            self.catalog_notebook.select(1);self.catalog_members.refresh()
+            self.busy=True;self.fill_scom_table();self.busy=False;self.update_scom_preview();return
         if typ=='cate':
             if self.cate_id==ident:return
             self.cate_id=ident;self.scom_id=next((s['id'] for s in self.data['scoms'] if s['cate_id']==ident),None)
         else:
             s=project.get(self.data,'scoms',ident)
             if not s:return
+            self.catalog_tab='scom';self.catalog_notebook.select(0)
             if ident==self.scom_id:return
             self.cate_id=s['cate_id'];self.scom_id=ident
-        self.busy=True;self.fill_scom_table();self.busy=False;self.update_scom_preview()
+        self.busy=True;self.fill_scom_table();self.catalog_members.refresh();self.busy=False;self.update_scom_preview()
 
     def scom_select(self,_=None):
         if self.busy:return
@@ -294,6 +334,9 @@ class IntegratedStudio(tk.Tk):
         self.form('CATE の情報',[('name','CATE 名',cate['name'],None),('description','説明',cate['description'],None),('revision','改訂',cate['revision'],None)],apply)
 
     def delete_cate(self):
+        from .catalog_workspace import COLLECTIONS
+        if any(record['cate_id']==self.cate_id for collection in COLLECTIONS.values() for record in self.data.get(collection,[])):
+            messagebox.showinfo('使用中','DETAIL または PROP が関連しています。',parent=self);return
         if any(s['cate_id']==self.cate_id for s in self.data['scoms']):messagebox.showinfo('削除できません','SCOM がある CATE は削除できません。',parent=self);return
         if not project.get(self.data,'cates',self.cate_id):return
         if any(r['parent_id']==self.cate_id for key in ('texts','tables') for r in self.data.get(key,[])):messagebox.showinfo('使用中','説明・材質または共通テーブルが所属しています。',parent=self);return
@@ -355,6 +398,7 @@ class IntegratedStudio(tk.Tk):
                 mapping=self.choices('definitions',kind);mapping['未設定']=''
                 obj[key]=mapping.get(v[key],obj.get(key,''))
             self.scom_id=obj['id'];self.cate_id=obj['cate_id']
+            self.catalog_tab='scom'
             if seed is not None:self.data['creation_draft']={key:obj[key] for key in ('ptset_id','gmset_id')} | {'scom_id':obj['id']}
         self.form('SCOM の値を登録',fields,apply)
 
@@ -692,11 +736,18 @@ class IntegratedStudio(tk.Tk):
         if e and messagebox.askyesno('削除','要素を削除しますか？ 共通定義の使用先に影響します。',parent=self):d['elements'].remove(e);self.element_id=None;self.mark();self.render_page()
 
     def build_specs(self):
-        self.heading('スペック登録','部品種別・口径条件と参照 SCOM を選択表で管理します。E3D の SELE・SPCO 構文への変換は未対応です。',[('SPEC を追加',self.add_spec)])
+        self.heading('スペック登録','SCOM・DETAIL・PROP の組み合わせと口径条件を登録します。',[('SPEC を追加',self.add_spec)])
         split=ttk.Panedwindow(self.content,orient='horizontal');split.pack(fill='both',expand=True)
         left=ttk.Frame(split,padding=8);middle=ttk.Frame(split,padding=12);right=ttk.Frame(split,padding=12)
+        for frame,width in ((left,210),(middle,620),(right,300)):
+            frame.configure(width=width);frame.pack_propagate(False)
         split.add(left,weight=1);split.add(middle,weight=4);split.add(right,weight=2)
-        self.balance(split,(.18,.72))
+        initialized=False
+        def arrange(event):
+            nonlocal initialized
+            if initialized or event.widget is not split or event.width<600:return
+            initialized=True;split.sashpos(0,int(event.width*.18));split.sashpos(1,int(event.width*.74))
+        split.bind('<Configure>',arrange)
         self.spec_tree=ttk.Treeview(left,show='tree');self.spec_tree.pack(fill='both',expand=True)
         for spec in self.data['specs']:self.spec_tree.insert('','end',iid=spec['id'],text=spec['name'])
         if self.spec_tree.exists(str(self.spec_id)):self.spec_tree.selection_set(self.spec_id)
@@ -710,10 +761,11 @@ class IntegratedStudio(tk.Tk):
         ttk.Label(middle,text=spec['description'],style='Muted.TLabel',wraplength=600).pack(anchor='w',pady=6)
         toolbar=ttk.Frame(middle);toolbar.pack(fill='x',pady=10)
         for label,cmd in [('登録行を追加',self.add_spec_entry),('編集',self.edit_spec_entry),('複製',self.duplicate_spec_entry),('削除',self.delete_spec_entry)]:ttk.Button(toolbar,text=label,command=cmd).pack(side='left',padx=3)
-        self.spec_table=self.table(middle,[('type','部品種別',90),('bore1','口径 1',80),('bore2','口径 2',80),('scom','参照 SCOM',210),('desc','説明',160),('sdte','SDTE',160),('smte','SMTE',160)],height=14)
+        self.spec_table=self.table(middle,[('scom','SCOM',170),('detail','DETAIL',160),('prop','PROP',160),('type','部品種別',90),('bore1','口径 1',80),('bore2','口径 2',80),('desc','説明',160),('sdte','SDTE（従来参照）',160),('smte','SMTE',160)],height=14)
         for entry in spec['entries']:
             scom=project.get(self.data,'scoms',entry['scom_id'])
-            self.spec_table.insert('','end',iid=entry['id'],values=(entry['type'],entry['bore1'],entry['bore2'],scom['name'] if scom else '[未設定]',entry['description'],*( (project.get(self.data,'texts',entry.get(k,'')) or {}).get('name','未設定') for k in ('sdte_id','smte_id'))))
+            related=[(project.get(self.data,collection,entry.get(key,'')) or {}).get('name','未設定') for key,collection in (('detail_id','catalog_details'),('prop_id','catalog_props'))]
+            self.spec_table.insert('','end',iid=entry['id'],values=(scom['name'] if scom else '[未設定]',*related,entry['type'],entry['bore1'],entry['bore2'],entry['description'],*( (project.get(self.data,'texts',entry.get(k,'')) or {}).get('name','未設定') for k in ('sdte_id','smte_id'))))
         self.spec_table.bind('<<TreeviewSelect>>',self.spec_entry_select);self.spec_table.bind('<Double-1>',lambda _:self.edit_spec_entry())
         ttk.Label(middle,text='この表は選択条件のたたき台です。実機で必要な属性や分岐条件は作成例から追加します。',style='Muted.TLabel',wraplength=580).pack(anchor='w',pady=12)
         ttk.Label(right,text='参照部品を確認',style='Heading.TLabel').pack(anchor='w')
@@ -736,9 +788,11 @@ class IntegratedStudio(tk.Tk):
         entry=self.spec_entry();scom=project.get(self.data,'scoms',entry['scom_id']) if entry else None
         self.preview.load(self.data,scom)
         self.spec_detail.configure(text=('種別：'+entry['type']+'\n口径条件：'+entry['bore1']+' × '+entry['bore2']+'\n参照：'+(scom['name'] if scom else '未設定')+'\n\nSCOM の値や共通定義は参照先で編集します。') if entry else '登録行を選択してください。')
+        if entry:
+            self.spec_detail.configure(text=self.spec_detail.cget('text')+'\n\n'+'\n'.join(label+'：'+(project.get(self.data,collection,entry.get(key,'')) or {}).get('name','未設定') for key,collection,label in (('detail_id','catalog_details','DETAIL'),('prop_id','catalog_props','PROP'))))
     def goto_spec_scom(self):
         entry=self.spec_entry();s=project.get(self.data,'scoms',entry['scom_id']) if entry else None
-        if s:self.scom_id=s['id'];self.cate_id=s['cate_id'];self.switch('catalog')
+        if s:self.scom_id=s['id'];self.cate_id=s['cate_id'];self.catalog_tab='scom';self.switch('catalog')
     def spec_form(self,spec=None,*,after_create=None):
         def apply(v):
             self.required(v['name'],'SPEC 名')
@@ -769,6 +823,13 @@ class IntegratedStudio(tk.Tk):
         selected=next((name for name,ident in scoms.items() if ident==(entry['scom_id'] if entry else (scom_id or self.scom_id))),next(iter(scoms)))
         fields=[('type','部品種別（仮の選択項目）',entry['type'] if entry else ('' if scom_id else 'REDU'),None),('bore1','口径条件 1',entry['bore1'] if entry else '',None),('bore2','口径条件 2',entry['bore2'] if entry else '',None),('scom','参照 SCOM',selected,list(scoms)),('description','説明',entry['description'] if entry else '',None)]
         mappings={}
+        for key,collection,label in (('detail_id','catalog_details','DETAIL'),('prop_id','catalog_props','PROP')):
+            mapping={r['name']:r['id'] for r in self.data.get(collection,[])};mapping['未設定']=''
+            initial=(getattr(self,'catalog_'+key,None) or '') if (scom_id or self.scom_id)==getattr(self,'catalog_seed_scom_id',None) else ''
+            ident=entry.get(key,'') if entry is not None else initial
+            if ident and ident not in mapping.values():mapping['参照先不明：'+ident]=ident
+            mappings[key]=mapping
+            fields.append((key,label,next((name for name,value in mapping.items() if value==ident),'未設定'),list(mapping)))
         for key,kind in (('sdte_id','SDTE'),('smte_id','SMTE')):
             mapping={r['name']:r['id'] for r in self.data.get('texts',[]) if r['type']==kind};mapping['未設定']=''
             ident=(entry or {}).get(key,'')
@@ -777,9 +838,13 @@ class IntegratedStudio(tk.Tk):
             fields.append((key,'参照 '+kind,next((name for name,value in mapping.items() if value==ident),'未設定'),list(mapping)))
         def apply(v):
             self.required(v['type'],'部品種別');self.required(v['bore1'],'口径条件 1')
+            combination_keys=('detail_id','prop_id')
+            use_combination=entry is None or any(key in entry for key in combination_keys) or any(mappings[key][v[key]] for key in combination_keys)
             record=entry or project.add_spec_entry(self.data,spec,scoms[v['scom']])
             record.update(type=v['type'],bore1=v['bore1'],bore2=v['bore2'],scom_id=scoms[v['scom']],description=v['description'])
-            for key,mapping in mappings.items():record[key]=mapping[v[key]]
+            for key,mapping in mappings.items():
+                if key in combination_keys and not use_combination:continue
+                record[key]=mapping[v[key]]
             if scom_id:self.data.setdefault('creation_draft',{}).update(scom_id=record['scom_id'],spec_id=spec['id'])
         self.form('SPEC の登録行',fields,apply)
     def add_spec_entry(self):self.entry_form()
@@ -911,6 +976,7 @@ class IntegratedStudio(tk.Tk):
     def reset_selection(self):
         for collection,attr in [('cates','cate_id'),('scoms','scom_id'),('definitions','definition_id'),('specs','spec_id')]:setattr(self,attr,next((x['id'] for x in self.data[collection]),None))
         self.element_id=None;self.field=None;self.selected_book=None
+        self.catalog_tab='scom';self.catalog_member_key=None;self.catalog_detail_id=None;self.catalog_prop_id=None;self.catalog_seed_scom_id=None
     def import_creation_macro(self):
         current=self.grab_current()
         if current is not None:current.focus_set();return

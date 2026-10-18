@@ -82,6 +82,9 @@ class CompanionEditor(ttk.Frame):
         item=self.item()
         if not item:return
         ident=item['id']
+        from .catalog_workspace import used
+        if used(self.host.data,self.collection,ident):
+            messagebox.showinfo('使用中','DETAIL または SPEC から参照されています。',parent=self.host);return
         if any(e.get(k)==ident for spec in self.host.data['specs'] for e in spec['entries'] for k in ('sdte_id','smte_id')) or any(r.get('parent_id')==ident for key in ('tables','texts') for r in self.host.data.get(key,[])):
             messagebox.showinfo('使用中','SPEC または子レコードから参照されています。',parent=self.host);return
         if messagebox.askyesno('削除',item['name']+' を削除しますか？',parent=self.host):self.records.remove(item);self.host.mark();self.refresh()

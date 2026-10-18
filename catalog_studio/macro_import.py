@@ -258,7 +258,7 @@ def prepare_import(data, parsed, selected):
     base = 'マクロ読込・PARAM規則未設定'; name = base; number = 2
     while name.casefold() in preset_names: name = f'{base} {number}'; number += 1
     rule = presets.add(candidate, name, empty=True)
-    used = {record['name'].casefold() for collection in ('cates','definitions','scoms','specs','texts','tables') for record in candidate.get(collection, [])}
+    used = {record['name'].casefold() for collection in ('cates','definitions','scoms','specs','texts','tables','catalog_details','catalog_props') for record in candidate.get(collection, [])}
     added, renamed = [], []
     for original in originals:
         record = copy.deepcopy(original)

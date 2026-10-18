@@ -12,7 +12,7 @@ import math
 from pathlib import Path
 import uuid
 from xml.sax.saxutils import escape
-from . import presets
+from . import presets, catalog_workspace
 
 JST = timezone(timedelta(hours=9), name="JST")
 
@@ -27,7 +27,7 @@ def snapshot(data, scom_ids=None, spec_ids=None, title="カタログ本", editio
     if not isinstance(title, str) or not title.strip():
         raise ValueError("カタログ本のタイトルを入力してください。")
     indexes = {}
-    for key in ("scoms", "specs", "cates", "definitions", "texts", "tables"):
+    for key in ("scoms", "specs", "cates", "definitions", "texts", "tables", *catalog_workspace.COLLECTIONS.values()):
         items = data.get(key, [])
         indexes[key] = {item["id"]: item for item in items}
         if len(indexes[key]) != len(items):
@@ -42,13 +42,23 @@ def snapshot(data, scom_ids=None, spec_ids=None, title="カタログ本", editio
 
     selected_scoms = selection("scoms", scom_ids)
     selected_specs = selection("specs", spec_ids)
-    text_ids=set()
+    text_ids=set();association_ids={collection:set() for collection in catalog_workspace.COLLECTIONS.values()}
     for spec_id in selected_specs:
         for entry in indexes["specs"][spec_id].get("entries", []):
             scom_id = entry.get("scom_id")
             if scom_id not in indexes["scoms"]:
                 raise ValueError("スペックの参照先 SCOM が見つかりません。")
             selected_scoms.add(scom_id)
+            for key,collection in catalog_workspace.ENTRY_REFS.items():
+                ident=entry.get(key,'')
+                if not any(field in entry for field in catalog_workspace.ENTRY_REFS):continue
+                if ident not in indexes[collection]:raise ValueError('SPEC の'+key.removesuffix('_id').upper()+' が未選択または不正です。')
+                association_ids[collection].add(ident)
+                detail=indexes[collection][ident]
+                sdte=detail.get('sdte_id','')
+                if sdte:
+                    if indexes['texts'].get(sdte,{}).get('type')!='SDTE':raise ValueError('DETAIL のSDTE参照が不正です。')
+                    text_ids.add(sdte)
             for key,kind in (('sdte_id','SDTE'),('smte_id','SMTE')):
                 ident=entry.get(key,'')
                 if not ident:continue
@@ -71,6 +81,11 @@ def snapshot(data, scom_ids=None, spec_ids=None, title="カタログ本", editio
             definition_ids.add(definition_id)
     if not selected_scoms and not selected_specs:
         raise ValueError("掲載する SCOM またはスペックを選択してください。")
+    for collection,identifiers in association_ids.items():
+        for ident in identifiers:
+            cate=indexes[collection][ident]['cate_id']
+            if cate not in indexes['cates']:raise ValueError('DETAIL / PROP の関連 CATE が見つかりません。')
+            cate_ids.add(cate)
     book = {
         "id": uuid.uuid4().hex,
         "title": title.strip(),
@@ -86,6 +101,8 @@ def snapshot(data, scom_ids=None, spec_ids=None, title="カタログ本", editio
     book['texts']=copy.deepcopy([r for r in data.get('texts',[]) if r['id'] in text_ids or (r['type']=='TEXT' and r.get('parent_id') in cate_ids)])
     # Shared tables are project context; freeze the complete table collection.
     book['tables']=copy.deepcopy(data.get('tables',[]))
+    for collection,identifiers in association_ids.items():
+        book[collection]=copy.deepcopy([record for record in data.get(collection,[]) if record['id'] in identifiers])
     owners={r.get('parent_id') for r in book['texts']+book['tables']}
     for cate in data.get('cates',[]):
         if cate['id'] in owners and cate['id'] not in cate_ids:book['cates'].append(copy.deepcopy(cate))
@@ -229,8 +246,9 @@ def generate_pdf(book, path):
         rows = [["部品種別", "口径1", "口径2", "参照 SCOM", "説明"]]
         for entry in spec.get("entries", []):
             scom = scom_index.get(entry.get("scom_id"), {})
+            associations='\n'.join(key.removesuffix('_id').upper()+': '+next((record['name'] for record in book.get(collection,[]) if record['id']==entry.get(key)), '未設定') for key,collection in catalog_workspace.ENTRY_REFS.items() if key in entry)
             rows.append([entry.get("type", ""), entry.get("bore1", ""), entry.get("bore2", ""),
-                         scom.get("name", "参照なし"), entry.get("description", "")+'\n'+ '\n'.join(kind+': '+text_index.get(entry.get(key,''),{}).get('name','未設定') for key,kind in (('sdte_id','SDTE'),('smte_id','SMTE')))])
+                         scom.get("name", "参照なし"), entry.get("description", "")+'\n'+associations+'\n'+ '\n'.join(kind+': '+text_index.get(entry.get(key,''),{}).get('name','未設定') for key,kind in (('sdte_id','SDTE'),('smte_id','SMTE')))])
         story.append(table(rows, [70, 48, 48, 145, width - 311]))
     if definitions:
         story.extend([PageBreak(), p("共通定義とパラメータ", "h1"),
@@ -277,6 +295,16 @@ def generate_pdf(book, path):
             story.append(p('親：'+record['parent_id']+' / 改訂：'+record['revision'],'small'))
             rows=[['属性','役割','値']]+[[key,catalogue.MEANINGS.get(key,'原文属性'),str(value)] for key,value in record['attrs'].items()]
             if len(rows)>1:story.append(table(rows,[70,150,width-220]))
+
+    for kind,collection in catalog_workspace.COLLECTIONS.items():
+        records=book.get(collection,[])
+        if not records:continue
+        story.extend([PageBreak(),p('SPEC 用の '+kind,'h1')])
+        for record in records:
+            story.append(p(record['name'],'h2'));story.append(p(record.get('description','')))
+            if kind=='DETAIL':story.append(p('SDTE：'+text_index.get(record.get('sdte_id',''),{}).get('name','未設定'),'small'))
+            rows=[['属性','値']]+[[key,str(value)] for key,value in record['attrs'].items()]
+            if len(rows)>1:story.append(table(rows,[150,width-150]))
 
     path = Path(path)
     temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")

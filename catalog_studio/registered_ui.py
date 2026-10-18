@@ -55,7 +55,7 @@ class RegisteredBrowser(ttk.Frame):
         if self.category!=host.page:
             self.category=host.page
             self.search.set('')
-        categories={'ptset':('PTSET','definitions'), 'gmset':('GMSET','definitions'), 'catalog':('SCOM','scoms'), 'specs':('スペック','specs'), 'structural':('構造材・NGMSET','definitions'), 'texts':('説明・材質','texts'), 'tables':('共通テーブル','tables'), 'books':('カタログ本','books'), 'rules':('PARAM プリセット','parameter_presets')}
+        categories={'ptset':('PTSET','definitions'), 'gmset':('GMSET','definitions'), 'catalog':('カタログ / SCOM','scoms'), 'specs':('スペック','specs'), 'structural':('構造材・NGMSET','definitions'), 'texts':('説明・材質','texts'), 'tables':('共通テーブル','tables'), 'books':('カタログ本','books'), 'rules':('PARAM プリセット','parameter_presets')}
         label,collection=categories.get(host.page,('確認・マクロ',None))
         if host.page in ('ptset','gmset','rules'):self.add_button.pack(side='right')
         else:self.add_button.pack_forget()
@@ -119,6 +119,7 @@ class RegisteredBrowser(ttk.Frame):
             if host.page == page and host.scom_id == record['id']:
                 return
             host.scom_id = record['id']
+            host.catalog_tab='scom'
         elif collection=='specs':
             page = 'specs'
             if host.page == page and host.spec_id == record['id']:

@@ -216,6 +216,8 @@ def validate(data):
                 if key in entry and not isinstance(entry[key],str): raise ValueError('SPEC のテキスト参照は識別子です。')
         _records(spec.get('entries'), 'SPEC 選択行',
                  ('type', 'bore1', 'bore2', 'scom_id', 'description'), 5000)
+    from . import catalog_workspace
+    catalog_workspace.validate(data)
     for collection in ('texts','tables'):
         _records(data.get(collection,[]), collection, ('name','type','parent_id','revision'),5000)
         for record in data.get(collection,[]):
@@ -234,6 +236,7 @@ def validate(data):
             raise ValueError('カタログ本のタイトル・版・日付を確認してください。')
         frozen={key:book.get(key) for key in ('parameters','cates','definitions','scoms','specs')}
         for collection in ('texts','tables'): frozen[collection]=book.get(collection,[])
+        for collection in catalog_workspace.COLLECTIONS.values():frozen[collection]=book.get(collection,[])
         frozen['reference_roles']=book.get('reference_roles',{})
         frozen['parameter_presets']=book.get('parameter_presets',[])
         frozen.update(format=FORMAT,version=VERSION,name=book['project_name'],books=[])
@@ -422,7 +425,7 @@ def issues(data):
     result = []
     # E3D names are globally visible; also find duplicate names across classes.
     names = {}
-    for collection in ('cates', 'definitions', 'scoms', 'specs', 'texts', 'tables'):
+    for collection in ('cates', 'definitions', 'scoms', 'specs', 'texts', 'tables', 'catalog_details', 'catalog_props'):
         for record in data.get(collection,[]):
             if not record['name'].strip():
                 result.append(collection + '：名前を入力してください。')
@@ -523,6 +526,8 @@ def issues(data):
                 text=get(data,'texts',ident)
                 if ident and (not text or text['type'] != kind): result.append(spec['name'] + '：' + kind + ' 参照が不正です。')
     result.extend(catalogue.companion_issues(data))
+    from . import catalog_workspace
+    result.extend(catalog_workspace.issues(data))
     return list(dict.fromkeys(result))
 
 
@@ -612,8 +617,15 @@ def macro_text(data):
             scom = get(data, 'scoms', entry['scom_id'])
             comment('  ' + entry['type'] + ' ' + entry['bore1'] + ' × ' + entry['bore2']
                     + ' → ' + (scom['name'] if scom else '[未設定]'))
+            for key,collection in (('detail_id','catalog_details'),('prop_id','catalog_props')):
+                if key in entry:comment('    '+key.removesuffix('_id').upper()+' → '+(get(data,collection,entry[key]) or {}).get('name','[未設定]'))
     for collection in ('texts','tables'):
         for record in data.get(collection,[]):
             comment(record['type']+' '+record['name']+' / 親 '+record['parent_id'])
+            for key,value in record['attrs'].items():comment('  '+key+' = '+str(value))
+    for label,collection in (('DETAIL','catalog_details'),('PROP','catalog_props')):
+        for record in data.get(collection,[]):
+            comment(label+' '+record['name']+' / 関連 CATE '+record['cate_id'])
+            if label=='DETAIL':comment('  SDTE → '+(get(data,'texts',record.get('sdte_id','')) or {}).get('name','[未設定]'))
             for key,value in record['attrs'].items():comment('  '+key+' = '+str(value))
     return '\n'.join(lines)

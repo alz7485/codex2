@@ -73,7 +73,7 @@ class ConstructionEditor(ttk.Frame):
             flow=ttk.Frame(preset_bar if self.kind=='PTSET' else self)
             if self.kind=='PTSET':flow.pack(side='right')
             else:flow.pack(fill='x',pady=(0,8))
-            self.workflow_label=ttk.Label(flow,text='PTSET → GMSET → SCOM → スペック',style='Muted.TLabel',wraplength=600)
+            self.workflow_label=ttk.Label(flow,text='PTSET → GMSET → カタログ作成 → スペック',style='Muted.TLabel',wraplength=600)
             if self.kind!='PTSET':self.workflow_label.pack(side='left')
             self.create_part_button=ttk.Button(flow,text='PTSET の編集を終えて GMSET へ' if self.kind=='PTSET' else '次へ：この GMSET で SCOM を登録',style='TButton' if self.kind=='PTSET' else 'Primary.TButton',command=self.create_part)
             self.create_part_button.pack(side='right')
@@ -350,7 +350,7 @@ class ConstructionEditor(ttk.Frame):
         if hasattr(self,'create_part_button'):
             self.create_part_button.configure(state='normal' if d else 'disabled')
             pointset=project.get(self.data,'definitions',self.data.get('creation_draft',{}).get('ptset_id'))
-            self.workflow_label.configure(text=('使用する PTSET：'+pointset['name']) if self.kind=='GMSET' and pointset else ('' if getattr(self,'simple_layout',False) else 'PTSET → GMSET → SCOM → スペック'))
+            self.workflow_label.configure(text=('使用する PTSET：'+pointset['name']) if self.kind=='GMSET' and pointset else ('' if getattr(self,'simple_layout',False) else 'PTSET → GMSET → カタログ作成 → スペック'))
         self.def_choice.set(d['name'] if d else '')
         self.def_name.set(d['name'] if d else '')
         self.elements.delete(*self.elements.get_children())
