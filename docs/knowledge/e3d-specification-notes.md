@@ -499,3 +499,13 @@ REPRESENTATION DEFAULTで復元する説明。
 - 今回ユーザーがPROPと呼ぶ作成データは、CMPTYPEを親、CMPDATAを子とする構造。単一のNEW PROPを作る例ではない。SMTEやSDTEXTとの同一視はしない。
 - CWEIの値は確認できるが、単位、未設定時の既定値、許容式の全範囲はこの写真だけでは確定しない。kg等の単位を推測追加しない。
 - SPECからCMPTYPEとCMPDATAのどちらを、どの属性で参照するか、およびCMPTYPE自身の所有先は写真にない。内部catalog_propsとの対応付けとMAC入出力は、この記録段階では未実装である。
+
+## 16. PTSET本体の追加写真（2026-10-19）
+
+出典：ユーザーが「こちらがptsetの作成データでした」と訂正・提示した写真。先のCATEGORY例とは別に、PTSET本体を確認できた。原写真、固有名、元のマクロ一式は公開しない。
+
+- INPUT BEGIN、NEW PTSET /名前、NEW PTAXISによる2つの点、各END、PTSETのEND、OLD/LOCK、INPUT END PTSET /名前、INPUT FINISHの構成。
+- 点属性はNUMB、PCON PARAM n、PBOR PARAM n、PDIS、PAXI。一方はPDIS 0とX、他方は括弧内でATTRIB PARA[n]・定数・ATTRIB DESP[n]を加算した距離式と-Xを持つ。
+- OLD PTAXIS 順番号 OF PTSET /名前で各点を選択してLOCKする。ここでの順番号は型別メンバー順であり、接続点番号NUMBそのものとは区別する。
+- PTAXISを内部PTAXIの別名として読込・出力に追加。既存のPTAXI/PTAX入力も維持する。式・PARAM参照は文字列を保持し、PCONの参照値を一律数値とはしない。
+- §13時点で未観測だったPTSETのINPUT外枠とPTAXISのOLD/LOCKについて、今回写真による具体的根拠を得た。ツールのSJIS出力との往復テストは別の自作データで実施し、E3D実機での再実行確認とは区別する。

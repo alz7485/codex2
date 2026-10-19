@@ -1,5 +1,5 @@
 """Observed ALP spellings and selectors; no command execution."""
-TYPE_NAMES = {'SCYL': 'SCYLINDER', 'LSNO': 'LSNOUT', 'SSPH': 'SSPHERE'}
+TYPE_NAMES = {'SCYL': 'SCYLINDER', 'LSNO': 'LSNOUT', 'SSPH': 'SSPHERE', 'PTAXI': 'PTAXIS'}
 ATTR_NAMES = {'CLFLA': 'CLFL', 'TUFLA': 'TUFL', 'PTS': 'SETP'}
 
 

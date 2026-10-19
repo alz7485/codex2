@@ -8,6 +8,52 @@ SAMPLE = Path(__file__).resolve().parents[1]/'examples'/'alp-creation-sample.mac
 
 
 class AlpMacroTests(unittest.TestCase):
+    def test_ptaxis_point_numbers_connections_distance_formula_and_locks(self):
+        source = '''INPUT BEGIN
+NEW PTSET /DEMO-ALP-POINTS
+NEW PTAXIS
+NUMB 4
+PCON PARAM 8
+PBOR PARAM 3
+PDIS 0
+PAXI Y
+END
+NEW PTAXIS
+NUMB 7
+PCON PARAM 9
+PBOR PARAM 3
+PDIS ( ATTRIB PARA[4 ] + 2 + 3 + ATTRIB DESP[1 ] )
+PAXI -Y
+END
+END
+OLD PTSET /DEMO-ALP-POINTS
+LOCK
+OLD PTAXIS 1 of PTSET /DEMO-ALP-POINTS
+LOCK
+OLD PTAXIS 2 of PTSET /DEMO-ALP-POINTS
+LOCK
+INPUT END PTSET /DEMO-ALP-POINTS
+INPUT FINISH'''
+        original = mi.parse(source).definitions[0]
+        self.assertEqual([e['type'] for e in original['elements']], ['PTAXI', 'PTAXI'])
+        self.assertEqual([e['attrs']['NUMB'] for e in original['elements']], ['4', '7'])
+        output = me.creation_text([original])
+        self.assertEqual(output.count('NEW PTAXIS'), 2)
+        self.assertIn('OLD PTAXIS 2 OF PTSET /DEMO-ALP-POINTS\nLOCK', output)
+        self.assertNotIn('OLD PTAXIS 7 OF', output)
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder)/'points.mac'; me.save(path, output)
+            text, _ = mi.read_text(path)
+            result = mi.parse(text).definitions[0]
+        for old, new in zip(original['elements'], result['elements']):
+            self.assertEqual(old['attrs'], new['attrs'])
+            self.assertTrue(new['macro_locked'])
+        attrs = result['elements'][1]['attrs']
+        contexts = {'PARAM': {'P3': 65, 'P4': 80, 'P9': 'BWD'}, 'DES PARAM': {'P1': 10}}
+        self.assertEqual(expressions.evaluate(attrs['PCON'], contexts), 'BWD')
+        self.assertEqual(expressions.evaluate(attrs['PBOR'], contexts), 65)
+        self.assertEqual(expressions.evaluate(attrs['PDIS'], contexts), 95)
+
     def test_observed_aliases_and_raw_expression_values(self):
         gm = mi.parse(SAMPLE.read_text()).definitions[0]
         self.assertEqual([e['type'] for e in gm['elements']], ['SCYL', 'SSPH', 'LINE', 'LSNO'])
