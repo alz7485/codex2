@@ -28,7 +28,7 @@ def open_export(editor):
     window.title(definition['kind'] + '：MAC出力')
     window.geometry('820x650'); window.minsize(560, 400)
     window.transient(host); window.grab_set()
-    ttk.Label(window, text=definition['name'] + '\nこのセットのみをShift-JIS（CP932）で出力します。\n式・属性を保持し、仮値やSCOMは含めません。E3D 4.0 実機での実行は未確認です。', padding=12, wraplength=520).pack(fill='x')
+    ttk.Label(window, text=definition['name'] + '\nこのセットのみをALP FILE形式・Shift-JIS（CP932）で出力します。\nINPUT・OLD/LOCKを含みます。新規定義はロック、読込定義はロック情報を保持します。E3D実行は未確認です。', padding=12, wraplength=520).pack(fill='x')
     footer = ttk.Frame(window, padding=12); footer.pack(side='bottom', fill='x')
     window.source = tk.Text(window, wrap='none', font=('Consolas', 10))
     horizontal = ttk.Scrollbar(window, orient='horizontal', command=window.source.xview)

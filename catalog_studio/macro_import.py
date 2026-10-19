@@ -5,7 +5,7 @@ import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import element_schema as schema, presets, project
+from . import element_schema as schema, presets, project, alp
 
 MAX_BYTES = 8 * 1024 * 1024
 SET_TYPES = tuple(schema.TYPES_BY_SET)
@@ -15,6 +15,7 @@ TYPE_ALIASES.update(dict(PTSE='PTSET', GMSE='GMSET', NGMS='NGMSET', PTSS='PTSSET
                          PTAX='PTAXI', PTCA='PTCAR', PTMI='PTMIX', PLIN='PLINE',
                          SLOOP='SLOO', SVERTEX='SVER', SPVERTEX='SPVE',
                          SRECTANGLE='SREC', SANNULUS='SANN', SPROFILE='SPRO'))
+TYPE_ALIASES.update({long: short for short, long in alp.TYPE_NAMES.items()})
 WRAPPERS = {'CATA': (), 'SECT': ('CATA',), 'CATE': ('SECT',)}
 ATTR_ALIASES = {key: key for kind in TYPE_ALIASES.values()
                 for section in ('main', 'detail', 'common', 'negative') for key in schema.fields(kind, section)}
@@ -26,11 +27,11 @@ for short, long, minimum in [('NUMB', 'NUMBER', 3), ('PBOR', 'PBORE', 4),
                             ('TVISI', 'TVISIBLE', 5), ('BVISI', 'BVISIBLE', 5),
                             ('GTYP', 'GTYPE', 4)]:
     ATTR_ALIASES.update({long[:length]: short for length in range(minimum, len(long) + 1)})
-ATTR_ALIASES.update(CLFL='CLFLA', TUFL='TUFLA', PTCD='PTCDIR')
+ATTR_ALIASES.update(CLFL='CLFLA', TUFL='TUFLA', PTCD='PTCDIR', SETP='PTS')
 CONTROL = {'DELETE', 'COPY', 'RENAME', 'REORDER', 'INCLUDE', 'RETURN', 'FINISH', 'EXIT',
            'SAVEWORK', 'VAR', 'DO', 'IF', 'ELSE', 'ENDIF', 'ENDDO', 'ALPHA', 'INPUT',
            'OUTPUT', 'TRACE', 'Q', 'QUERY', 'CE', 'MODEL', 'REPRESENTATION', 'UNITS',
-           'MM', 'INCH', 'FINCH', 'GOTO', 'OWNER', 'OWN', 'NEXT', 'PREV', 'SAME'}
+           'MM', 'INCH', 'FINCH', 'GOTO', 'OWNER', 'OWN', 'NEXT', 'PREV', 'SAME', 'OLD', 'LOCK'}
 COMMANDS = {'NEW', 'END', 'NAME', 'UNSET'}
 
 
@@ -152,11 +153,49 @@ def parse(text):
     """Extract NEW sets; errors prevent all import, never run or expand PML."""
     source, statements = _statements(text)
     definitions, warnings, stack = [], [], []
+    active, root, footer, old_target, finished, blocks = False, None, False, None, False, 0
     seen = set()
     def warn(line, message):
         item = f'{line}行目：{message}'
         if item not in seen: seen.add(item); warnings.append(item)
     for tokens in statements:
+        words = [item.text for item in tokens]
+        upper = [word.upper() for word in words]
+        first = upper[0]
+        if finished:
+            raise MacroImportError(tokens[0].line, 'INPUT FINISHの後に命令があります。')
+        if first == 'INPUT':
+            line = tokens[0].line
+            if upper == ['INPUT', 'BEGIN']:
+                if active or stack: raise MacroImportError(line, 'INPUT BEGINの前のセットを閉じてください。')
+                active, root, footer, old_target = True, None, False, None
+            elif len(words) == 4 and upper[1] == 'END':
+                kind = TYPE_ALIASES.get(upper[2], upper[2])
+                if not active or root is None or stack or old_target is not None or kind != root['kind'] or words[3] != root['name']:
+                    raise MacroImportError(line, 'INPUT ENDの型・名前・NEW/ENDの対応を確認してください。')
+                active, root, footer = False, None, False
+                blocks += 1
+            elif upper == ['INPUT', 'FINISH']:
+                if active or stack or not blocks: raise MacroImportError(line, 'INPUT ENDでセットを閉じてからINPUT FINISHを指定してください。')
+                finished = True
+            else: raise MacroImportError(line, '未対応のINPUT形式です。')
+            continue
+        if first in ('OLD', 'LOCK'):
+            line = tokens[0].line
+            if not active or root is None or stack:
+                raise MacroImportError(line, 'OLD・LOCKはINPUT内の作成完了後だけ読み込めます。')
+            footer = True
+            if first == 'OLD':
+                if old_target is not None: raise MacroImportError(line, 'OLDの後にLOCKが必要です。')
+                try: old_target = alp.resolve_old(words[1:], root, TYPE_ALIASES)
+                except ValueError as exc: raise MacroImportError(line, str(exc)) from exc
+            else:
+                if len(words) != 1 or old_target is None: raise MacroImportError(line, 'LOCKには直前のOLDによる対象指定が必要です。')
+                old_target['macro_locked'] = True
+                old_target = None
+            continue
+        if footer:
+            raise MacroImportError(tokens[0].line, 'ロック指定後はINPUT ENDで閉じてください。')
         pos = 0
         while pos < len(tokens):
             token = tokens[pos]; command = token.text.upper(); pos += 1
@@ -175,6 +214,7 @@ def parse(text):
                     warn(token.line, kind + 'の所有階層・属性は取り込みません。')
                     continue
                 if kind in SET_TYPES:
+                    if active and root is not None: raise MacroImportError(token.line, 'INPUT BEGINごとに1セットを指定してください。')
                     stack = [frame for frame in stack if frame.get('wrapper')]
                     if len(definitions) >= 1000: raise MacroImportError(token.line, '定義数の上限です。')
                     if not name:
@@ -182,6 +222,9 @@ def parse(text):
                         warn(token.line, '無名のセットに表示名を付けました：' + name)
                     record = {'id':uuid.uuid4().hex, 'kind':kind, 'name':name,
                               'revision':'01', 'attrs':{}, 'elements':[]}
+                    if active:
+                        record['macro_locked'] = False
+                        root = record
                     definitions.append(record); stack.append(record)
                     continue
                 if not schema.known(kind):
@@ -196,6 +239,7 @@ def parse(text):
                 children = parent['elements'] if 'elements' in parent else parent.setdefault('children', [])
                 if len(children) >= 200 or len(stack) > 9: raise MacroImportError(token.line, '要素数または階層の上限です。')
                 record = {'id':uuid.uuid4().hex, 'type':kind, 'name':name or f'{kind} {len(children) + 1}', 'attrs':{}}
+                if active: record['macro_locked'] = False
                 children.append(record); stack.append(record)
             elif command == 'END':
                 if not stack: raise MacroImportError(token.line, '対応するNEWがないENDです。')
@@ -241,6 +285,8 @@ def parse(text):
                 if key in target['attrs']: warn(token.line, command + 'の再代入は最後の値を採用します。')
                 # Text delimiters are syntax, while expression parentheses are stored verbatim.
                 target['attrs'][key] = _literal(raw) if key in ('DESC','PURP') else raw
+    if active: raise MacroImportError(statements[-1][0].line, 'INPUT ENDがありません。')
+    if blocks and not finished: raise MacroImportError(statements[-1][0].line, 'INPUT FINISHがありません。')
     if not definitions: raise ValueError('NEW PTSET /名前 または NEW GMSET /名前 で始まる定義がありません。')
     for definition in definitions: project.validate_elements(definition['elements'])
     return ParsedMacro(definitions, warnings)

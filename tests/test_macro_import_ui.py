@@ -12,6 +12,27 @@ SAMPLE = Path(__file__).resolve().parents[1]/'examples'/'creation-import-sample.
 
 
 class MacroImportGuiTests(unittest.TestCase):
+    def test_alp_file_import_then_export_keeps_formulas_points_and_locks(self):
+        from catalog_studio import macro_import
+        from catalog_studio.macro_export_ui import open_export
+        window = self.dialog(SAMPLE.with_name('alp-creation-sample.mac').read_text())
+        self.assertIn('出力時のロック：あり', window.details.get('1.0', 'end'))
+        window.apply_button.invoke(); self.app.update()
+        editor = self.app.geometry_editor
+        self.assertEqual(editor.definition()['kind'], 'GMSET')
+        preview = open_export(editor); self.app.update()
+        self.assertIn('INPUT BEGIN', preview.source.get('1.0', 'end'))
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder)/'alp.mac'
+            with patch('catalog_studio.macro_export_ui.filedialog.asksaveasfilename', return_value=str(path)):
+                preview.save_button.invoke(); self.app.update()
+            text, _ = macro_import.read_text(path)
+            record = macro_import.parse(text).definitions[0]
+        self.assertEqual(record['elements'][2]['attrs']['PTS'], 'P1 P3')
+        self.assertEqual(record['elements'][0]['attrs']['PDIA'], 'SUM PARAM 2 IPARAM 1')
+        self.assertTrue(all(e['macro_locked'] for e in record['elements']))
+        self.assertEqual(self.errors, [])
+
     def setUp(self):
         try: self.app = IntegratedStudio()
         except tk.TclError as exc: self.skipTest('GUI display unavailable: ' + str(exc))

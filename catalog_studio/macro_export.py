@@ -4,7 +4,7 @@ import re
 import tempfile
 from pathlib import Path
 
-from . import element_schema as schema, macro_import
+from . import element_schema as schema, macro_import, alp
 
 
 def _name(value):
@@ -52,8 +52,9 @@ def creation_text(definitions):
              '$* Select the intended catalogue owner before running. Existing names are not replaced.', '']
     expected = []
     names = set()
+    locks = []
 
-    def emit(record, kind, allowed, depth=0):
+    def emit(record, kind, allowed, depth=0, reference=''):
         if depth > 9 or kind not in allowed:
             raise ValueError('この親から出力できない要素型です：' + str(kind))
         name = record.get('name', '')
@@ -62,30 +63,45 @@ def creation_text(definitions):
             if formal_name in names:
                 raise ValueError('出力する要素名が重複しています：' + formal_name)
             names.add(formal_name)
-        lines.append('NEW ' + kind + (' ' + formal_name if formal_name else ''))
+        output_kind = alp.TYPE_NAMES.get(kind, kind)
+        if depth == 0: reference = output_kind + ' ' + formal_name
+        locked = record.get('macro_locked', True)
+        if type(locked) is not bool: raise ValueError('ロック情報はtrue/falseで保存してください。')
+        if locked: locks.append('OLD ' + reference + '\nLOCK')
+        lines.append('NEW ' + output_kind + (' ' + formal_name if formal_name else ''))
         attrs = _attrs(record.get('attrs', {}), kind)
         for key, value in attrs.items():
             encoded = "'" + value.replace("'", "''") + "'" if key in ('DESC', 'PURP') else value
-            lines.append(key + ' ' + encoded)
+            lines.append(alp.ATTR_NAMES.get(key, key) + ' ' + encoded)
         children = record.get('elements' if depth == 0 else 'children', [])
         if len(children) > 200:
             raise ValueError('1セット・親要素につき200要素以内にしてください。')
         normalized = []
+        counts = {}
         for child in children:
-            normalized.append(emit(child, child.get('type'), schema.TYPES_BY_SET[kind] if depth == 0 else schema.allowed_children(kind), depth + 1))
+            child_type = child.get('type')
+            counts[child_type] = counts.get(child_type, 0) + 1
+            child_reference = alp.TYPE_NAMES.get(child_type, child_type or '') + ' ' + str(counts[child_type]) + ' OF ' + reference
+            normalized.append(emit(child, child_type, schema.TYPES_BY_SET[kind] if depth == 0 else schema.allowed_children(kind), depth + 1, child_reference))
         lines.append('END')
-        return (kind, formal_name, attrs, normalized)
+        return (kind, formal_name, attrs, normalized, locked)
 
     for definition in definitions:
+        locks.clear()
+        lines.append('INPUT BEGIN')
         expected.append(emit(definition, definition.get('kind'), ('PTSET', 'GMSET')))
+        lines.extend(locks)
+        lines.append('INPUT END ' + definition['kind'] + ' ' + definition['name'])
         lines.append('')
+    lines.append('INPUT FINISH')
+    lines.append('')
     text = '\n'.join(lines)
     parsed = macro_import.parse(text)
 
     def normalized(record, root=False):
         kind = record['kind'] if root else record['type']
         name = record['name'] if root or record['name'].startswith('/') else ''
-        return (kind, name, record['attrs'], [normalized(child) for child in record.get('elements' if root else 'children', [])])
+        return (kind, name, record['attrs'], [normalized(child) for child in record.get('elements' if root else 'children', [])], record.get('macro_locked', False))
 
     if [normalized(record, True) for record in parsed.definitions] != expected:
         raise ValueError('属性値をそのまま保持できません。命令区切り・コメント・引用符を確認してください。')

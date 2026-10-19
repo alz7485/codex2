@@ -465,3 +465,15 @@ REPRESENTATION DEFAULTで復元する説明。
 - PARAMの意味は family・参照先・プリセットと組にする。
 - 実寸評価は実部品値と設計文脈、仮配置は専用の編集メタデータとする。
 - E3D向けマクロの実行可能性、表示既定値、負寸法・ゼロ寸法・単位次元の判定は、[未確認事項](open-questions.md)と実装状態を照合する。
+
+## 13. ユーザー提示のE3D ALP FILE出力（2026-10-19）
+
+出典：ユーザーがE3DのALP FILE出力と説明したGMSETの写真。旧PDMS資料とは別の観測情報。画像から読めた範囲であり、本ツールがE3D実機で実行して確認した結果ではない。
+
+- INPUT BEGIN → NEW GMSET /名前 → 子要素NEWと属性代入・END → GMSETのEND → OLD/LOCK → INPUT END GMSET /名前 → INPUT FINISHの構成。
+- SCYLINDER、LSNOUT、SSPHEREという長形式の型名。従来のツール内部型SCYL、LSNO、SSPHへ対応。
+- CLFL/TUFLにtrue。LINEのSETPにP点列。従来の内部属性CLFLA/TUFLA/PTSへ対応。
+- SUM PARAM n IPARAM m、PARAM n、係数 TIMES PARAM n、括弧内ATTRIB PARA[n]とATTRIB DESP[n]の加算式が観測できる。原文を保存し、既存の制限付き式エンジンで解釈可能なものを評価する。
+- PAXIの-XとP点参照、PAAXの-X、正形状側NAPP 0がある。正形状NAPPの意味・一般的な既定値はこの観測だけで確定しないため、原文属性として保持する。
+- OLD GMSET /名前、およびOLD 子型 1 OF GMSET /名前に続くLOCK。ロック対象の型・親・型別順番号を照合する。入れ子へのOLDは同じ構成を再帰的に用いるツールの実装で、写真による直接確認範囲とは区別する。
+- PTSETへの同じ外枠の適用は今回のツールの共通出力方式であり、このGMSET写真による実機確認ではない。

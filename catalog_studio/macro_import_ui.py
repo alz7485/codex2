@@ -18,10 +18,10 @@ class MacroImportDialog(tk.Toplevel):
         body.columnconfigure(0, weight=1)
         for row, weight in ((3,3), (5,2), (6,2)): body.rowconfigure(row, weight=weight, minsize=60)
         ttk.Label(body, text='PTSET・GMSET を読み込む', style='Heading.TLabel').grid(row=0, column=0, sticky='w')
-        description = ttk.Label(body, text='ファイルを開くか、NEW PTSET /名前・NEW GMSET /名前 から始まる作成マクロを貼り付けて解析します。', wraplength=820)
+        description = ttk.Label(body, text='ALP FILE形式（INPUT BEGIN〜INPUT FINISH）またはNEW PTSET /名前・NEW GMSET /名前 の作成マクロを開くか、貼り付けて解析します。', wraplength=820)
         description.grid(row=1, column=0, sticky='ew', pady=(6,8))
         top = ttk.Frame(body); top.grid(row=2, column=0, sticky='ew', pady=(0,8))
-        self.file_button = ttk.Button(top, text='ファイルを開く (.mac / .txt)', command=self.open_file)
+        self.file_button = ttk.Button(top, text='ファイルを開く (.mac / .txt / .alp)', command=self.open_file)
         self.file_button.pack(side='left')
         ttk.Button(top, text='テキストを解析', command=self.analyze, style='Primary.TButton').pack(side='left', padx=8)
         self.source_label = ttk.Label(top, text='貼り付け入力', style='Muted.TLabel', wraplength=220); self.source_label.pack(side='left')
@@ -77,7 +77,7 @@ class MacroImportDialog(tk.Toplevel):
 
     def open_file(self):
         path = filedialog.askopenfilename(parent=self, title='作成マクロを開く',
-                                          filetypes=[('作成マクロ・テキスト','*.mac *.txt'), ('すべてのファイル','*.*')])
+                                          filetypes=[('作成マクロ・テキスト','*.mac *.txt *.alp'), ('すべてのファイル','*.*')])
         if not path: return
         try: text, encoding = macro_import.read_text(path)
         except (OSError, ValueError) as exc:
@@ -110,8 +110,12 @@ class MacroImportDialog(tk.Toplevel):
         for record in self.parsed.definitions:
             if record['id'] not in selection: continue
             lines.append('\n' + record['kind'] + ' ' + record['name'])
+            if 'macro_locked' in record:
+                lines.append('  出力時のロック：' + ('あり' if record['macro_locked'] else 'なし'))
             for element in schema.walk(record['elements']):
                 lines.append('  ' + element['type'] + ' ' + element['name'])
+                if 'macro_locked' in element:
+                    lines.append('    出力時のロック：' + ('あり' if element['macro_locked'] else 'なし'))
                 lines.extend('    ' + key + ' ' + value for key, value in element['attrs'].items())
         if self.parsed.warnings:
             lines.append('\n読込時の注意（ファイル全体）：')
