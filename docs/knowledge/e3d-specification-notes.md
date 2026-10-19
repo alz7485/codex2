@@ -477,3 +477,14 @@ REPRESENTATION DEFAULTで復元する説明。
 - PAXIの-XとP点参照、PAAXの-X、正形状側NAPP 0がある。正形状NAPPの意味・一般的な既定値はこの観測だけで確定しないため、原文属性として保持する。
 - OLD GMSET /名前、およびOLD 子型 1 OF GMSET /名前に続くLOCK。ロック対象の型・親・型別順番号を照合する。入れ子へのOLDは同じ構成を再帰的に用いるツールの実装で、写真による直接確認範囲とは区別する。
 - PTSETへの同じ外枠の適用は今回のツールの共通出力方式であり、このGMSET写真による実機確認ではない。
+
+## 14. カタログ一式とディテールテキストの追加写真（2026-10-19）
+
+出典：GMSET写真に続けて提示されたカタログの2枚と、ユーザーが「ディテールテキストの作成データ」と説明した別の1枚。元の固有名・本文・数値配列・写真原本は保存しない。ユーザー提示の作成出力の観測情報であり、本ツールによるE3D実行検証ではない。
+
+- 先の2枚ではINPUT BEGINの後にNEW CATEGORY、配下にSDTEXT、TEXT、SCOMPONENTがある。PURP、RTEX、STEX、GTYP、PARAが観測できる。PARAの複数行は末尾の$で継続している。
+- 後半にOLD CATEGORY、OLD SDTEXT、OLD TEXT、OLD SCOMPONENTとLOCKが続く。SCOMPONENTを選択した後にPTREでPTSET、GMREでGMSETを参照し、その後LOCK、INPUT END CATEGORY /名前、INPUT FINISHで終える。参照設定がNEW本体だけでなく後段にも現れる点を保持すべきである。
+- この2枚にPTSET参照はあるが、NEW PTSETとポイントの本体定義はない。PTSETの実機出力例を確認済みとは扱わない。
+- ディテールテキストの写真では、INPUT BEGIN、NEW SDTEXT /名前、SKEYの引用符付き値、RTEXの引用符付き本文、END、OLD SDTEXT /同じ名前、LOCK、INPUT END SDTEXT /同じ名前、INPUT FINISHという単独要素の構成を確認できる。
+- 今回ユーザーがディテールテキストと呼ぶデータはSDTEXTである。SKEYとRTEXを持つ作成形式が新たな根拠となる。別の管理用DETAILレコード全般との一対一対応、SPECの参照属性、所有先、PROPの正式型・作成形式まで確定したものではない。
+- 既存のPTSET/GMSET専用読込・出力と、CATEGORY/SDTEXT等の今後の対応を区別する。写真の受領・メモ追加だけでは、カタログ一式やディテールテキストのMAC入出力を実装済みとしない。
