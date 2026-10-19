@@ -119,3 +119,9 @@
 ユーザーがディテールテキストと説明したSDTEXTの単独作成例から、SKEY・RTEX、INPUT外枠、OLD/LOCKを観測した。従来の「DETAILの正式な作成形式が未確認」という点について、少なくともユーザーのディテールテキストの型と2属性には具体例が得られた。SDTEXTと内部catalog_details全体の対応やSPECでの正式参照、PROPの型・所有先は引き続き未確定。SDTEXTをDETAIやDETREFと根拠なく同一視しない。
 
 カタログ2枚ではPTRE/GMREの参照を確認できるが、PTSET本体のNEW・ポイント定義の写真は未提示。カタログ一式・SDTEXT単独のMAC読込・出力は、今回メモを追加した段階では未実装。既存のPTSET/GMSET ALP対応がそのまま全型対応になったとは扱わない。
+
+## 14. PROPの作成構造に関する新たな根拠（2026-10-19）
+
+ユーザーがPROPとして提示した写真で、NEW CMPTYPE→NEW CMPDATA→CWEIの階層とINPUT外枠を確認できた。§10・§13で未確定としていたPROPの作成型について、この具体例の範囲では根拠が得られた。PROPという単一要素名を推測出力せず、CMPTYPE/CMPDATAの親子構造として扱う。
+
+SPECの参照先が親CMPTYPEか子CMPDATAか、その正式な参照属性、CMPTYPEの所有先、CWEIの単位・既定値・式の許容範囲は引き続き未確認。写真にないOLD/LOCKを必須としない。内部catalog_propsへの対応とCMPTYPE/CMPDATAのMAC読込・出力は、今回の記録追加では未実装。

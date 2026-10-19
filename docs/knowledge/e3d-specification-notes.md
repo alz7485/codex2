@@ -488,3 +488,14 @@ REPRESENTATION DEFAULTで復元する説明。
 - ディテールテキストの写真では、INPUT BEGIN、NEW SDTEXT /名前、SKEYの引用符付き値、RTEXの引用符付き本文、END、OLD SDTEXT /同じ名前、LOCK、INPUT END SDTEXT /同じ名前、INPUT FINISHという単独要素の構成を確認できる。
 - 今回ユーザーがディテールテキストと呼ぶデータはSDTEXTである。SKEYとRTEXを持つ作成形式が新たな根拠となる。別の管理用DETAILレコード全般との一対一対応、SPECの参照属性、所有先、PROPの正式型・作成形式まで確定したものではない。
 - 既存のPTSET/GMSET専用読込・出力と、CATEGORY/SDTEXT等の今後の対応を区別する。写真の受領・メモ追加だけでは、カタログ一式やディテールテキストのMAC入出力を実装済みとしない。
+
+## 15. PROPの作成データの追加写真（2026-10-19）
+
+出典：ユーザーが「PROPの作成データです」と説明した写真。写真原本、元の固有名、数値を含むマクロ一式は公開しない。観測した構造・属性のみを記録する。
+
+- INPUT BEGINの後にNEW CMPTYPE /親名、続けてNEW CMPDATA /子名があり、CMPDATAにCWEIの括弧付き数値を設定する。
+- ENDが2回あり、CMPDATAとCMPTYPEをそれぞれ閉じた後、INPUT END CMPTYPE /親名、INPUT FINISHで終わる。
+- この写真にはOLD・LOCKがない。GMSETやSDTEXTの例で観測したロック処理を、すべての出力へ必須として一般化しない。
+- 今回ユーザーがPROPと呼ぶ作成データは、CMPTYPEを親、CMPDATAを子とする構造。単一のNEW PROPを作る例ではない。SMTEやSDTEXTとの同一視はしない。
+- CWEIの値は確認できるが、単位、未設定時の既定値、許容式の全範囲はこの写真だけでは確定しない。kg等の単位を推測追加しない。
+- SPECからCMPTYPEとCMPDATAのどちらを、どの属性で参照するか、およびCMPTYPE自身の所有先は写真にない。内部catalog_propsとの対応付けとMAC入出力は、この記録段階では未実装である。
