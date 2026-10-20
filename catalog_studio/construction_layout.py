@@ -70,13 +70,20 @@ def build_simple(editor):
     name.pack(anchor='w',fill='x',pady=(0,4))
     name.bind('<Configure>',lambda event:name.configure(wraplength=max(110,event.width-4)))
     if not getattr(e.host,'is_preset_editor',False):
-        e.import_macro_button=ttk.Button(left,text='作成マクロを読み込む',command=e.host.import_creation_macro)
-        e.import_macro_button.pack(fill='x',pady=(0,8))
-        from .macro_destinations_ui import build_field
-        build_field(e, left)
+        from . import macro_icons
         from .macro_export_ui import open_export
-        e.export_macro_button=ttk.Button(left,text='作成マクロを出力 (.mac)',command=lambda:open_export(e))
-        e.export_macro_button.pack(fill='x',pady=(0,8))
+        from .macro_destinations_ui import build_field
+        e.macro_frame=ttk.LabelFrame(left,text='マクロ',padding=(8,6))
+        e.macro_frame.pack(fill='x',pady=(0,10))
+        actions=ttk.Frame(e.macro_frame);actions.pack(fill='x',pady=(0,8))
+        actions.columnconfigure((0,1),weight=1,uniform='macro')
+        e.import_macro_image=macro_icons.create(e)
+        e.export_macro_image=macro_icons.create(e,export=True)
+        e.import_macro_button=ttk.Button(actions,text='読込',image=e.import_macro_image,compound='left',style='Macro.TButton',command=e.host.import_creation_macro)
+        e.import_macro_button.grid(row=0,column=0,sticky='ew',padx=(0,4))
+        e.export_macro_button=ttk.Button(actions,text='出力',image=e.export_macro_image,compound='left',style='Macro.TButton',command=lambda:open_export(e))
+        e.export_macro_button.grid(row=0,column=1,sticky='ew',padx=(4,0))
+        build_field(e,e.macro_frame)
     row = ttk.Frame(left)
     row.pack(fill='x', pady=(0, 8))
     ttk.Label(row, text='要素', style='Heading.TLabel').pack(side='left')

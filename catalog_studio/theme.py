@@ -41,6 +41,8 @@ def apply(root,family):
     attribute_background=[('disabled','#f1f3f6'),('pressed','#c5d8fb'),('active','#dae7ff')]
     style.configure('AttributeTool.TButton',padding=(6,4),font=(family,9),relief='raised',borderwidth=1,**attribute_palette)
     style.map('AttributeTool.TButton',background=attribute_background,foreground=[('disabled','#a1acbb')],bordercolor=[('disabled','#dce2eb'),('focus',ACCENT),('active','#7c9fce')],relief=[('pressed','sunken'),('!pressed','raised')])
+    style.configure('Macro.TButton',padding=(6,6),font=(family,9),relief='raised',borderwidth=1,**attribute_palette)
+    style.map('Macro.TButton',background=attribute_background,foreground=[('disabled','#a1acbb')],bordercolor=[('focus',ACCENT),('active','#7c9fce')],relief=[('pressed','sunken'),('!pressed','raised')])
     style.configure('Compact.Primary.TButton',padding=(7,3),width=0,font=(family,9))
     style.configure('Primary.TButton',background=ACCENT,foreground='white',bordercolor=ACCENT,lightcolor=ACCENT,darkcolor=ACCENT)
     style.map('Primary.TButton',background=[('disabled','#aec3e8'),('pressed',ACCENT_HOVER),('active',ACCENT_HOVER)],foreground=[('disabled','#eef3fb'),('!disabled','white')],bordercolor=[('focus','#83a9f6'),('!focus',ACCENT)])
