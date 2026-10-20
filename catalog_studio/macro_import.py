@@ -5,7 +5,7 @@ import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import element_schema as schema, presets, project, alp
+from . import element_schema as schema, presets, project, alp, macro_destinations
 
 MAX_BYTES = 8 * 1024 * 1024
 SET_TYPES = tuple(schema.TYPES_BY_SET)
@@ -154,6 +154,7 @@ def parse(text):
     source, statements = _statements(text)
     definitions, warnings, stack = [], [], []
     active, root, footer, old_target, finished, blocks = False, None, False, None, False, 0
+    destination = ''
     seen = set()
     def warn(line, message):
         item = f'{line}行目：{message}'
@@ -164,6 +165,12 @@ def parse(text):
         first = upper[0]
         if finished:
             raise MacroImportError(tokens[0].line, 'INPUT FINISHの後に命令があります。')
+        if first.startswith('/'):
+            if len(words) != 1 or active or stack:
+                raise MacroImportError(tokens[0].line, '登録先の選択はセット作成前に /名前 だけの行で指定してください。')
+            try: destination = macro_destinations.normalize(words[0])
+            except ValueError as exc: raise MacroImportError(tokens[0].line, str(exc)) from exc
+            continue
         if first == 'INPUT':
             line = tokens[0].line
             if upper == ['INPUT', 'BEGIN']:
@@ -225,6 +232,7 @@ def parse(text):
                         warn(token.line, '無名のセットに表示名を付けました：' + name)
                     record = {'id':uuid.uuid4().hex, 'kind':kind, 'name':name,
                               'revision':'01', 'attrs':{}, 'elements':[]}
+                    if destination: record['macro_destination'] = destination
                     if active:
                         record['macro_locked'] = False
                         root = record

@@ -4,7 +4,7 @@ import re
 import tempfile
 from pathlib import Path
 
-from . import element_schema as schema, macro_import, alp
+from . import element_schema as schema, macro_import, alp, macro_destinations
 
 
 def _name(value):
@@ -40,7 +40,7 @@ def _attrs(attrs, kind):
     return result
 
 
-def creation_text(definitions, *, lock_created=False):
+def creation_text(definitions, *, lock_created=False, destinations=None):
     """Export compact NEW macros, optionally locking current elements in place.
 
     A parser round trip additionally rejects ambiguous raw attribute values.
@@ -50,6 +50,8 @@ def creation_text(definitions, *, lock_created=False):
         raise ValueError('出力するセットを選んでください。')
     if type(lock_created) is not bool:
         raise ValueError('ロック出力の指定はtrue/falseで指定してください。')
+    if destinations is not None and not isinstance(destinations, dict):
+        raise ValueError('登録先はPTSET・GMSET別に指定してください。')
     lines = []
     expected = []
     names = set()
@@ -89,7 +91,12 @@ def creation_text(definitions, *, lock_created=False):
         lines.append('END')
         return (kind, formal_name, attrs, normalized, lock_created)
 
+    current_destination = ''
     for definition in definitions:
+        destination = macro_destinations.normalize((destinations or {}).get(definition.get('kind'), ''))
+        if destination and destination != current_destination:
+            lines.append(destination)
+            current_destination = destination
         expected.append(emit(definition, definition.get('kind'), ('PTSET', 'GMSET')))
         lines.append('')
     text = '\n'.join(lines)

@@ -274,6 +274,7 @@ class ConstructionEditor(ttk.Frame):
 
     def commit_inline(self):
         if not all(table.finish_edit() for table in self.tables.values() if hasattr(table,'finish_edit')):return False
+        if hasattr(self, 'normalize_destination'): self.normalize_destination()
         return self.elements.finish_edit() if hasattr(self.elements,'finish_edit') else True
 
     def attribute_section(self,key=None):

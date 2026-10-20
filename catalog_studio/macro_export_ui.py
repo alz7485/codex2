@@ -3,7 +3,7 @@ import re
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
-from . import macro_export
+from . import macro_export, macro_destinations
 
 
 def open_export(editor):
@@ -21,7 +21,8 @@ def open_export(editor):
     if requested_name != definition['name']:
         return
     try:
-        source = macro_export.creation_text([definition])
+        destinations = dict(host.data.get(macro_destinations.KEY, {}))
+        source = macro_export.creation_text([definition], destinations=destinations)
     except ValueError as exc:
         messagebox.showerror('作成マクロを出力できません', str(exc), parent=host); return
     window = tk.Toplevel(host)
@@ -45,7 +46,7 @@ def open_export(editor):
 
     def refresh():
         nonlocal source
-        source = macro_export.creation_text([definition], lock_created=window.lock_created.get())
+        source = macro_export.creation_text([definition], lock_created=window.lock_created.get(), destinations=destinations)
         window.source.configure(state='normal'); window.source.delete('1.0', 'end')
         window.source.insert('1.0', source); window.source.configure(state='disabled')
     option.configure(command=refresh)

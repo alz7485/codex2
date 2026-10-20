@@ -110,6 +110,8 @@ class MacroImportDialog(tk.Toplevel):
         for record in self.parsed.definitions:
             if record['id'] not in selection: continue
             lines.append('\n' + record['kind'] + ' ' + record['name'])
+            if record.get('macro_destination'):
+                lines.append('  元マクロの登録先：' + record['macro_destination'] + '（画面の登録先は変更しません）')
             if 'macro_locked' in record:
                 lines.append('  出力時のロック：' + ('あり' if record['macro_locked'] else 'なし'))
             for element in schema.walk(record['elements']):

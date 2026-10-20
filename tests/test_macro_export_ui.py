@@ -5,12 +5,50 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from catalog_studio import macro_import
+from catalog_studio import macro_import, project
 from catalog_studio.integrated import IntegratedStudio
 from catalog_studio.macro_export_ui import open_export
 
 
 class MacroExportGuiTests(unittest.TestCase):
+    def test_destination_fields_are_independent_normalized_and_saved(self):
+        editor = self.editor('ptset')
+        self.assertTrue(editor.destination_entry.winfo_ismapped())
+        editor.destination_var.set('PT-ROOT')
+        preview = open_export(editor); self.app.update()
+        self.assertEqual(editor.destination_var.get(), '/PT-ROOT')
+        self.assertTrue(preview.source.get('1.0', 'end').startswith('/PT-ROOT\nNEW PTSET'))
+        preview.destroy()
+        editor = self.editor('gmset')
+        self.assertTrue(editor.destination_entry.winfo_ismapped())
+        self.assertEqual(editor.destination_var.get(), '')
+        editor.destination_var.set('/GM-ROOT')
+        preview = open_export(editor); self.app.update()
+        preview.lock_button.invoke(); self.app.update()
+        self.assertTrue(preview.source.get('1.0', 'end').startswith('/GM-ROOT\nNEW GMSET'))
+        with tempfile.TemporaryDirectory() as folder:
+            macro = Path(folder)/'gm.mac'
+            with patch('catalog_studio.macro_export_ui.filedialog.asksaveasfilename', return_value=str(macro)):
+                preview.save_button.invoke(); self.app.update()
+            self.assertEqual(macro_import.parse(macro.read_text(encoding='cp932')).definitions[0]['macro_destination'], '/GM-ROOT')
+            saved=Path(folder)/'project.json';self.app.path=str(saved)
+            self.assertTrue(self.app.save_project())
+            self.assertEqual(project.load(saved)['macro_destinations'], {'PTSET':'/PT-ROOT','GMSET':'/GM-ROOT'})
+            with patch('catalog_studio.integrated.filedialog.askopenfilename', return_value=str(saved)):
+                self.app.open_project();self.app.update()
+            self.app.switch('ptset');self.app.update()
+            self.assertEqual(self.app.geometry_editor.destination_var.get(), '/PT-ROOT')
+            self.app.switch('gmset');self.app.update()
+            self.assertEqual(self.app.geometry_editor.destination_var.get(), '/GM-ROOT')
+        self.assertEqual(self.errors, [])
+
+    def test_invalid_destination_blocks_export_before_file_picker(self):
+        editor=self.editor('ptset');editor.destination_var.set('ROOT\nDELETE ALL')
+        with patch('catalog_studio.macro_export_ui.messagebox.showerror') as error, patch('catalog_studio.macro_export_ui.filedialog.asksaveasfilename') as picker:
+            self.assertIsNone(open_export(editor))
+        error.assert_called_once();picker.assert_not_called()
+        self.assertEqual(self.errors, [])
+
     def test_lock_toggle_updates_preview_and_saved_macro_without_editing_project(self):
         editor = self.editor('ptset'); before = copy.deepcopy(self.app.data)
         window = open_export(editor); self.app.update()
