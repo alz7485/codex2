@@ -28,7 +28,11 @@ def open_export(editor):
     window.title(definition['kind'] + '：MAC出力')
     window.geometry('820x650'); window.minsize(560, 400)
     window.transient(host); window.grab_set()
-    ttk.Label(window, text=definition['name'] + '\nこのセットのみをALP FILE形式・Shift-JIS（CP932）で出力します。\nINPUT・OLD/LOCKを含みます。新規定義はロック、読込定義はロック情報を保持します。E3D実行は未確認です。', padding=12, wraplength=520).pack(fill='x')
+    ttk.Label(window, text=definition['name'] + '\n簡潔な作成マクロをShift-JIS（CP932）で出力します。INPUTの外枠・OLDは付けません。\nロックの有無は下で選べます。式・属性は保持します。E3D実行は未確認です。', padding=12, wraplength=520).pack(fill='x')
+    window.lock_created = tk.BooleanVar(value=False)
+    option = ttk.Checkbutton(window, text='作成する要素をロックする（各要素の作成後にLOCK）', variable=window.lock_created)
+    option.pack(anchor='w', padx=12, pady=(0,8))
+    window.lock_button = option
     footer = ttk.Frame(window, padding=12); footer.pack(side='bottom', fill='x')
     window.source = tk.Text(window, wrap='none', font=('Consolas', 10))
     horizontal = ttk.Scrollbar(window, orient='horizontal', command=window.source.xview)
@@ -38,6 +42,13 @@ def open_export(editor):
     window.source.configure(yscrollcommand=scroll.set, xscrollcommand=horizontal.set)
     window.source.pack(fill='both', expand=True, padx=(12, 0))
     window.source.insert('1.0', source); window.source.configure(state='disabled')
+
+    def refresh():
+        nonlocal source
+        source = macro_export.creation_text([definition], lock_created=window.lock_created.get())
+        window.source.configure(state='normal'); window.source.delete('1.0', 'end')
+        window.source.insert('1.0', source); window.source.configure(state='disabled')
+    option.configure(command=refresh)
 
     def save():
         filename = re.sub(r'[^\w.-]+', '-', definition['name'].lstrip('/')) or definition['kind']

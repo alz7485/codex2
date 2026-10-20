@@ -182,6 +182,9 @@ def parse(text):
             continue
         if first in ('OLD', 'LOCK'):
             line = tokens[0].line
+            if first == 'LOCK' and len(words) == 1 and stack and not footer and not stack[-1].get('wrapper'):
+                stack[-1]['macro_locked'] = True
+                continue
             if not active or root is None or stack:
                 raise MacroImportError(line, 'OLD・LOCKはINPUT内の作成完了後だけ読み込めます。')
             footer = True

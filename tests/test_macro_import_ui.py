@@ -21,7 +21,8 @@ class MacroImportGuiTests(unittest.TestCase):
         editor = self.app.geometry_editor
         self.assertEqual(editor.definition()['kind'], 'GMSET')
         preview = open_export(editor); self.app.update()
-        self.assertIn('INPUT BEGIN', preview.source.get('1.0', 'end'))
+        self.assertNotIn('INPUT BEGIN', preview.source.get('1.0', 'end'))
+        preview.lock_button.invoke(); self.app.update()
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder)/'alp.mac'
             with patch('catalog_studio.macro_export_ui.filedialog.asksaveasfilename', return_value=str(path)):

@@ -37,9 +37,10 @@ INPUT FINISH'''
         original = mi.parse(source).definitions[0]
         self.assertEqual([e['type'] for e in original['elements']], ['PTAXI', 'PTAXI'])
         self.assertEqual([e['attrs']['NUMB'] for e in original['elements']], ['4', '7'])
-        output = me.creation_text([original])
+        output = me.creation_text([original], lock_created=True)
         self.assertEqual(output.count('NEW PTAXIS'), 2)
-        self.assertIn('OLD PTAXIS 2 OF PTSET /DEMO-ALP-POINTS\nLOCK', output)
+        self.assertNotIn('OLD ', output)
+        self.assertEqual(output.splitlines().count('LOCK'), 3)
         self.assertNotIn('OLD PTAXIS 7 OF', output)
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder)/'points.mac'; me.save(path, output)
@@ -67,15 +68,17 @@ INPUT FINISH'''
         self.assertEqual(expressions.evaluate(gm['elements'][1]['attrs']['PDIA'], contexts), 10)
         self.assertEqual(expressions.evaluate(gm['elements'][3]['attrs']['PTDI'], contexts), 37)
 
-    def test_export_full_envelope_and_sjis_round_trip(self):
+    def test_export_compact_macro_and_sjis_round_trip(self):
         records = mi.parse(SAMPLE.read_text()).definitions
         before=copy.deepcopy(records)
-        source=me.creation_text(records)
-        self.assertIn('INPUT BEGIN\nNEW GMSET /DEMO-ALP-SHAPES',source)
+        source=me.creation_text(records, lock_created=True)
+        self.assertTrue(source.startswith('NEW GMSET /DEMO-ALP-SHAPES\n'))
+        self.assertNotIn('INPUT ', source)
         self.assertIn('NEW SCYLINDER',source);self.assertIn('NEW LSNOUT',source)
         self.assertIn('SETP P1 P3',source);self.assertIn('CLFL true',source)
-        self.assertIn('OLD SSPHERE 1 OF GMSET /DEMO-ALP-SHAPES\nLOCK',source)
-        self.assertTrue(source.endswith('INPUT END GMSET /DEMO-ALP-SHAPES\n\nINPUT FINISH\n'))
+        self.assertNotIn('OLD ', source)
+        self.assertEqual(source.splitlines().count('LOCK'), 5)
+        self.assertTrue(source.endswith('LOCK\nEND\n'))
         self.assertEqual(records,before)
         with tempfile.TemporaryDirectory() as folder:
             path=Path(folder)/'alp.mac';me.save(path,source)
@@ -110,8 +113,9 @@ INPUT FINISH'''
         self.assertTrue(gm['elements'][2]['macro_locked'])
         exported=me.creation_text([gm])
         self.assertNotIn('OLD SCYLINDER 1 OF GMSET',exported)
-        self.assertIn('OLD NSCY 1 OF SCYLINDER 2 OF GMSET',exported)
-        self.assertFalse(mi.parse(exported).definitions[0]['macro_locked'])
+        self.assertNotIn('LOCK', exported)
+        self.assertTrue(gm['elements'][2]['macro_locked'])
+        self.assertFalse(mi.parse(exported).definitions[0].get('macro_locked', False))
 
     def test_rename_import_and_project_reload_keep_locks(self):
         data=project.sample();parsed=mi.parse(SAMPLE.read_text())
@@ -122,7 +126,8 @@ INPUT FINISH'''
             path=Path(folder)/'project.json';project.save(candidate,path);loaded=project.load(path)
         record=next(d for d in loaded['definitions'] if d['id']==added[0]['id'])
         exported=me.creation_text([record]);mi.parse(exported)
-        self.assertIn('OLD GMSET '+record['name']+'\nLOCK',exported)
+        self.assertIn('NEW GMSET '+record['name']+'\n',exported)
+        self.assertTrue(record['macro_locked'])
         self.assertNotIn('OLD GMSET /DEMO-ALP-SHAPES\n',exported)
 
     def test_reject_invalid_envelopes_external_targets_and_commands(self):
@@ -139,11 +144,12 @@ INPUT FINISH'''
         for source in cases:
             with self.subTest(source=source[:100]),self.assertRaises(ValueError):mi.parse(source)
 
-    def test_multi_set_output_and_new_records_lock_default(self):
+    def test_multi_set_output_omits_envelopes_and_automatic_locks(self):
         records=mi.parse('NEW PTSET /POINTS\nNEW PTAXI\nNUMB 1\nEND\nEND\nNEW GMSET /SHAPES\nNEW SCYL\nPAXI P1\nEND\nEND').definitions
         output=me.creation_text(records)
-        self.assertEqual(output.count('INPUT BEGIN'),2)
-        self.assertEqual(output.count('INPUT FINISH'),1)
+        self.assertNotIn('INPUT ', output)
+        self.assertNotIn('LOCK', output)
+        self.assertNotIn('OLD ', output)
         parsed=mi.parse(output).definitions
         self.assertEqual(len(parsed),2)
-        self.assertTrue(all(r['macro_locked'] for r in parsed))
+        self.assertTrue(all(not r.get('macro_locked', False) for r in parsed))

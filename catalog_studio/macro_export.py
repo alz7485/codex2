@@ -40,21 +40,21 @@ def _attrs(attrs, kind):
     return result
 
 
-def creation_text(definitions):
-    """Export PTSET/GMSET and ordered children; exclude all preview metadata.
+def creation_text(definitions, *, lock_created=False):
+    """Export compact NEW macros, optionally locking current elements in place.
 
     A parser round trip additionally rejects ambiguous raw attribute values.
     This validates preservation, not E3D runtime compatibility.
     """
     if not definitions:
         raise ValueError('出力するセットを選んでください。')
-    lines = ['$* Catalog Studio: creation text; E3D runtime verification pending.',
-             '$* Select the intended catalogue owner before running. Existing names are not replaced.', '']
+    if type(lock_created) is not bool:
+        raise ValueError('ロック出力の指定はtrue/falseで指定してください。')
+    lines = []
     expected = []
     names = set()
-    locks = []
 
-    def emit(record, kind, allowed, depth=0, reference=''):
+    def emit(record, kind, allowed, depth=0):
         if depth > 9 or kind not in allowed:
             raise ValueError('この親から出力できない要素型です：' + str(kind))
         name = record.get('name', '')
@@ -64,37 +64,34 @@ def creation_text(definitions):
                 raise ValueError('出力する要素名が重複しています：' + formal_name)
             names.add(formal_name)
         output_kind = alp.TYPE_NAMES.get(kind, kind)
-        if depth == 0: reference = output_kind + ' ' + formal_name
-        locked = record.get('macro_locked', True)
-        if type(locked) is not bool: raise ValueError('ロック情報はtrue/falseで保存してください。')
-        if locked: locks.append('OLD ' + reference + '\nLOCK')
         lines.append('NEW ' + output_kind + (' ' + formal_name if formal_name else ''))
         attrs = _attrs(record.get('attrs', {}), kind)
+        group = ''
         for key, value in attrs.items():
             encoded = "'" + value.replace("'", "''") + "'" if key in ('DESC', 'PURP') else value
-            lines.append(alp.ATTR_NAMES.get(key, key) + ' ' + encoded)
+            assignment = alp.ATTR_NAMES.get(key, key) + ' ' + encoded
+            # The importer knows boundaries of known attributes. Keep unknown
+            # attributes and free text on their own lines to avoid ambiguity.
+            separate = key not in macro_import.ATTR_ALIASES or key in ('DESC', 'PURP')
+            if group and (separate or len(group) + len(assignment) + 1 > 160):
+                lines.append(group); group = ''
+            if separate: lines.append(assignment)
+            else: group += (' ' if group else '') + assignment
+        if group: lines.append(group)
         children = record.get('elements' if depth == 0 else 'children', [])
         if len(children) > 200:
             raise ValueError('1セット・親要素につき200要素以内にしてください。')
         normalized = []
-        counts = {}
         for child in children:
             child_type = child.get('type')
-            counts[child_type] = counts.get(child_type, 0) + 1
-            child_reference = alp.TYPE_NAMES.get(child_type, child_type or '') + ' ' + str(counts[child_type]) + ' OF ' + reference
-            normalized.append(emit(child, child_type, schema.TYPES_BY_SET[kind] if depth == 0 else schema.allowed_children(kind), depth + 1, child_reference))
+            normalized.append(emit(child, child_type, schema.TYPES_BY_SET[kind] if depth == 0 else schema.allowed_children(kind), depth + 1))
+        if lock_created: lines.append('LOCK')
         lines.append('END')
-        return (kind, formal_name, attrs, normalized, locked)
+        return (kind, formal_name, attrs, normalized, lock_created)
 
     for definition in definitions:
-        locks.clear()
-        lines.append('INPUT BEGIN')
         expected.append(emit(definition, definition.get('kind'), ('PTSET', 'GMSET')))
-        lines.extend(locks)
-        lines.append('INPUT END ' + definition['kind'] + ' ' + definition['name'])
         lines.append('')
-    lines.append('INPUT FINISH')
-    lines.append('')
     text = '\n'.join(lines)
     parsed = macro_import.parse(text)
 

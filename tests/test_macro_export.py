@@ -10,6 +10,31 @@ SAMPLE = Path(__file__).resolve().parents[1]/'examples'/'creation-import-sample.
 
 
 class MacroExportTests(unittest.TestCase):
+    def test_compact_attributes_keep_unknown_text_and_nested_structure(self):
+        records = self.records()
+        records[0]['attrs'].update(DESC=" O'Brien PCON PBOR ", **{':EXTRA':"'NEW END'"})
+        records[1]['elements'][0]['attrs'][':CUSTOM'] = '42'
+        before = copy.deepcopy(records)
+        output = macro_export.creation_text(records)
+        self.assertIn('NUMB 1 PAXI -X PDIS (PARA[3] / 2) PBOR (PARA[1])', output)
+        self.assertIn("\n:EXTRA 'NEW END'\n", output)
+        self.assertIn('\n:CUSTOM 42\n', output)
+        self.assertFalse(any(line.startswith(('INPUT ', 'OLD ', '$*')) or line == 'LOCK' for line in output.splitlines()))
+        self.assertEqual(records, before)
+        result = macro_import.parse(output).definitions
+        self.assertEqual(result[0]['attrs'], records[0]['attrs'])
+        self.assertEqual(result[1]['elements'][0]['attrs'], records[1]['elements'][0]['attrs'])
+
+    def test_optional_lock_uses_current_element_after_children(self):
+        records = macro_import.parse('NEW GMSET /NESTED\nNEW SCYL\nPHEI 30\nNEW NSCY\nPHEI 10\nEND\nEND\nEND').definitions
+        output = macro_export.creation_text(records, lock_created=True)
+        self.assertNotIn('OLD ', output); self.assertNotIn('INPUT ', output)
+        self.assertIn('PHEI 10\nLOCK\nEND\nLOCK\nEND\nLOCK\nEND', output)
+        root = macro_import.parse(output).definitions[0]
+        self.assertTrue(root['macro_locked'])
+        self.assertTrue(root['elements'][0]['macro_locked'])
+        self.assertTrue(root['elements'][0]['children'][0]['macro_locked'])
+
     def records(self):
         return macro_import.parse(SAMPLE.read_text()).definitions
 

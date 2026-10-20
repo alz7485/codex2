@@ -11,6 +11,27 @@ from catalog_studio.macro_export_ui import open_export
 
 
 class MacroExportGuiTests(unittest.TestCase):
+    def test_lock_toggle_updates_preview_and_saved_macro_without_editing_project(self):
+        editor = self.editor('ptset'); before = copy.deepcopy(self.app.data)
+        window = open_export(editor); self.app.update()
+        self.assertFalse(window.lock_created.get())
+        self.assertNotIn('\nLOCK\n', window.source.get('1.0', 'end'))
+        window.lock_button.invoke(); self.app.update()
+        self.assertIn('\nLOCK\n', window.source.get('1.0', 'end'))
+        window.lock_button.invoke(); self.app.update()
+        self.assertNotIn('\nLOCK\n', window.source.get('1.0', 'end'))
+        window.lock_button.invoke(); self.app.update()
+        expected = window.source.get('1.0', 'end-1c')
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder)/'compact.mac'
+            with patch('catalog_studio.macro_export_ui.filedialog.asksaveasfilename', return_value=str(path)):
+                window.save_button.invoke(); self.app.update()
+            source = path.read_text(encoding='cp932')
+            self.assertEqual(source, expected)
+            self.assertTrue(macro_import.parse(source).definitions[0]['macro_locked'])
+        self.assertEqual(self.app.data, before)
+        self.assertEqual(self.errors, [])
+
     def setUp(self):
         try: self.app = IntegratedStudio()
         except tk.TclError as exc: self.skipTest(str(exc))
