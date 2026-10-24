@@ -2,6 +2,8 @@
 
 Python / Tkinter で、CATE・SCOM、ポイント・形状定義、SPEC、説明・材質、共通テーブル、PDF カタログ本を管理するデスクトップツールです。SCOM に部品ごとの数値・文字列を登録し、定義側ではパラメータ参照と式を編集します。
 
+アプリアイコンは、開いたカタログと立方体を組み合わせた C 案です。ウィンドウ・画面左上・Windows EXE に共通の図柄を使用します。
+
 [最新版 ZIP をダウンロード](https://github.com/alz7485/codex2/raw/refs/heads/main/catalog-studio-integrated.zip)
 
 [開発用の仕様・ユーザー要件・未確認事項](https://github.com/alz7485/codex2/blob/main/docs/knowledge/README.md)を継続参照用に保存しています。ユーザー提示の資料と会話の整理であり、E3D 4.0 実機で全項目を確認した仕様書や、全機能の実装済み一覧ではありません。写真原本は含みません。

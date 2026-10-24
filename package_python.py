@@ -9,6 +9,7 @@ ROOT_FILES = ('.gitattributes','README.md','BUILD_ONEDIR.md','main.py','start.ba
 DOC_FILES = ('valve-sample.png','macro-buttons.png','catalog-workspace.png','spec-combination.png','macro-import.png','manual-updates.png','ptset-create.png','ptset-add.png','attribute-edit.png','ptset-preset-confirm.png','ptset-canvas.png','ptset-shared-dimensions.png','ptset-canvas-menu.png','gmset-create.png','gmset-scom.png','gmset-shared-dimensions.png','gmset-wireframe.png','gmset-transparent.png','outline-create.png','parameter-presets.png','parameter-preset-create.png','element-presets.png')
 EXAMPLE_FILES = ('valve-sample.json','catalog-workspace-sample.json','integrated-sample.json','construction-sample.json','catalog-book.pdf','creation-import-sample.mac','creation-export-sample.mac','alp-creation-sample.mac',
                  'catalogue-rules-sample.json','catalogue-rules-book.pdf','parameter-presets-sample.json','parameter-presets-book.pdf','element-presets-sample.json','gmset-3d-sample.json','gmset-display-sample.json','parameter-text-sample.json','ptset-shared-dimensions.json','gmset-shared-dimensions.json','manual-compatibility-sample.json')
+ASSET_FILES = ('catalog-studio.png', 'catalog-studio.ico')
 
 
 def build():
@@ -17,6 +18,7 @@ def build():
     files += sorted((ROOT/'tests').glob('*.py'))
     files += [ROOT/'docs'/name for name in DOC_FILES]
     files += [ROOT/'examples'/name for name in EXAMPLE_FILES]
+    files += [ROOT/'assets'/name for name in ASSET_FILES]
     path=ROOT/'catalog-studio-integrated.zip'
     with zipfile.ZipFile(path,'w',zipfile.ZIP_DEFLATED) as archive:
         for file in files:

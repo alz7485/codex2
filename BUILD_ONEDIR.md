@@ -22,7 +22,7 @@
 ```bat
 py -3 -m venv .build-venv
 .build-venv\Scripts\python.exe -m pip install -r requirements-build.txt
-.build-venv\Scripts\python.exe -m PyInstaller --noconfirm --clean --onedir --windowed --name CatalogStudio --collect-all reportlab --add-data "examples;examples" main.py
+.build-venv\Scripts\python.exe -m PyInstaller --noconfirm --clean --onedir --windowed --name CatalogStudio --icon "assets/catalog-studio.ico" --add-data "assets;assets" --collect-all reportlab --add-data "examples;examples" main.py
 ```
 
 Python Launcher (`py`) がない場合は、最初のコマンドを `python -m venv .build-venv` に置き換えてください。
@@ -42,3 +42,5 @@ Python Launcher (`py`) がない場合は、最初のコマンドを `python -m 
 - 配布するフォルダー全体を別の場所にコピーして起動できる。
 
 Windows ビルドは Windows 上で行ってください。今回の開発環境では Python GUI を検証していますが、Windows の EXE ビルド・起動は未実施です。
+
+アプリのアイコンは C 案（開いたカタログ＋立方体）です。`--icon` は EXE 用の複数サイズ ICO、`--add-data "assets;assets"` はウィンドウ・画面左上の PNG を同梱します。

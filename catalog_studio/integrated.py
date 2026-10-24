@@ -74,6 +74,8 @@ class IntegratedStudio(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title('Catalog Studio — カタログ編集')
+        from .app_icon import install as install_app_icon
+        install_app_icon(self)
         self.geometry('1440x960'); self.minsize(1120,780); self.configure(bg=BG)
         families=set(font.families(self))
         self.ui_font=next((f for f in ('Yu Gothic UI','Meiryo','Noto Sans CJK JP','Hiragino Sans','Arial') if f in families),'TkDefaultFont')
@@ -96,10 +98,7 @@ class IntegratedStudio(tk.Tk):
     def build_shell(self):
         header=ttk.Frame(self,padding=(18,12),style='Header.TFrame');header.pack(fill='x')
         logo=tk.Canvas(header,width=34,height=34,bg=theme.CHROME,highlightthickness=0);logo.pack(side='left',padx=(0,11))
-        logo.create_rectangle(1,1,33,33,fill=BLUE,outline='')
-        logo.create_polygon(17,6,27,12,17,18,7,12,fill='#edf4ff',outline='')
-        logo.create_polygon(7,14,16,20,16,29,7,23,fill='#b9d0ff',outline='')
-        logo.create_polygon(18,20,27,14,27,23,18,29,fill='white',outline='')
+        logo.create_image(17,17,image=self.app_header_icon)
         ttk.Label(header,text='Catalog Studio',style='HeaderTitle.TLabel').pack(side='left')
         ttk.Label(header,text='E3D 4.0  /  カタログ編集',style='HeaderMeta.TLabel').pack(side='left',padx=18)
         for text,command,style in [('保存',self.save_project,'Primary.TButton'),('読み込み',self.open_project,'Header.TButton'),('新規',self.new_project,'Header.TButton')]:
