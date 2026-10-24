@@ -81,6 +81,8 @@ class IntegratedStudio(tk.Tk):
         self.data=project.sample()
         from .element_schema import demo_definitions
         self.data['definitions'].extend(demo_definitions())
+        from .valve_sample import prepare as prepare_valve_sample
+        self.data,_=prepare_valve_sample(self.data)
         self.path=None;self.dirty=False;self.page='ptset';self.busy=False
         self.cate_id=self.data['cates'][0]['id'];self.scom_id=self.data['scoms'][0]['id']
         self.definition_id='ui-ptset';self.spec_id=self.data['specs'][0]['id']
@@ -114,6 +116,7 @@ class IntegratedStudio(tk.Tk):
         self.more_nav_button.configure(menu=self.more_nav_menu)
         self.more_nav_menu.add_separator()
         self.more_nav_menu.add_command(label='PTSET・GMSET の作成マクロを読み込む',command=self.import_creation_macro)
+        self.more_nav_menu.add_command(label='手動弁サンプルを追加',command=self.add_valve_sample)
         self.more_nav_button.pack(side='left')
         footer=ttk.Frame(self,padding=(18,7),style='Status.TFrame');footer.pack(side='bottom',fill='x')
         ttk.Label(footer,text='Ctrl+S 保存    Ctrl+O 開く',style='Status.TLabel').pack(side='right')
@@ -977,6 +980,19 @@ class IntegratedStudio(tk.Tk):
         for collection,attr in [('cates','cate_id'),('scoms','scom_id'),('definitions','definition_id'),('specs','spec_id')]:setattr(self,attr,next((x['id'] for x in self.data[collection]),None))
         self.element_id=None;self.field=None;self.selected_book=None
         self.catalog_tab='scom';self.catalog_member_key=None;self.catalog_detail_id=None;self.catalog_prop_id=None;self.catalog_seed_scom_id=None
+    def add_valve_sample(self):
+        if self.grab_current():
+            self.grab_current().lift();return
+        if self.page=='rules' and not self.preset_editor.can_leave():return
+        if self.commit_definition_name() is False:return
+        from .valve_sample import prepare
+        try:data, ids=prepare(self.data)
+        except ValueError as exc:
+            messagebox.showerror('サンプルを追加できません',str(exc),parent=self);return
+        self.data=data;self.definition_id=ids['gmset_id'];self.scom_id=ids['scom_id']
+        self.element_id=None;self.page='gmset';self.render_page()
+        self.mark('手動弁サンプルのPTSET・GMSETと確認用SCOMを追加しました。')
+
     def import_creation_macro(self):
         current=self.grab_current()
         if current is not None:current.focus_set();return

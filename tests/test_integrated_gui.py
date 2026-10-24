@@ -30,7 +30,7 @@ class IntegratedGuiTests(unittest.TestCase):
     def test_paste_is_atomic_and_shared_definitions_not_values(self):
         app=self.app;before=copy.deepcopy(app.data)
         candidate=app.parse_scom_paste('/PASTED\t65x40\t76.3\t48.6\t102\t65\t40')
-        self.assertEqual(len(candidate['scoms']),4);self.assertEqual(app.data,before)
+        self.assertEqual(len(candidate['scoms']),len(before['scoms'])+1);self.assertEqual(app.data,before)
         self.assertEqual(candidate['definitions'],before['definitions'])
         with self.assertRaises(ValueError):app.parse_scom_paste('/OK\t65x40\t76.3\t48.6\t102\t65\t40\n/BAD\tbad')
         self.assertEqual(app.data,before)

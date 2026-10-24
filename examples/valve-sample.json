@@ -1,0 +1,366 @@
+{
+  "format": "catalog-studio-integrated",
+  "version": 2,
+  "name": "手動弁サンプル",
+  "parameters": [],
+  "cates": [
+    {
+      "id": "3ad6fb7fe3d84762b6b9409954b8f6c5",
+      "name": "/SAMPLE-VALVE-CATE",
+      "revision": "01",
+      "description": "手動弁の形状確認用サンプル"
+    }
+  ],
+  "definitions": [
+    {
+      "id": "883571511fb24db09374e5e7e9808859",
+      "kind": "PTSET",
+      "name": "/SAMPLE-VALVE-PTSET",
+      "revision": "01",
+      "parameter_preset_id": "01453aea8d0a416d82d445749d7f2dc9",
+      "sample": "manual-valve",
+      "elements": [
+        {
+          "id": "7337f0cb69534ad89be2ad34dc77ad22",
+          "type": "PTAXI",
+          "name": "P1 配管接続点",
+          "attrs": {
+            "NUMB": "1",
+            "PCON": "(PARAM[11])",
+            "PBOR": "(PARAM[1])",
+            "PAXI": "-X",
+            "PDIS": "(PARAM[3] / 2)",
+            "PSKEY": "unset",
+            "DESC": "unset",
+            "PURP": "unset"
+          }
+        },
+        {
+          "id": "97e0533c151447c2a83addcc3f958f31",
+          "type": "PTAXI",
+          "name": "P2 配管接続点",
+          "attrs": {
+            "NUMB": "2",
+            "PCON": "(PARAM[11])",
+            "PBOR": "(PARAM[1])",
+            "PAXI": "X",
+            "PDIS": "(PARAM[3] / 2)",
+            "PSKEY": "unset",
+            "DESC": "unset",
+            "PURP": "unset"
+          }
+        },
+        {
+          "id": "7397f48f2bd94b878b2b6ec362a151c8",
+          "type": "PTAXI",
+          "name": "P3 ハンドル上端",
+          "attrs": {
+            "NUMB": "3",
+            "PCON": "",
+            "PBOR": "",
+            "PAXI": "Z",
+            "PDIS": "(PARAM[7] - PARAM[5] / 2)",
+            "PSKEY": "unset",
+            "DESC": "unset",
+            "PURP": "unset"
+          }
+        }
+      ],
+      "attrs": {
+        "DESC": "手動弁サンプル：配管接続点2点とハンドル上端の補助点"
+      },
+      "schematic_dimensions": {
+        "scale": 0.01,
+        "values": {
+          "PARAM": {
+            "P1": 80.0,
+            "P2": 89.1,
+            "P3": 240.0,
+            "P4": 140.0,
+            "P5": 190.0,
+            "P6": 18.0,
+            "P7": 325.0,
+            "P8": 24.0,
+            "P9": 180.0,
+            "P10": 12.0
+          }
+        },
+        "expressions": []
+      }
+    },
+    {
+      "id": "8813a67cf254496e8f1b9a25d877047b",
+      "kind": "GMSET",
+      "name": "/SAMPLE-VALVE-GMSET",
+      "revision": "01",
+      "parameter_preset_id": "01453aea8d0a416d82d445749d7f2dc9",
+      "sample": "manual-valve",
+      "elements": [
+        {
+          "id": "d620c0857f7f42de91a44bd23e021316",
+          "type": "SCYL",
+          "name": "接続管",
+          "attrs": {
+            "PAXI": "-X",
+            "PHEI": "(-PARAM[3])",
+            "PDIA": "(PARAM[2])",
+            "PDIS": "(PARAM[3] / 2)",
+            "TVISI": "",
+            "BVISI": "",
+            "LEVEL": "0 10",
+            "CLFLA": "FALSE",
+            "TUFLA": "TRUE",
+            "OBST": "2",
+            "DESC": "",
+            "GTYP": "",
+            "PURP": ""
+          }
+        },
+        {
+          "id": "85e1a162c00d4f11b841043e84ec0af0",
+          "type": "SSPH",
+          "name": "弁本体",
+          "attrs": {
+            "PAXI": "Z",
+            "PDIS": "0",
+            "PDIA": "(PARAM[4])",
+            "LEVEL": "0 10",
+            "CLFLA": "FALSE",
+            "TUFLA": "TRUE",
+            "OBST": "2",
+            "DESC": "",
+            "GTYP": "",
+            "PURP": ""
+          }
+        },
+        {
+          "id": "16d73492f36d4dfabd09b4864e7f0f62",
+          "type": "SCYL",
+          "name": "P1側フランジ",
+          "attrs": {
+            "PAXI": "-X",
+            "PHEI": "(-PARAM[6])",
+            "PDIA": "(PARAM[5])",
+            "PDIS": "(PARAM[3] / 2)",
+            "TVISI": "",
+            "BVISI": "",
+            "LEVEL": "0 10",
+            "CLFLA": "FALSE",
+            "TUFLA": "TRUE",
+            "OBST": "2",
+            "DESC": "",
+            "GTYP": "",
+            "PURP": ""
+          }
+        },
+        {
+          "id": "728e1dd3388342e884fadd512d90f8ea",
+          "type": "SCYL",
+          "name": "P2側フランジ",
+          "attrs": {
+            "PAXI": "X",
+            "PHEI": "(-PARAM[6])",
+            "PDIA": "(PARAM[5])",
+            "PDIS": "(PARAM[3] / 2)",
+            "TVISI": "",
+            "BVISI": "",
+            "LEVEL": "0 10",
+            "CLFLA": "FALSE",
+            "TUFLA": "TRUE",
+            "OBST": "2",
+            "DESC": "",
+            "GTYP": "",
+            "PURP": ""
+          }
+        },
+        {
+          "id": "5d9e5a08ee90487484f2860aa6dcde48",
+          "type": "SCYL",
+          "name": "ボンネット",
+          "attrs": {
+            "PAXI": "Z",
+            "PHEI": "(PARAM[4] / 2)",
+            "PDIA": "(PARAM[4] / 2)",
+            "PDIS": "(PARAM[4] / 4)",
+            "TVISI": "",
+            "BVISI": "",
+            "LEVEL": "0 10",
+            "CLFLA": "FALSE",
+            "TUFLA": "TRUE",
+            "OBST": "2",
+            "DESC": "",
+            "GTYP": "",
+            "PURP": ""
+          }
+        },
+        {
+          "id": "82369ca6efb0434aa4ee0c4419a32de2",
+          "type": "SCYL",
+          "name": "弁棒",
+          "attrs": {
+            "PAXI": "Z",
+            "PHEI": "(PARAM[7] - PARAM[5] / 2 - PARAM[10] - PARAM[4] / 2)",
+            "PDIA": "(PARAM[8])",
+            "PDIS": "(PARAM[4] / 2)",
+            "TVISI": "",
+            "BVISI": "",
+            "LEVEL": "0 10",
+            "CLFLA": "FALSE",
+            "TUFLA": "TRUE",
+            "OBST": "2",
+            "DESC": "",
+            "GTYP": "",
+            "PURP": ""
+          }
+        },
+        {
+          "id": "a7adf56d094f44a0b494ecdbb6ca6ae8",
+          "type": "SCYL",
+          "name": "操作ハンドル（円盤で簡略化）",
+          "attrs": {
+            "PAXI": "Z",
+            "PHEI": "(PARAM[10])",
+            "PDIA": "(PARAM[9])",
+            "PDIS": "(PARAM[7] - PARAM[5] / 2 - PARAM[10])",
+            "TVISI": "",
+            "BVISI": "",
+            "LEVEL": "0 10",
+            "CLFLA": "FALSE",
+            "TUFLA": "TRUE",
+            "OBST": "2",
+            "DESC": "",
+            "GTYP": "",
+            "PURP": ""
+          }
+        }
+      ],
+      "paired_ptset_id": "883571511fb24db09374e5e7e9808859",
+      "schematic_dimensions": {
+        "scale": 0.01,
+        "values": {
+          "PARAM": {
+            "P1": 80.0,
+            "P2": 89.1,
+            "P3": 240.0,
+            "P4": 140.0,
+            "P5": 190.0,
+            "P6": 18.0,
+            "P7": 325.0,
+            "P8": 24.0,
+            "P9": 180.0,
+            "P10": 12.0
+          }
+        },
+        "expressions": []
+      }
+    }
+  ],
+  "scoms": [
+    {
+      "id": "2b767c86465847a2ba0b9f3e4cf7afa5",
+      "name": "/SAMPLE-VALVE-80",
+      "cate_id": "3ad6fb7fe3d84762b6b9409954b8f6c5",
+      "revision": "01",
+      "size": "80（自作参考値）",
+      "ptset_id": "883571511fb24db09374e5e7e9808859",
+      "gmset_id": "8813a67cf254496e8f1b9a25d877047b",
+      "parameter_preset_id": "01453aea8d0a416d82d445749d7f2dc9",
+      "values": {
+        "P1": 80.0,
+        "P2": 89.1,
+        "P3": 240.0,
+        "P4": 140.0,
+        "P5": 190.0,
+        "P6": 18.0,
+        "P7": 325.0,
+        "P8": 24.0,
+        "P9": 180.0,
+        "P10": 12.0,
+        "P11": "BWD"
+      }
+    }
+  ],
+  "specs": [],
+  "books": [],
+  "texts": [],
+  "tables": [],
+  "parameter_presets": [
+    {
+      "id": "01453aea8d0a416d82d445749d7f2dc9",
+      "name": "手動弁サンプルのPARAM",
+      "period": "",
+      "component": "手動弁",
+      "description": "形状確認用の自作参考値。規格品の寸法・接続条件を示すものではありません。",
+      "parameters": [
+        {
+          "id": "P1",
+          "role": "呼び径",
+          "unit": "mm",
+          "value_type": "number"
+        },
+        {
+          "id": "P2",
+          "role": "管外径",
+          "unit": "mm",
+          "value_type": "number"
+        },
+        {
+          "id": "P3",
+          "role": "面間長さ",
+          "unit": "mm",
+          "value_type": "number"
+        },
+        {
+          "id": "P4",
+          "role": "弁本体径",
+          "unit": "mm",
+          "value_type": "number"
+        },
+        {
+          "id": "P5",
+          "role": "フランジ外径",
+          "unit": "mm",
+          "value_type": "number"
+        },
+        {
+          "id": "P6",
+          "role": "フランジ厚さ",
+          "unit": "mm",
+          "value_type": "number"
+        },
+        {
+          "id": "P7",
+          "role": "全高",
+          "unit": "mm",
+          "value_type": "number"
+        },
+        {
+          "id": "P8",
+          "role": "弁棒径",
+          "unit": "mm",
+          "value_type": "number"
+        },
+        {
+          "id": "P9",
+          "role": "ハンドル径",
+          "unit": "mm",
+          "value_type": "number"
+        },
+        {
+          "id": "P10",
+          "role": "ハンドル厚さ",
+          "unit": "mm",
+          "value_type": "number"
+        },
+        {
+          "id": "P11",
+          "role": "接続形式",
+          "unit": "",
+          "value_type": "word"
+        }
+      ],
+      "reference_roles": {}
+    }
+  ],
+  "active_parameter_preset_id": "01453aea8d0a416d82d445749d7f2dc9"
+}
