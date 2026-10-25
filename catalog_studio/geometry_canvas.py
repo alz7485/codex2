@@ -47,33 +47,39 @@ class GeometryCanvas(ttk.Frame):
         row=ttk.Frame(self);row.grid(row=1,column=0,sticky='ew',pady=(0,3))
         mode_row=ttk.Frame(row);mode_row.pack(fill='x')
         self.mode_buttons=self.toggles(mode_row,self.mode,('仮サイズ','SCOM 実寸'),self.mode_changed)
-        for label,var in (('点',self.show_points),('負形状',self.show_negative)):
-            ttk.Checkbutton(mode_row,text=label,variable=var,command=self.redraw,style='Preview.Toolbutton').pack(side='left',padx=(4,0))
+        for key,label in (('仮サイズ','仮配置で確認'),('SCOM 実寸','登録寸法で確認')):
+            self.mode_buttons[key].configure(text=label)
         scom_row=ttk.Frame(row);scom_row.pack(fill='x',pady=(2,0))
-        ttk.Label(scom_row,text='SCOM',style='Muted.TLabel').pack(side='left',padx=(0,6))
+        ttk.Label(scom_row,text='参照SCOM',style='Muted.TLabel').pack(side='left',padx=(0,6))
         self.scom_choice=ttk.Combobox(scom_row,state='readonly',width=10);self.scom_choice.pack(side='left',fill='x',expand=True)
         self.scom_choice.bind('<<ComboboxSelected>>',self.select_scom)
-        display=ttk.Frame(self);display.grid(row=2,column=0,sticky='ew',pady=(0,3));display.columnconfigure(0,weight=1)
-        self.display_viewport=tk.Canvas(display,width=1,height=1,highlightthickness=0,bg=theme.SURFACE)
-        self.display_viewport.grid(row=0,column=0,sticky='ew')
-        self.display_scroll=ttk.Scrollbar(display,orient='horizontal',command=self.display_viewport.xview)
-        self.display_viewport.configure(xscrollcommand=self.display_scroll.set)
-        self.display_row=ttk.Frame(self.display_viewport)
-        self.display_window=self.display_viewport.create_window(0,0,anchor='nw',window=self.display_row)
-        ttk.Label(self.display_row,text='表示',style='Muted.TLabel').pack(side='left',padx=(0,5))
+        display=ttk.Frame(self);display.grid(row=2,column=0,sticky='ew',pady=(0,3))
         self.display_buttons={}
         for label in ('ソリッド','ワイヤー','面＋線'):
-            button=ttk.Radiobutton(self.display_row,text=label,variable=self.render_mode,value=label,command=lambda:self.display_changed(immediate=True),style='Preview.Toolbutton')
+            button=ttk.Radiobutton(display,text=label,variable=self.render_mode,value=label,command=lambda:self.display_changed(immediate=True),style='Preview.Toolbutton')
             button.pack(side='left',padx=(0,3));self.display_buttons[label]=button
-        ttk.Label(self.display_row,text='透過',style='Muted.TLabel').pack(side='left',padx=(7,3))
-        self.transparency_scale=ttk.Scale(self.display_row,from_=0,to=100,variable=self.transparency,length=90)
-        self.transparency_scale.pack(side='left',padx=3)
-        self.transparency_label=ttk.Label(self.display_row,text='0%',width=5,style='Muted.TLabel');self.transparency_label.pack(side='left')
-        self.representation_choice=ttk.Combobox(self.display_row,state='readonly',width=8,textvariable=self.representation_mode,values=('全形状','属性確認'))
-        self.representation_choice.pack(side='left',padx=4);self.representation_choice.bind('<<ComboboxSelected>>',lambda _:self.representation_changed())
-        ttk.Button(self.display_row,text='表示条件',command=lambda:representation.edit(self),style='Compact.TButton').pack(side='left')
-        ttk.Button(self.display_row,text='設計値',command=lambda:model_settings.edit(editor),style='Compact.TButton').pack(side='left',padx=3)
-        self.display_row.bind('<Configure>',self.fit_display_controls);self.display_viewport.bind('<Configure>',self.fit_display_controls)
+        self.details_button=ttk.Button(display,text='詳細表示…',command=self.open_details,style='Compact.TButton')
+        self.details_button.pack(side='left',padx=(4,0))
+        self.details=tk.Toplevel(self);self.details.withdraw();self.details.title('プレビューの詳細表示')
+        self.details.transient(editor.host);self.details.resizable(False,False)
+        self.details.protocol('WM_DELETE_WINDOW',self.details.withdraw)
+        details=ttk.Frame(self.details,padding=16);details.pack(fill='both',expand=True)
+        ttk.Label(details,text='プレビューの詳細表示',style='Heading.TLabel').grid(row=0,column=0,columnspan=3,sticky='w',pady=(0,10))
+        overlays=ttk.Frame(details);overlays.grid(row=1,column=0,columnspan=3,sticky='w',pady=(0,10))
+        for label,var in (('接続点・方向矢印',self.show_points),('負形状',self.show_negative)):
+            ttk.Checkbutton(overlays,text=label,variable=var,command=self.redraw,style='Preview.Toolbutton').pack(side='left',padx=(0,6))
+        ttk.Label(details,text='透過率').grid(row=2,column=0,sticky='w')
+        self.transparency_scale=ttk.Scale(details,from_=0,to=100,variable=self.transparency,length=180)
+        self.transparency_scale.grid(row=2,column=1,sticky='ew',padx=8)
+        self.transparency_label=ttk.Label(details,text='0%',width=5,style='Muted.TLabel');self.transparency_label.grid(row=2,column=2)
+        ttk.Label(details,text='描画対象').grid(row=3,column=0,sticky='w',pady=10)
+        self.representation_choice=ttk.Combobox(details,state='readonly',width=12,textvariable=self.representation_mode,values=('全形状','属性確認'))
+        self.representation_choice.grid(row=3,column=1,sticky='w',padx=8)
+        self.representation_choice.bind('<<ComboboxSelected>>',lambda _:self.representation_changed())
+        actions=ttk.Frame(details);actions.grid(row=4,column=0,columnspan=3,sticky='ew')
+        ttk.Button(actions,text='表示条件',command=lambda:representation.edit(self),style='Compact.TButton').pack(side='left')
+        ttk.Button(actions,text='設計値',command=lambda:model_settings.edit(editor),style='Compact.TButton').pack(side='left',padx=6)
+        ttk.Button(actions,text='閉じる',command=self.details.withdraw,style='Compact.TButton').pack(side='right')
         self.transparency.trace_add('write',self.display_changed)
         self.canvas=tk.Canvas(self,bg=theme.SUBTLE,highlightthickness=1,highlightbackground=theme.BORDER,width=1,height=1)
         self.canvas.grid(row=3,column=0,sticky='nsew')
@@ -108,16 +114,10 @@ class GeometryCanvas(ttk.Frame):
         self.view_changed()
 
     def plane_changed(self):
-        self.cancel(redraw=False)
-        if self.view_mode.get()=='正面':self.choose_view()
-        else:self.redraw()
+        self.view_mode.set('正面');self.choose_view()
 
-    def fit_display_controls(self,_=None):
-        width,height=self.display_row.winfo_reqwidth(),self.display_row.winfo_reqheight();visible=self.display_viewport.winfo_width()
-        self.display_viewport.configure(height=height,scrollregion=(0,0,max(width,visible),height))
-        self.display_viewport.itemconfigure(self.display_window,width=max(width,visible))
-        if width>visible:self.display_scroll.grid(row=1,column=0,sticky='ew')
-        else:self.display_scroll.grid_remove();self.display_viewport.xview_moveto(0)
+    def open_details(self):
+        self.details.deiconify();self.details.lift()
 
     def sync_display_controls(self):
         self.transparency_label.configure(text=f'{round(self.transparency.get())}%')
@@ -262,7 +262,9 @@ class GeometryCanvas(ttk.Frame):
         if self.actual and meshes:
             points=[p for m in meshes for p in m.vertices]
             dimensions='\n外形：'+' / '.join('XYZ'[i]+' '+format(max(p[i] for p in points)-min(p[i] for p in points),'.5g') for i in range(3))+' mm（DB 単位）'
-        self.note.configure(text=('SCOM 実寸：寸法比を保持して全体表示 / 右ドラッグ：回転'+dimensions if self.actual else '共有仮寸法：どの形状のハンドルからも同じ PARAM を更新\n対応する PTSET の点・他の形状も追従 / 距離・単位なし\n属性・PARAM 式は保持 / 右ドラッグ：回転')+'\n負形状は橙色の輪郭で重ねて表示します。')
+        self.note.configure(text=('登録寸法で確認：寸法比を保持して全体表示 / 右ドラッグ：回転'+dimensions if self.actual else '仮配置で確認：どの形状のハンドルからも同じ PARAM を更新\n対応する PTSET の点・他の形状も追従 / 距離・単位なし\n属性・PARAM 式は保持 / 右ドラッグ：回転')+'\n負形状は橙色の輪郭で重ねて表示します。')
+        status=('登録寸法で確認 · '+(scom['name'] if scom else '参照SCOMを選択してください')) if self.actual else '仮配置で確認 · 編集用の仮値'
+        c.create_text(12,12,text=status,anchor='nw',fill=theme.MUTED,width=max(100,width-24),font=(e.host.ui_font,9),tags='preview-mode')
         hidden=self.scene.hidden
         selected_reason=hidden.get(e.element_id)
         messages=([selected_reason] if selected_reason else [])+self.scene.issues+([self.resize_issue] if self.resize_issue else [])

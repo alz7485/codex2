@@ -32,10 +32,10 @@ class GeometryCanvasTests(unittest.TestCase):
 
     def test_plane_front_and_overlays_change_only_preview(self):
         before=copy.deepcopy(self.data)
-        self.view.view_buttons['正面'].invoke();self.app.update()
         for plane in ('XY','XZ','YZ'):
             self.view.plane_buttons[plane].invoke();self.app.update()
             self.assertEqual(self.view.view.get(),plane)
+            self.assertEqual(self.view.view_mode.get(),'正面')
             expected=geo.FitCamera();expected.face(plane)
             self.assertEqual(self.view.camera.basis(),expected.basis())
         self.view.view_buttons['立体'].invoke();self.app.update()
@@ -169,10 +169,17 @@ class GeometryCanvasTests(unittest.TestCase):
         self.assertEqual(view.render_mode.get(),'面＋線');self.assertEqual(view.transparency.get(),40)
         self.assertEqual(self.data,before);self.assertFalse(self.app.dirty);self.assertEqual(self.errors,[])
 
-    def test_display_controls_scroll_in_narrow_preview_and_keep_dragging_usable(self):
+    def test_details_open_close_in_narrow_preview_and_keep_dragging_usable(self):
         self.app.geometry('1120x780');self.app.update()
-        self.view.display_viewport.xview_moveto(1);self.app.update()
-        self.assertLessEqual(self.view.transparency_label.winfo_rootx()+self.view.transparency_label.winfo_width(),self.view.display_viewport.winfo_rootx()+self.view.display_viewport.winfo_width())
+        self.assertFalse(self.view.details.winfo_viewable())
+        self.view.details_button.invoke();self.app.update()
+        self.assertTrue(self.view.details.winfo_viewable())
+        self.view.transparency.set(35);self.view.redraw();self.app.update()
+        self.assertEqual(self.view.transparency_label['text'],'35%')
+        self.view.details.withdraw();self.app.update()
+        self.assertFalse(self.view.details.winfo_viewable())
+        self.assertEqual(self.view.transparency.get(),35)
+        self.assertTrue(self.canvas.find_withtag('preview-mode'))
         self.assertGreater(self.canvas.winfo_height(),200)
         self.view.display_buttons['ワイヤー'].invoke();self.app.update();self.drag()
         self.assertIn(DIMENSIONS_KEY,self.gm);self.assertEqual(self.errors,[])

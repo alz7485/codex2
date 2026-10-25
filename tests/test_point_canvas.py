@@ -153,9 +153,10 @@ class PointCanvasGuiTests(unittest.TestCase):
             self.assertFalse(self.view.canvas.find_withtag(tag));self.view.display_buttons[label].invoke();self.app.update()
             self.assertTrue(self.view.canvas.find_withtag(tag))
         self.assertEqual(len({button.winfo_rooty() for button in self.view.display_buttons.values()}),1)
-        self.view.view_buttons['正面'].invoke()
+        self.view.view_buttons['立体'].invoke()
         for plane in PLANES:
             self.view.plane_buttons[plane].invoke();self.assertEqual(self.view.plane.get(),plane)
+            self.assertEqual(self.view.view.get(),'正面')
             camera=Camera();camera.face(plane);self.assertEqual(self.view.camera.basis(),camera.basis())
         self.assertEqual(self.app.data,before);self.assertEqual(self.errors,[])
 
