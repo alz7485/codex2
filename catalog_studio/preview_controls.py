@@ -1,6 +1,7 @@
 """Shared preview toolbar and docked appearance panel."""
 import tkinter as tk
 from tkinter import ttk
+from . import preview_icons
 
 
 def build(view, row):
@@ -8,9 +9,10 @@ def build(view, row):
     view.toolbar=bar
     ttk.Label(bar,text='視点',style='Muted.TLabel').grid(row=0,column=0,padx=(0,6))
     group=ttk.Frame(bar);group.grid(row=0,column=1,sticky='w')
+    view.preview_icons={key:preview_icons.create(view,key) for key in ('立体','XY','XZ','YZ')}
     view.view_buttons={}
     for label in ('立体','XY','XZ','YZ'):
-        b=ttk.Radiobutton(group,text=label,variable=view.view,value=label,command=view.view_changed,style='Preview.Toolbutton')
+        b=ttk.Radiobutton(group,text=label,image=view.preview_icons[label],compound='left',variable=view.view,value=label,command=view.view_changed,style='Preview.Toolbutton')
         b.pack(side='left',padx=(0,2));view.view_buttons[label]=b
     view.fit_button=ttk.Button(bar,text='全体表示',command=view.fit_all,style='AttributeTool.TButton')
     view.fit_button.grid(row=0,column=2,padx=4)

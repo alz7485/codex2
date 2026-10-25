@@ -24,10 +24,13 @@ class PointCanvas(ttk.Frame):
             button=ttk.Checkbutton(self.settings_content,text=label,variable=var,command=self.redraw,style='Preview.Toolbutton')
             button.pack(anchor='w',fill='x',pady=2);self.display_buttons[label]=button
         context=ttk.Frame(self);context.grid(row=2,column=0,sticky='ew',pady=(0,6))
-        self.selection_label=ttk.Label(context,text='選択：なし',style='Muted.TLabel');self.selection_label.pack(side='left')
-        ttk.Label(context,text='作図面',style='Muted.TLabel').pack(side='left',padx=(14,4))
-        self.plane_choice=ttk.Combobox(context,textvariable=self.plane,values=tuple(PLANES),state='readonly',width=4)
-        self.plane_choice.pack(side='left');self.plane_choice.bind('<<ComboboxSelected>>',lambda _:self.plane_changed())
+        self.selection_label=ttk.Label(context,text='選択：なし',style='Muted.TLabel');self.selection_label.pack(anchor='w',pady=(0,4))
+        plane_row=ttk.Frame(context);plane_row.pack(fill='x')
+        ttk.Label(plane_row,text='作図面 (F5)',style='Muted.TLabel').pack(side='left',padx=(0,6))
+        self.plane_buttons={}
+        for plane in PLANES:
+            button=ttk.Radiobutton(plane_row,text=plane,image=self.preview_icons[plane],compound='left',variable=self.plane,value=plane,command=self.plane_changed,style='Preview.Toolbutton')
+            button.pack(side='left',padx=(0,2));self.plane_buttons[plane]=button
         self.context_menu=tk.Menu(self,tearoff=False)
         self.create_menu=tk.Menu(self.context_menu,tearoff=False)
         for kind in schema.PT_TYPES:
@@ -46,6 +49,8 @@ class PointCanvas(ttk.Frame):
         self.canvas.bind('<Escape>',lambda _:self.cancel());self.redraw()
         from .preview_preferences import attach
         attach(self)
+        self.plane_binding=self.editor.host.bind('<F5>',self.cycle_plane,add='+')
+        self.bind('<Destroy>',self.release_plane_binding,add='+')
 
     def open_details(self):preview_controls.open_panel(self)
     def close_details(self):preview_controls.close_panel(self)
@@ -125,6 +130,19 @@ class PointCanvas(ttk.Frame):
             x,y=xy(self.pending['point']);c.create_oval(x-18,y-18,x+18,y+18,outline='#dc9431',width=3)
             c.create_text(x+13,y+10,text='候補',anchor='w',fill='#b27324')
 
+
+    def cycle_plane(self,event=None):
+        host=self.editor.host
+        if not self.winfo_exists() or not self.winfo_ismapped():return
+        grab=host.grab_current()
+        if grab is not None and grab is not host:return
+        planes=tuple(PLANES);self.plane.set(planes[(planes.index(self.plane.get())+1)%len(planes)])
+        self.plane_changed()
+        return 'break'
+
+    def release_plane_binding(self,event):
+        if event.widget is self and getattr(self,'plane_binding',None):
+            self.editor.host.unbind('<F5>',self.plane_binding);self.plane_binding=None
 
     def plane_changed(self):
         self.cancel()
