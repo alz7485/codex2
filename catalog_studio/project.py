@@ -154,6 +154,8 @@ def validate(data):
         raise ValueError('プロジェクト名がありません。')
     from .macro_destinations import validate_storage as validate_macro_destinations
     validate_macro_destinations(data)
+    from .browser_folders import validate as validate_browser_folders
+    validate_browser_folders(data)
     draft=data.get('creation_draft',{})
     if not isinstance(draft,dict) or any(key in draft and not isinstance(draft[key],str) for key in ('ptset_id','gmset_id','scom_id','spec_id')):raise ValueError('作成中の部品の参照形式を確認してください。')
     validate_parameters(data.get('parameters'))

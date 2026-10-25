@@ -53,6 +53,9 @@ class CatalogMembers(ttk.Frame):
         self.attributes.delete(*self.attributes.get_children());item=self.item()
         if not item:return
         collection,record,kind=item
+        if not self.host.busy and self.host.page=='catalog' and getattr(self.host,'catalog_tab','scom')=='members':
+            browser=self.host.registered_browser;browser.catalog_target=self.selected
+            browser.catalog_context=(self.host.cate_id,self.host.scom_id,'members',self.selected);browser.refresh()
         if kind=='DETAIL':
             target=project.get(self.host.data,'texts',record.get('sdte_id',''))
             self.attributes.insert('','end',values=('参照SDTE',target['name'] if target else '未設定'))

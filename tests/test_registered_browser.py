@@ -105,6 +105,6 @@ class RegisteredBrowserTests(unittest.TestCase):
             self.app.nav[page].invoke();self.app.update()
             self.assertEqual(self.browser.search.get(),'')
             self.assertTrue(self.browser.items)
-            self.assertTrue(all(c==collection and (kind is None or r['kind']==kind) for c,r in self.browser.items.values()))
+            self.assertTrue(all((c in ('cates','scoms','texts','catalog_details','catalog_props') if page=='catalog' else c==collection) and (kind is None or r['kind']==kind) for c,r in self.browser.items.values()))
         self.assertEqual(self.app.data,before)
         self.assertEqual(self.errors,[])

@@ -1,7 +1,7 @@
 """Registered records for the currently selected category."""
 import tkinter as tk
-from tkinter import ttk
-from . import theme
+from tkinter import ttk, messagebox
+from . import theme, browser_folders as folders
 
 
 class RegisteredBrowser(ttk.Frame):
@@ -12,6 +12,7 @@ class RegisteredBrowser(ttk.Frame):
         self.items = {}
         self.category = None
         self.refreshing = False
+        self.open_states={}
         self.pack(side='left', fill='y')
         self.pack_propagate(False)
         toolbar=ttk.Frame(self,style='Sidebar.TFrame');toolbar.pack(fill='x')
@@ -22,6 +23,13 @@ class RegisteredBrowser(ttk.Frame):
         entry = ttk.Entry(self, textvariable=self.search)
         entry.pack(fill='x', pady=(10, 4))
         ttk.Label(self, text='名前・種類で検索', style='Sidebar.TLabel').pack(anchor='w', pady=(0, 10))
+        organize=ttk.Frame(self,style='Sidebar.TFrame');organize.pack(fill='x',pady=(0,8))
+        self.folder_button=ttk.Button(organize,text='フォルダ＋',command=self.add_folder,style='AttributeTool.TButton');self.folder_button.pack(side='left')
+        self.organize_button=ttk.Menubutton(organize,text='整理 ▾',style='AttributeTool.TButton');self.organize_button.pack(side='right')
+        menu=tk.Menu(self.organize_button,tearoff=False)
+        for text,command in (('フォルダ名を変更',self.rename_folder),('選択項目を移動',self.move_item),('空フォルダを削除',self.delete_folder)):
+            menu.add_command(label=text,command=command)
+        self.organize_button.configure(menu=menu)
         holder = ttk.Frame(self)
         holder.pack(fill='both', expand=True)
         style=ttk.Style(self)
@@ -29,6 +37,9 @@ class RegisteredBrowser(ttk.Frame):
         self.rule_image.put(theme.RULE,to=(0,63,512,64))
         style.element_create('RegisteredRowRule','image',self.rule_image,border=(0,0,0,1),width=0,height=0,sticky='nswe')
         style.layout('Ruled.Treeview.Item',[('RegisteredRowRule',{'sticky':'nswe','children':style.layout('Treeview.Item')})])
+        self.folder_image=tk.PhotoImage(master=self,width=16,height=16)
+        self.folder_image.put('#bf8b2a',to=(1,3,8,6));self.folder_image.put('#e6b64d',to=(1,5,15,14))
+        self.folder_image.put('#f7d477',to=(2,6,14,8))
         self.tree = ttk.Treeview(holder, show='tree', selectmode='browse',style='Ruled.Treeview')
         self.tree.column('#0', width=240, minwidth=160)
         self.tree.grid(row=0, column=0, sticky='nsew')
@@ -49,48 +60,138 @@ class RegisteredBrowser(ttk.Frame):
         try:self._refresh()
         finally:self.refreshing=False
 
+    def rows(self):
+        host=self.host;data=host.data;page=host.page
+        categories={'ptset':('PTSET','definitions'),'gmset':('GMSET','definitions'),'catalog':('カタログ','cates'),'specs':('スペック','specs'),'structural':('構造材・NGMSET','definitions'),'texts':('説明・材質','texts'),'tables':('共通テーブル','tables'),'books':('カタログ本','books'),'rules':('PARAM プリセット','parameter_presets')}
+        label,collection=categories.get(page,('確認・マクロ',None))
+        rows=[];places=data.get('browser_placements',{})
+        for f in data.get('browser_folders',[]):
+            if f['page']==page:rows.append(('folder:'+f['id'],'folder:'+f['parent_id'] if f['parent_id'] else '',f['name'],None,f))
+        records=list(data.get(collection,[])) if collection else []
+        if page in ('ptset','gmset'):records=[r for r in records if r['kind']==page.upper()]
+        elif page=='structural':records=[r for r in records if r['kind'] not in ('PTSET','GMSET')]
+        elif page=='rules':records=[{'id':'legacy','name':'既存規則（従来データ）'}]+records
+        def append(col,r,parent=None,kind=''):
+            key=col+':'+r['id'];folder=places.get(page+'|'+key,'')
+            owner=('folder:'+folder if folder else '') if parent is None else parent
+            name=r.get('name',r.get('title',''))
+            text=(kind+' ' if kind else '')+name
+            rows.append((key,owner,text,col,r))
+        for r in records:
+            append(collection,r,kind='CATE' if page=='catalog' else r['kind'] if page=='structural' else '')
+        if page=='catalog':
+            owners={r['id'] for r in records}
+            for col,kind in (('scoms','SCOM'),('texts',''),('catalog_details','DETAIL'),('catalog_props','PROP')):
+                for r in data.get(col,[]):
+                    owner=r.get('parent_id') if col=='texts' else r.get('cate_id')
+                    if owner not in owners or col=='texts' and r['type'] not in ('SDTE','TEXT'):continue
+                    parent='cates:'+owner
+                    if col in ('catalog_details','catalog_props'):
+                        parent='related:'+owner
+                        if not any(row[0]==parent for row in rows):rows.append((parent,'cates:'+owner,'SPEC用の関連データ',None,{}))
+                    append(col,r,parent,kind or r.get('type',''))
+        return label,rows
+
     def _refresh(self):
-        host = self.host
-        data = host.data
-        if self.category!=host.page:
-            self.category=host.page
-            self.search.set('')
-        categories={'ptset':('PTSET','definitions'), 'gmset':('GMSET','definitions'), 'catalog':('カタログ / SCOM','scoms'), 'specs':('スペック','specs'), 'structural':('構造材・NGMSET','definitions'), 'texts':('説明・材質','texts'), 'tables':('共通テーブル','tables'), 'books':('カタログ本','books'), 'rules':('PARAM プリセット','parameter_presets')}
-        label,collection=categories.get(host.page,('確認・マクロ',None))
-        if host.page in ('ptset','gmset','rules'):self.add_button.pack(side='right')
+        host=self.host;data=host.data;page=host.page
+        previous=self.tree.selection();same_page=self.category==page
+        if self.category!=page:
+            if self.category:self.open_states[self.category]={key:bool(self.tree.item(key,'open')) for key in self.all_keys if self.tree.exists(key)}
+            self.category=page;self.search.set('');previous=()
+        self.configure(width=280 if page=='catalog' else 260 if page=='specs' else 220)
+        self.tree.column('#0',width=460 if page=='catalog' else 320 if page=='specs' else 240)
+        label,rows=self.rows();self.all_keys=[row[0] for row in rows]
+        self.items={k:(col,r) for k,_,_,col,r in rows if col}
+        self.folder_nodes={k:r for k,_,_,col,r in rows if k.startswith('folder:')}
+        query=self.search.get().strip().casefold();lookup={row[0]:row for row in rows}
+        visible={key for key,parent,text,col,r in rows if not query or query in (text+' '+r.get('kind',r.get('type',''))+' '+label).casefold()}
+        if query:
+            matches=set(visible)
+            for key in lookup:
+                parent=lookup[key][1]
+                while parent:
+                    if parent in matches:visible.add(key);break
+                    parent=lookup[parent][1]
+            for key in list(visible):
+                parent=lookup[key][1]
+                while parent:visible.add(parent);parent=lookup[parent][1]
+        rows=[row for row in rows if row[0] in visible]
+        self.items={k:v for k,v in self.items.items() if k in visible}
+        self.heading.configure(text=label+' ('+str(len(self.items))+')')
+        if page in ('ptset','gmset','rules'):self.add_button.pack(side='right')
         else:self.add_button.pack_forget()
-        records=[r for r in data.get(collection,[]) if isinstance(r,dict) and 'id' in r] if collection else []
-        if host.page in ('ptset','gmset'):records=[r for r in records if r['kind']==host.page.upper()]
-        elif host.page=='structural':records=[r for r in records if r['kind'] not in ('PTSET','GMSET')]
-        elif host.page=='rules':records=[{'id':'legacy','name':'既存規則（従来データ）'}]+records
-        query = self.search.get().strip().casefold()
-        visible=[r for r in records if query in (r.get('name',r.get('title',''))+' '+r.get('kind',r.get('type',''))+' '+label).casefold()]
-        self.heading.configure(text=label+' ('+str(len(visible))+')')
-        self.add_button.configure(text='＋' if host.page=='rules' else '＋ 追加',width=2 if host.page=='rules' else 0)
-        signature = (host.page, query, tuple((r['id'], r.get('name',r.get('title','')), r.get('kind',r.get('type',''))) for r in visible))
-        if signature != self.signature:
+        self.add_button.configure(text='＋' if page=='rules' else '＋ 追加',width=2 if page=='rules' else 0)
+        state='normal' if page in folders.PAGES else 'disabled'
+        self.folder_button.configure(state=state);self.organize_button.configure(state=state)
+        signature=(page,query,tuple((k,parent,text) for k,parent,text,_,_ in rows))
+        if signature!=self.signature:
+            states=dict(self.open_states.get(page,{}))
+            if same_page and (not self.signature or not self.signature[1]):states.update({k:bool(self.tree.item(k,'open')) for k in self.all_keys if self.tree.exists(k)})
+            if query and (not self.signature or not self.signature[1]):self.open_states[page]=dict(states)
             self.tree.delete(*self.tree.get_children())
-            self.items = {}
-            for record in visible:
-                key = collection + ':' + record['id']
-                text = record.get('name',record.get('title','')) + (' [' + record['kind'] + ']' if host.page == 'structural' else '')
-                self.tree.insert('', 'end', iid=key, text=text)
-                self.items[key] = (collection, record)
-            self.signature = signature
-        target = None
-        if host.page in ('ptset', 'gmset', 'structural'):
-            target = 'definitions:' + str(host.definition_id)
-        elif host.page == 'catalog':
-            target = 'scoms:' + str(host.scom_id)
-        elif host.page == 'specs':
-            target = 'specs:' + str(host.spec_id)
-        elif host.page=='rules':target='parameter_presets:'+str(data.get('active_parameter_preset_id') or 'legacy')
-        elif host.page=='books':target='books:'+str(host.selected_book)
-        elif host.page in ('texts','tables') and hasattr(host,'companion_editor'):target=host.page+':'+str(host.companion_editor.selected)
-        if target and self.tree.exists(target):
-            if self.tree.selection() != (target,):
-                self.tree.selection_set(target)
-                self.tree.see(target)
+            pending=list(rows)
+            while pending:
+                ready=[r for r in pending if not r[1] or self.tree.exists(r[1])]
+                if not ready:break
+                for key,parent,text,col,r in ready:
+                    options={'image':self.folder_image} if key.startswith('folder:') else {}
+                    self.tree.insert(parent,'end',iid=key,text=text,open=True if query else states.get(key,True),**options)
+                emitted={r[0] for r in ready}
+                pending=[r for r in pending if r[0] not in emitted]
+            self.signature=signature
+        target=None
+        if page in ('ptset','gmset','structural'):target='definitions:'+str(host.definition_id)
+        elif page=='catalog':
+            if getattr(host,'catalog_tab','scom')=='members' and getattr(host,'catalog_member_key',None):target=host.catalog_member_key
+            else:target='scoms:'+str(host.scom_id) if host.scom_id else 'cates:'+str(host.cate_id)
+            if getattr(self,'catalog_target',None)=='cates:'+str(host.cate_id):target=self.catalog_target
+        elif page=='specs':target='specs:'+str(host.spec_id)
+        elif page=='rules':target='parameter_presets:'+str(data.get('active_parameter_preset_id') or 'legacy')
+        elif page=='books':target='books:'+str(host.selected_book)
+        elif page in ('texts','tables') and hasattr(host,'companion_editor'):target=page+':'+str(host.companion_editor.selected)
+        changed=target!=getattr(self,'last_record_target',None);self.last_record_target=target
+        if not changed and previous and previous[0].startswith('folder:') and self.tree.exists(previous[0]):target=previous[0]
+        if target and self.tree.exists(target) and self.tree.selection()!=(target,):
+            self.tree.selection_set(target)
+            if previous!=(target,):self.tree.see(target)
+
+    def ready(self):
+        if self.host.page=='rules' and not self.host.preset_editor.can_leave():return False
+        return self.host.commit_definition_name() is not False
+
+    def folder_form(self,mode):
+        if not self.ready():return
+        page=self.host.page;data=self.host.data;selected=self.tree.selection()
+        key=selected[0] if selected else '';folder=self.folder_nodes.get(key)
+        if mode=='rename' and not folder:return
+        if mode=='move' and not folder and (key not in self.items or not folders.movable(page,key)):
+            text='カタログの中身はCATEを選択してまとめて移動してください。' if page=='catalog' else '移動する登録データを選択してください。従来データの既存規則は移動できません。'
+            messagebox.showinfo('フォルダで整理',text,parent=self.host);return
+        options=folders.choices(data,page);fields=[]
+        if mode in ('add','rename'):fields.append(('name','フォルダ名',folder['name'] if mode=='rename' else '',None))
+        if mode!='rename':fields.append(('parent','配置先',next((n for n,i in options.items() if i==(folder['id'] if mode=='add' and folder else '')),'（最上位）'),list(options)))
+        def apply(values):
+            if self.host.data is not data:raise ValueError('プロジェクトが変更されています。')
+            if mode=='add':ident=folders.add(data,page,values['name'],options[values['parent']])
+            elif mode=='rename':folders.update(data,folder['id'],name=values['name']);ident=folder['id']
+            elif folder:folders.update(data,folder['id'],parent=options[values['parent']]);ident=folder['id']
+            else:folders.move(data,page,key,options[values['parent']]);ident=None
+            self.signature=None
+            target='folder:'+ident if ident else key
+            def reveal():
+                if self.host.data is data and self.tree.exists(target):self.tree.selection_set(target);self.tree.see(target)
+            self.host.after_idle(reveal)
+        self.host.form({'add':'フォルダを追加','rename':'フォルダ名を変更','move':'フォルダへ移動'}[mode],fields,apply)
+
+    def add_folder(self):self.folder_form('add')
+    def rename_folder(self):self.folder_form('rename')
+    def move_item(self):self.folder_form('move')
+    def delete_folder(self):
+        selected=self.tree.selection();folder=self.folder_nodes.get(selected[0]) if selected else None
+        if not folder or not self.ready():return
+        try:folders.remove(self.host.data,folder['id'])
+        except ValueError as exc:messagebox.showinfo('フォルダを削除できません',str(exc),parent=self.host);return
+        self.host.mark('空の整理フォルダを削除しました。')
 
     def add_definition(self):
         if self.host.page=='rules':self.host.preset_editor.add();return
@@ -106,6 +207,20 @@ class RegisteredBrowser(ttk.Frame):
             return
         collection, record = self.items[selected[0]]
         host = self.host
+        if host.page=='catalog' and collection in ('cates','scoms','texts','catalog_details','catalog_props'):
+            self.catalog_target=selected[0]
+            if collection=='cates':
+                host.cate_id=record['id'];host.scom_id=next((r['id'] for r in host.data['scoms'] if r['cate_id']==record['id']),None)
+                host.catalog_tab='scom'
+            elif collection=='scoms':
+                host.cate_id=record['cate_id'];host.scom_id=record['id'];host.catalog_tab='scom'
+            else:
+                host.cate_id=record.get('parent_id') if collection=='texts' else record['cate_id']
+                host.scom_id=next((r['id'] for r in host.data['scoms'] if r['cate_id']==host.cate_id),None)
+                host.catalog_member_key=selected[0];host.catalog_tab='members'
+            current=(host.cate_id,host.scom_id,host.catalog_tab,getattr(host,'catalog_member_key',None))
+            if getattr(self,'catalog_context',None)==current:return
+            self.catalog_context=current;host.switch('catalog');return
         if collection == 'definitions':
             page = {'PTSET': 'ptset', 'GMSET': 'gmset'}.get(record['kind'], 'structural')
             if host.page == page and host.definition_id == record['id']:

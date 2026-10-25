@@ -12,6 +12,17 @@ Python / Tkinter で、CATE・SCOM、ポイント・形状定義、SPEC、説明
 
 [確認画面の詳細設計](https://github.com/alz7485/codex2/blob/main/docs/design/scoped-diagnostics.md)では、診断から該当属性へ戻る操作、取消、修正後の再確認を具体化しています。単体HTMLの設計モックも用意しています。
 
+## 左側のフォルダ管理と統合一覧
+
+左の登録一覧は「フォルダ＋」で階層フォルダを追加し、「整理 ▾」から名前変更・選択項目の移動・空フォルダ削除を行えます。最上位への移動もできます。フォルダはPTSET／GMSET／カタログ／スペックなどの画面ごとに管理し、プロジェクトJSONへ保存します。検索結果には親フォルダも表示します。既存JSONもそのまま開けます。
+
+カタログ作成のCATE一覧、スペック登録のSPEC一覧を左側へ統合しました。カタログはフォルダ → CATE → SCOM／SDTE／TEXTのツリーです。DETAIL／PROPはCATE内の「SPEC用の関連データ」から選択できます。CATEを選ぶとそのカタログ、子レコードを選ぶと該当する編集画面を表示します。中央のSCOM寸法表・関連データ編集・SPEC登録行の表は残しています。
+
+整理フォルダはアプリ内の分類であり、E3Dの所有階層・要素名・参照・マクロ登録先を変更しません。カタログのフォルダ移動はCATE単位で行い、中身を一緒に整理します。データ入りのフォルダや、子フォルダがあるフォルダは削除できません。
+
+![カタログ作成の統合ツリー](docs/catalog-folders.png)
+![スペック登録の統合ツリー](docs/spec-folders.png)
+
 ## カタログ作成とスペック登録
 
 上部の **「SCOM 登録」** は **「カタログ作成」** に変更しました。
@@ -26,9 +37,9 @@ DETAIL／PROPは、このツールではSPEC用の関連データとして管理
 
 [架空のカタログ・SPECサンプル](examples/catalog-workspace-sample.json)を「読み込み」から開いて試せます。
 
-![CATEと配下・関連データの作成](docs/catalog-workspace.png)
+![CATEと配下・関連データの作成](docs/catalog-folders.png)
 
-![SCOM・DETAIL・PROPを組み合わせたスペック登録](docs/spec-combination.png)
+![SCOM・DETAIL・PROPを組み合わせたスペック登録](docs/spec-folders.png)
 
 ## 登録済みの手動弁サンプル
 
