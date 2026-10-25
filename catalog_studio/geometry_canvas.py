@@ -13,6 +13,9 @@ class GeometryCanvas(ttk.Frame):
     def __init__(self,editor,parent):
         super().__init__(parent);self.editor=editor;self.camera=geometry.FitCamera();self.scene=geometry.Scene()
         self.mode=tk.StringVar(value='仮サイズ');self.view=tk.StringVar(value='立体')
+        self.plane=tk.StringVar(value='XY');self.view_mode=tk.StringVar(value='立体')
+        self.show_grid=tk.BooleanVar(value=True);self.show_axes=tk.BooleanVar(value=True)
+        self.show_labels=tk.BooleanVar(value=True)
         self.show_points=tk.BooleanVar(value=True);self.show_negative=tk.BooleanVar(value=True)
         settings=getattr(editor.host,'gmset_display_settings',{})
         rep=getattr(editor.host,'gmset_representation',{})
@@ -23,22 +26,34 @@ class GeometryCanvas(ttk.Frame):
         self.render_job=None;self.surface_image=None;self.surface_bitmap=None;self.pick_faces=[]
         self.drag=None;self.orbit=None;self.handles={};self.screen_points={};self.refreshing=False;self.resize_issue=''
         self.columnconfigure(0,weight=1);self.rowconfigure(3,weight=1)
-        controls=ttk.Frame(self);controls.grid(row=0,column=0,sticky='ew',pady=(0,6))
-        self.mode_buttons={}
-        for label in ('仮サイズ','SCOM 実寸'):
-            button=ttk.Radiobutton(controls,text=label,variable=self.mode,value=label,command=self.mode_changed,style='Preview.Toolbutton')
-            button.pack(side='left',padx=(0,3));self.mode_buttons[label]=button
-        self.view_buttons={}
-        for label in ('立体','XY','XZ','YZ'):
-            button=ttk.Radiobutton(controls,text=label,variable=self.view,value=label,command=self.view_changed,style='Preview.Toolbutton')
-            button.pack(side='left',padx=(0,2));self.view_buttons[label]=button
-        row=ttk.Frame(self);row.grid(row=1,column=0,sticky='ew',pady=(0,8))
-        ttk.Label(row,text='SCOM',style='Muted.TLabel').pack(side='left',padx=(0,6))
-        self.scom_choice=ttk.Combobox(row,state='readonly',width=10);self.scom_choice.pack(side='left',fill='x',expand=True)
-        self.scom_choice.bind('<<ComboboxSelected>>',self.select_scom)
+        controls=ttk.Frame(self);controls.grid(row=0,column=0,sticky='ew',pady=(0,4));controls.columnconfigure(0,weight=1)
+        self.control_viewport=tk.Canvas(controls,width=1,height=1,highlightthickness=0,bg=theme.SURFACE)
+        self.control_viewport.grid(row=0,column=0,sticky='ew')
+        self.control_scroll=ttk.Scrollbar(controls,orient='horizontal',command=self.control_viewport.xview)
+        self.control_viewport.configure(xscrollcommand=self.control_scroll.set)
+        self.control_row=ttk.Frame(self.control_viewport)
+        self.control_window=self.control_viewport.create_window(0,0,anchor='nw',window=self.control_row)
+        self.control_groups={}
+        for title in ('基準面','視点','表示'):
+            group=ttk.LabelFrame(self.control_row,text=title,padding=(4,3))
+            group.pack(side='left',fill='y',padx=(0,6));self.control_groups[title]=group
+        self.plane_buttons=self.toggles(self.control_groups['基準面'],self.plane,('XY','XZ','YZ'),self.plane_changed)
+        self.view_buttons=self.toggles(self.control_groups['視点'],self.view_mode,('立体','正面'),self.choose_view)
+        self.overlay_buttons={}
+        for label,var in (('グリッド',self.show_grid),('座標軸',self.show_axes),('点番号',self.show_labels)):
+            button=ttk.Checkbutton(self.control_groups['表示'],text=label,variable=var,command=self.redraw,style='Preview.Toolbutton')
+            button.pack(side='left',padx=(0,2));self.overlay_buttons[label]=button
+        self.control_row.bind('<Configure>',self.fit_controls);self.control_viewport.bind('<Configure>',self.fit_controls)
+        row=ttk.Frame(self);row.grid(row=1,column=0,sticky='ew',pady=(0,3))
+        mode_row=ttk.Frame(row);mode_row.pack(fill='x')
+        self.mode_buttons=self.toggles(mode_row,self.mode,('仮サイズ','SCOM 実寸'),self.mode_changed)
         for label,var in (('点',self.show_points),('負形状',self.show_negative)):
-            ttk.Checkbutton(row,text=label,variable=var,command=self.redraw,style='Preview.Toolbutton').pack(side='left',padx=(4,0))
-        display=ttk.Frame(self);display.grid(row=2,column=0,sticky='ew',pady=(0,8));display.columnconfigure(0,weight=1)
+            ttk.Checkbutton(mode_row,text=label,variable=var,command=self.redraw,style='Preview.Toolbutton').pack(side='left',padx=(4,0))
+        scom_row=ttk.Frame(row);scom_row.pack(fill='x',pady=(2,0))
+        ttk.Label(scom_row,text='SCOM',style='Muted.TLabel').pack(side='left',padx=(0,6))
+        self.scom_choice=ttk.Combobox(scom_row,state='readonly',width=10);self.scom_choice.pack(side='left',fill='x',expand=True)
+        self.scom_choice.bind('<<ComboboxSelected>>',self.select_scom)
+        display=ttk.Frame(self);display.grid(row=2,column=0,sticky='ew',pady=(0,3));display.columnconfigure(0,weight=1)
         self.display_viewport=tk.Canvas(display,width=1,height=1,highlightthickness=0,bg=theme.SURFACE)
         self.display_viewport.grid(row=0,column=0,sticky='ew')
         self.display_scroll=ttk.Scrollbar(display,orient='horizontal',command=self.display_viewport.xview)
@@ -71,6 +86,31 @@ class GeometryCanvas(ttk.Frame):
         self.canvas.bind('<Button-3>',self.orbit_start);self.canvas.bind('<B3-Motion>',self.orbit_move)
         self.canvas.bind('<ButtonRelease-3>',lambda _:setattr(self,'orbit',None));self.canvas.bind('<Escape>',lambda _:self.cancel())
         self.bind('<Destroy>',lambda e:self.dispose() if e.widget is self else None)
+
+    @staticmethod
+    def toggles(parent,variable,values,command):
+        buttons={}
+        for value in values:
+            button=ttk.Radiobutton(parent,text=value,variable=variable,value=value,command=command,style='Preview.Toolbutton')
+            button.pack(side='left',padx=(0,2));buttons[value]=button
+        return buttons
+
+    def fit_controls(self,_=None):
+        width,height=self.control_row.winfo_reqwidth(),self.control_row.winfo_reqheight()
+        visible=self.control_viewport.winfo_width()
+        self.control_viewport.configure(height=height,scrollregion=(0,0,max(width,visible),height))
+        self.control_viewport.itemconfigure(self.control_window,width=max(width,visible))
+        if width>visible:self.control_scroll.grid(row=1,column=0,sticky='ew')
+        else:self.control_scroll.grid_remove();self.control_viewport.xview_moveto(0)
+
+    def choose_view(self):
+        self.view.set('立体' if self.view_mode.get()=='立体' else self.plane.get())
+        self.view_changed()
+
+    def plane_changed(self):
+        self.cancel(redraw=False)
+        if self.view_mode.get()=='正面':self.choose_view()
+        else:self.redraw()
 
     def fit_display_controls(self,_=None):
         width,height=self.display_row.winfo_reqwidth(),self.display_row.winfo_reqheight();visible=self.display_viewport.winfo_width()
@@ -124,6 +164,8 @@ class GeometryCanvas(ttk.Frame):
 
     def view_changed(self):
         self.cancel(redraw=False)
+        self.view_mode.set('立体' if self.view.get()=='立体' else '正面')
+        if self.view.get()!='立体':self.plane.set(self.view.get())
         if self.view.get()=='立体':self.camera.yaw,self.camera.pitch=40,30
         else:self.camera.face(self.view.get())
         self.redraw()
@@ -153,13 +195,15 @@ class GeometryCanvas(ttk.Frame):
         if not self.drag:self.camera.fit(vertices,width,height,padding=55)
         def xy(point):return self.camera.project(point,width,height)
         # A fixed screen grid provides depth cues without claiming a distance scale.
-        for x in range(20,width,32):c.create_line(x,0,x,height,fill='#e9eef6',tags='grid')
-        for y in range(20,height,32):c.create_line(0,y,width,y,fill='#e9eef6',tags='grid')
+        if self.show_grid.get():
+            for x in range(20,width,32):c.create_line(x,0,x,height,fill='#e9eef6',tags='grid')
+            for y in range(20,height,32):c.create_line(0,y,width,y,fill='#e9eef6',tags='grid')
         right,up=self.camera.basis()
-        for i,color in enumerate(('#d85d59','#34986a','#387bd4')):
-            x,y=42+28*right[i],height-42-28*up[i]
-            c.create_line(42,height-42,x,y,fill=color,arrow='last',width=2,tags='orientation')
-            c.create_text(x+7,y,text='XYZ'[i],fill=color,tags='orientation')
+        if self.show_axes.get():
+            for i,color in enumerate(('#d85d59','#34986a','#387bd4')):
+                x,y=42+28*right[i],height-42-28*up[i]
+                c.create_line(42,height-42,x,y,fill=color,arrow='last',width=2,tags='orientation')
+                c.create_text(x+7,y,text='XYZ'[i],fill=color,tags='orientation')
         faces=[];negative=[]
         for mesh in meshes:
             selected=mesh.ident==e.element_id or self.parent_selected(mesh.ident)
@@ -209,7 +253,7 @@ class GeometryCanvas(ttk.Frame):
                 # Keep arrow glyphs and labels within the viewport at fitted extremities.
                 c.create_line(x,y,max(12,min(width-12,end[0])),max(12,min(height-12,end[1])),fill='#237c74',arrow='last',width=2,tags='point-direction')
                 c.create_oval(x-4,y-4,x+4,y+4,fill='#167b73',outline='white',tags=('point','point:'+str(number)))
-                c.create_text(x+8,y-10,text='P'+str(number),anchor='w',fill='#176e68',font=(e.host.ui_font,9),tags='point-label')
+                if self.show_labels.get():c.create_text(x+8,y-10,text='P'+str(number),anchor='w',fill='#176e68',font=(e.host.ui_font,9),tags='point-label')
         chosen=next((m for m in meshes if m.ident==e.element_id),None)
         if chosen and chosen.vertices and not self.actual:self.draw_handles(chosen,xy)
         if not meshes:
@@ -308,4 +352,4 @@ class GeometryCanvas(ttk.Frame):
     def orbit_move(self,event):
         if not self.orbit:return
         x,y,yaw,pitch=self.orbit;self.camera.yaw=yaw+(event.x-x)*.5;self.camera.pitch=max(-89,min(89,pitch+(event.y-y)*.5))
-        self.view.set('立体');self.redraw()
+        self.view.set('立体');self.view_mode.set('立体');self.redraw()

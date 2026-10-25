@@ -30,6 +30,26 @@ class GeometryCanvasTests(unittest.TestCase):
         self.canvas.event_generate('<B1-Motion>',x=round(x+(x-cx)*.45),y=round(y+(y-cy)*.45));self.app.update()
         if release:self.canvas.event_generate('<ButtonRelease-1>',x=round(x+(x-cx)*.45),y=round(y+(y-cy)*.45));self.app.update()
 
+    def test_plane_front_and_overlays_change_only_preview(self):
+        before=copy.deepcopy(self.data)
+        self.view.view_buttons['正面'].invoke();self.app.update()
+        for plane in ('XY','XZ','YZ'):
+            self.view.plane_buttons[plane].invoke();self.app.update()
+            self.assertEqual(self.view.view.get(),plane)
+            expected=geo.FitCamera();expected.face(plane)
+            self.assertEqual(self.view.camera.basis(),expected.basis())
+        self.view.view_buttons['立体'].invoke();self.app.update()
+        self.assertEqual(self.view.view.get(),'立体')
+        for label,tag in (('グリッド','grid'),('座標軸','orientation'),('点番号','point-label')):
+            self.assertTrue(self.canvas.find_withtag(tag))
+            self.view.overlay_buttons[label].invoke();self.app.update()
+            self.assertFalse(self.canvas.find_withtag(tag))
+            self.assertTrue(self.canvas.find_withtag('mesh'))
+            self.view.overlay_buttons[label].invoke();self.app.update()
+            self.assertTrue(self.canvas.find_withtag(tag))
+        self.assertTrue(self.canvas.find_withtag('point'))
+        self.assertEqual(self.data,before);self.assertEqual(self.errors,[])
+
     def test_combined_preview_switches_to_scom_dimensions_and_preserves_data(self):
         before=copy.deepcopy(self.data)
         self.assertFalse(self.view.actual);self.assertTrue(self.view.handles)
