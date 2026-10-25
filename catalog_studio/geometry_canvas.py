@@ -72,6 +72,8 @@ class GeometryCanvas(ttk.Frame):
         self.canvas.bind('<Button-3>',self.orbit_start);self.canvas.bind('<B3-Motion>',self.orbit_move)
         self.canvas.bind('<ButtonRelease-3>',lambda _:setattr(self,'orbit',None));self.canvas.bind('<Escape>',lambda _:self.cancel())
         self.bind('<Destroy>',lambda e:self.dispose() if e.widget is self else None)
+        from .preview_preferences import attach
+        attach(self)
 
     @staticmethod
     def toggles(parent,variable,values,command):

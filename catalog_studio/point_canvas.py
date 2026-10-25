@@ -44,6 +44,8 @@ class PointCanvas(ttk.Frame):
         hint=ttk.Label(self,text='空白：点を作成 ｜ ドラッグ：移動 ｜ 右：回転 ｜ ホイール：ズーム',wraplength=280,style='Muted.TLabel');hint.grid(row=5,column=0,sticky='ew',pady=(6,0))
         hint.bind('<Configure>',lambda ev:hint.configure(wraplength=max(140,ev.width-4)))
         self.canvas.bind('<Escape>',lambda _:self.cancel());self.redraw()
+        from .preview_preferences import attach
+        attach(self)
 
     def open_details(self):preview_controls.open_panel(self)
     def close_details(self):preview_controls.close_panel(self)
