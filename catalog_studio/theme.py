@@ -59,7 +59,7 @@ def apply(root,family):
     style.configure('TLabelframe',bordercolor=BORDER,relief='solid',borderwidth=1)
     style.configure('TLabelframe.Label',foreground=MUTED,font=(family,9,'bold'))
     style.configure('Preview.Toolbutton',padding=(6,4),background=SUBTLE,foreground=MUTED,bordercolor=BORDER,lightcolor=SUBTLE,darkcolor=SUBTLE,relief='flat',font=(family,9),focusthickness=0)
-    style.map('Preview.Toolbutton',background=[('selected',SELECT),('active','#f0f4fb')],foreground=[('selected',ACCENT),('active',INK)],bordercolor=[('focus',ACCENT),('selected','#afc5ee')])
+    style.map('Preview.Toolbutton',background=[('selected',ACCENT),('active','#f0f4fb')],foreground=[('selected','white'),('active',INK)],bordercolor=[('focus',ACCENT),('selected','#afc5ee')])
     style.configure('Treeview',rowheight=34,background=SURFACE,fieldbackground=SURFACE,foreground=INK,bordercolor=BORDER,lightcolor=BORDER,darkcolor=BORDER,relief='solid',borderwidth=1)
     style.configure('Treeview.Heading',background=SUBTLE,foreground=MUTED,padding=(7,8),font=(family,9,'bold'),relief='flat',bordercolor=BORDER,lightcolor=SUBTLE,darkcolor=SUBTLE)
     style.map('Treeview',background=[('selected',SELECT)],foreground=[('selected',ACCENT)])

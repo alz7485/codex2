@@ -144,7 +144,7 @@ class Camera:
         a,b=PLANES[plane];c=next(i for i in range(3) if i not in (a,b));right,up=self.basis()
         sx=(x-width/2)/self.zoom-right[c]*fixed;sy=-(y-height/2)/self.zoom-up[c]*fixed
         determinant=right[a]*up[b]-right[b]*up[a]
-        if abs(determinant)<1e-6:raise ValueError('配置面が横向きです。視点を変えるか「正面」に切り替えてください。')
+        if abs(determinant)<1e-6:raise ValueError('作図面が横向きです。視点のXY・XZ・YZから作図面と同じ面を選んでください。')
         result=[0,0,0];result[c]=fixed
         result[a]=(sx*up[b]-right[b]*sy)/determinant
         result[b]=(right[a]*sy-sx*up[a])/determinant

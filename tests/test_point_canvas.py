@@ -152,16 +152,15 @@ class PointCanvasGuiTests(unittest.TestCase):
             self.assertTrue(self.view.canvas.find_withtag(tag));self.view.display_buttons[label].invoke();self.app.update()
             self.assertFalse(self.view.canvas.find_withtag(tag));self.view.display_buttons[label].invoke();self.app.update()
             self.assertTrue(self.view.canvas.find_withtag(tag))
-        self.assertEqual(len({button.winfo_rooty() for button in self.view.display_buttons.values()}),1)
         self.view.view_buttons['立体'].invoke()
         for plane in PLANES:
-            self.view.plane_buttons[plane].invoke();self.assertEqual(self.view.plane.get(),plane)
-            self.assertEqual(self.view.view.get(),'正面')
+            self.view.view_buttons[plane].invoke();self.assertEqual(self.view.view.get(),plane)
+            self.assertEqual(self.view.plane.get(),'XY')
             camera=Camera();camera.face(plane);self.assertEqual(self.view.camera.basis(),camera.basis())
         self.assertEqual(self.app.data,before);self.assertEqual(self.errors,[])
 
     def test_menu_context_is_invalidated_when_plane_or_set_changes(self):
-        before=copy.deepcopy(self.app.data);self.click((-.8,-.7,0));self.view.plane_buttons['XZ'].invoke();self.view.create_menu.invoke(0);self.app.update()
+        before=copy.deepcopy(self.app.data);self.click((-.8,-.7,0));self.view.plane.set('XZ');self.view.plane_changed();self.view.create_menu.invoke(0);self.app.update()
         self.assertEqual(self.app.data,before)
         self.click((-.8,-.7,0));self.editor.definition_id='missing';self.view.create_menu.invoke(0);self.app.update()
         self.assertEqual(self.app.data,before);self.assertIn('セット・基準面が変更',self.view.note['text']);self.assertEqual(self.errors,[])

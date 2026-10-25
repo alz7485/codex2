@@ -6,7 +6,7 @@ from tkinter import ttk
 from PIL import ImageTk
 from . import geometry_scene as geometry, project, theme
 from .surface_render import alpha_surface, inside_polygon, feature_edges
-from . import geometry_preview, representation, model_settings, element_schema as schema
+from . import preview_controls, geometry_preview, representation, model_settings, element_schema as schema
 
 
 class GeometryCanvas(ttk.Frame):
@@ -26,24 +26,11 @@ class GeometryCanvas(ttk.Frame):
         self.render_job=None;self.surface_image=None;self.surface_bitmap=None;self.pick_faces=[]
         self.drag=None;self.orbit=None;self.handles={};self.screen_points={};self.refreshing=False;self.resize_issue=''
         self.columnconfigure(0,weight=1);self.rowconfigure(3,weight=1)
-        controls=ttk.Frame(self);controls.grid(row=0,column=0,sticky='ew',pady=(0,4));controls.columnconfigure(0,weight=1)
-        self.control_viewport=tk.Canvas(controls,width=1,height=1,highlightthickness=0,bg=theme.SURFACE)
-        self.control_viewport.grid(row=0,column=0,sticky='ew')
-        self.control_scroll=ttk.Scrollbar(controls,orient='horizontal',command=self.control_viewport.xview)
-        self.control_viewport.configure(xscrollcommand=self.control_scroll.set)
-        self.control_row=ttk.Frame(self.control_viewport)
-        self.control_window=self.control_viewport.create_window(0,0,anchor='nw',window=self.control_row)
-        self.control_groups={}
-        for title in ('基準面','視点','表示'):
-            group=ttk.LabelFrame(self.control_row,text=title,padding=(4,3))
-            group.pack(side='left',fill='y',padx=(0,6));self.control_groups[title]=group
-        self.plane_buttons=self.toggles(self.control_groups['基準面'],self.plane,('XY','XZ','YZ'),self.plane_changed)
-        self.view_buttons=self.toggles(self.control_groups['視点'],self.view_mode,('立体','正面'),self.choose_view)
+        preview_controls.build(self,0)
         self.overlay_buttons={}
         for label,var in (('グリッド',self.show_grid),('座標軸',self.show_axes),('点番号',self.show_labels)):
-            button=ttk.Checkbutton(self.control_groups['表示'],text=label,variable=var,command=self.redraw,style='Preview.Toolbutton')
-            button.pack(side='left',padx=(0,2));self.overlay_buttons[label]=button
-        self.control_row.bind('<Configure>',self.fit_controls);self.control_viewport.bind('<Configure>',self.fit_controls)
+            button=ttk.Checkbutton(self.settings_content,text=label,variable=var,command=self.redraw,style='Preview.Toolbutton')
+            button.pack(anchor='w',fill='x',pady=2);self.overlay_buttons[label]=button
         row=ttk.Frame(self);row.grid(row=1,column=0,sticky='ew',pady=(0,3))
         mode_row=ttk.Frame(row);mode_row.pack(fill='x')
         self.mode_buttons=self.toggles(mode_row,self.mode,('仮サイズ','SCOM 実寸'),self.mode_changed)
@@ -53,36 +40,29 @@ class GeometryCanvas(ttk.Frame):
         ttk.Label(scom_row,text='参照SCOM',style='Muted.TLabel').pack(side='left',padx=(0,6))
         self.scom_choice=ttk.Combobox(scom_row,state='readonly',width=10);self.scom_choice.pack(side='left',fill='x',expand=True)
         self.scom_choice.bind('<<ComboboxSelected>>',self.select_scom)
-        display=ttk.Frame(self);display.grid(row=2,column=0,sticky='ew',pady=(0,3))
-        self.display_buttons={}
-        for label in ('ソリッド','ワイヤー','面＋線'):
-            button=ttk.Radiobutton(display,text=label,variable=self.render_mode,value=label,command=lambda:self.display_changed(immediate=True),style='Preview.Toolbutton')
-            button.pack(side='left',padx=(0,3));self.display_buttons[label]=button
-        self.details_button=ttk.Button(display,text='詳細表示…',command=self.open_details,style='Compact.TButton')
-        self.details_button.pack(side='left',padx=(4,0))
-        self.details=tk.Toplevel(self);self.details.withdraw();self.details.title('プレビューの詳細表示')
-        self.details.transient(editor.host);self.details.resizable(False,False)
-        self.details.protocol('WM_DELETE_WINDOW',self.details.withdraw)
-        details=ttk.Frame(self.details,padding=16);details.pack(fill='both',expand=True)
-        ttk.Label(details,text='プレビューの詳細表示',style='Heading.TLabel').grid(row=0,column=0,columnspan=3,sticky='w',pady=(0,10))
-        overlays=ttk.Frame(details);overlays.grid(row=1,column=0,columnspan=3,sticky='w',pady=(0,10))
-        for label,var in (('接続点・方向矢印',self.show_points),('負形状',self.show_negative)):
-            ttk.Checkbutton(overlays,text=label,variable=var,command=self.redraw,style='Preview.Toolbutton').pack(side='left',padx=(0,6))
-        ttk.Label(details,text='透過率').grid(row=2,column=0,sticky='w')
-        self.transparency_scale=ttk.Scale(details,from_=0,to=100,variable=self.transparency,length=180)
-        self.transparency_scale.grid(row=2,column=1,sticky='ew',padx=8)
-        self.transparency_label=ttk.Label(details,text='0%',width=5,style='Muted.TLabel');self.transparency_label.grid(row=2,column=2)
-        ttk.Label(details,text='描画対象').grid(row=3,column=0,sticky='w',pady=10)
+        details=self.settings_content
+        ttk.Label(details,text='描画方式',style='Muted.TLabel').pack(anchor='w',pady=(8,3))
+        render_row=ttk.Frame(details);render_row.pack(fill='x')
+        self.display_buttons=self.toggles(render_row,self.render_mode,('ソリッド','ワイヤー','面＋線'),lambda:self.display_changed(immediate=True))
+        ttk.Label(details,text='透過率',style='Muted.TLabel').pack(anchor='w',pady=(8,3))
+        self.transparency_scale=ttk.Scale(details,from_=0,to=100,variable=self.transparency,length=150);self.transparency_scale.pack(fill='x')
+        self.transparency_label=ttk.Label(details,text='0%',style='Muted.TLabel');self.transparency_label.pack(anchor='w')
+        for label,var in (('接続点・方向',self.show_points),('負形状',self.show_negative)):
+            ttk.Checkbutton(details,text=label,variable=var,command=self.redraw,style='Preview.Toolbutton').pack(anchor='w',pady=2)
         self.representation_choice=ttk.Combobox(details,state='readonly',width=12,textvariable=self.representation_mode,values=('全形状','属性確認'))
-        self.representation_choice.grid(row=3,column=1,sticky='w',padx=8)
-        self.representation_choice.bind('<<ComboboxSelected>>',lambda _:self.representation_changed())
-        actions=ttk.Frame(details);actions.grid(row=4,column=0,columnspan=3,sticky='ew')
-        ttk.Button(actions,text='表示条件',command=lambda:representation.edit(self),style='Compact.TButton').pack(side='left')
-        ttk.Button(actions,text='設計値',command=lambda:model_settings.edit(editor),style='Compact.TButton').pack(side='left',padx=6)
-        ttk.Button(actions,text='閉じる',command=self.details.withdraw,style='Compact.TButton').pack(side='right')
+        self.representation_choice.pack(fill='x',pady=6);self.representation_choice.bind('<<ComboboxSelected>>',lambda _:self.representation_changed())
+        ttk.Button(details,text='詳細な表示条件',command=lambda:representation.edit(self),style='Compact.TButton').pack(fill='x')
+        # Design data edits remain outside appearance settings.
+        tools=ttk.Frame(self);tools.grid(row=2,column=0,sticky='ew',pady=(0,4))
+        self.selection_label=ttk.Label(tools,text='選択：なし',style='Muted.TLabel');self.selection_label.pack(side='left')
+        ttk.Button(tools,text='設計値を編集',command=lambda:model_settings.edit(editor),style='Compact.TButton').pack(side='right')
+        self.zoom_factor=1.0
         self.transparency.trace_add('write',self.display_changed)
-        self.canvas=tk.Canvas(self,bg=theme.SUBTLE,highlightthickness=1,highlightbackground=theme.BORDER,width=1,height=1)
-        self.canvas.grid(row=3,column=0,sticky='nsew')
+        self.canvas=tk.Canvas(self.body,bg=theme.SUBTLE,highlightthickness=1,highlightbackground=theme.BORDER,width=1,height=1)
+        self.canvas.grid(row=0,column=0,sticky='nsew')
+        preview_controls.zoom_buttons(self)
+        self.canvas.bind('<MouseWheel>',lambda e:self.zoom(1.12 if e.delta>0 else 1/1.12))
+        self.canvas.bind('<Button-4>',lambda _:self.zoom(1.12));self.canvas.bind('<Button-5>',lambda _:self.zoom(1/1.12))
         self.note=ttk.Label(self,text='',style='Muted.TLabel',wraplength=360);self.note.grid(row=4,column=0,sticky='ew',pady=(6,0))
         self.note.bind('<Configure>',lambda e:self.note.configure(wraplength=max(120,e.width-4)))
         self.issue_label=ttk.Label(self,text='',foreground='#a15c24',wraplength=360);self.issue_label.grid(row=5,column=0,sticky='ew',pady=(4,0))
@@ -101,23 +81,11 @@ class GeometryCanvas(ttk.Frame):
             button.pack(side='left',padx=(0,2));buttons[value]=button
         return buttons
 
-    def fit_controls(self,_=None):
-        width,height=self.control_row.winfo_reqwidth(),self.control_row.winfo_reqheight()
-        visible=self.control_viewport.winfo_width()
-        self.control_viewport.configure(height=height,scrollregion=(0,0,max(width,visible),height))
-        self.control_viewport.itemconfigure(self.control_window,width=max(width,visible))
-        if width>visible:self.control_scroll.grid(row=1,column=0,sticky='ew')
-        else:self.control_scroll.grid_remove();self.control_viewport.xview_moveto(0)
-
-    def choose_view(self):
-        self.view.set('立体' if self.view_mode.get()=='立体' else self.plane.get())
-        self.view_changed()
-
-    def plane_changed(self):
-        self.view_mode.set('正面');self.choose_view()
-
-    def open_details(self):
-        self.details.deiconify();self.details.lift()
+    def open_details(self):preview_controls.open_panel(self)
+    def close_details(self):preview_controls.close_panel(self)
+    def fit_all(self):self.cancel(redraw=False);self.zoom_factor=1.0;self.redraw()
+    def zoom(self,factor):
+        self.cancel(redraw=False);self.zoom_factor=max(.1,min(10,self.zoom_factor*factor));self.redraw()
 
     def sync_display_controls(self):
         self.transparency_label.configure(text=f'{round(self.transparency.get())}%')
@@ -132,12 +100,12 @@ class GeometryCanvas(ttk.Frame):
     def display_changed(self,*_,immediate=False):
         self.sync_display_controls()
         self.editor.host.gmset_display_settings={'mode':self.render_mode.get(),'transparency':self.transparency.get()}
-        if self.render_job:self.after_cancel(self.render_job);self.render_job=None
+        if self.render_job:self.editor.host.after_cancel(self.render_job);self.render_job=None
         if immediate:self.redraw()
-        else:self.render_job=self.after(35,self.redraw)
+        else:self.render_job=self.editor.host.after(35,self.redraw)
 
     def dispose(self):
-        if self.render_job:self.after_cancel(self.render_job);self.render_job=None
+        if self.render_job:self.editor.host.after_cancel(self.render_job);self.render_job=None
         self.cancel(redraw=False);self.surface_image=None;self.surface_bitmap=None
 
     @property
@@ -171,7 +139,7 @@ class GeometryCanvas(ttk.Frame):
         self.redraw()
 
     def redraw(self):
-        if self.render_job:self.after_cancel(self.render_job);self.render_job=None
+        if self.render_job:self.editor.host.after_cancel(self.render_job);self.render_job=None
         if not self.winfo_exists() or self.refreshing:return
         self.refreshing=True
         try:self._redraw()
@@ -182,6 +150,8 @@ class GeometryCanvas(ttk.Frame):
         self.surface_image=None;self.surface_bitmap=None;self.pick_faces=[]
         scom=project.get(e.data,'scoms',e.preview_scom_id)
         definition=e.definition()
+        selected=e.element()
+        self.selection_label.configure(text='選択：'+(selected['name']+' / '+selected['type'] if selected else 'なし'))
         if self.drag and self.drag['context']!=geometry_preview.context(e.data,definition):
             self.drag=None;self.resize_issue='属性・PTSET・共有仮値が変更されています。ハンドルを選び直してください。'
         if self.drag and self.drag.get('candidate'):
@@ -192,7 +162,8 @@ class GeometryCanvas(ttk.Frame):
         meshes=[m for m in self.scene.meshes if not m.negative or self.show_negative.get()]
         width,height=max(c.winfo_width(),100),max(c.winfo_height(),100)
         vertices=[p for m in meshes for p in m.vertices]+([p[0] for p in self.scene.points.values()] if self.show_points.get() else [])
-        if not self.drag:self.camera.fit(vertices,width,height,padding=55)
+        if not self.drag:
+            self.camera.fit(vertices,width,height,padding=55);self.camera.zoom*=self.zoom_factor
         def xy(point):return self.camera.project(point,width,height)
         # A fixed screen grid provides depth cues without claiming a distance scale.
         if self.show_grid.get():
@@ -262,7 +233,7 @@ class GeometryCanvas(ttk.Frame):
         if self.actual and meshes:
             points=[p for m in meshes for p in m.vertices]
             dimensions='\n外形：'+' / '.join('XYZ'[i]+' '+format(max(p[i] for p in points)-min(p[i] for p in points),'.5g') for i in range(3))+' mm（DB 単位）'
-        self.note.configure(text=('登録寸法で確認：寸法比を保持して全体表示 / 右ドラッグ：回転'+dimensions if self.actual else '仮配置で確認：どの形状のハンドルからも同じ PARAM を更新\n対応する PTSET の点・他の形状も追従 / 距離・単位なし\n属性・PARAM 式は保持 / 右ドラッグ：回転')+'\n負形状は橙色の輪郭で重ねて表示します。')
+        self.note.configure(text=('登録寸法で確認：寸法比を保持して全体表示 / 右ドラッグ：回転'+dimensions if self.actual else '仮配置・単位なし ｜ 右ドラッグ：回転 ｜ ホイール：ズーム')+'')
         status=('登録寸法で確認 · '+(scom['name'] if scom else '参照SCOMを選択してください')) if self.actual else '仮配置で確認 · 編集用の仮値'
         c.create_text(12,12,text=status,anchor='nw',fill=theme.MUTED,width=max(100,width-24),font=(e.host.ui_font,9),tags='preview-mode')
         hidden=self.scene.hidden

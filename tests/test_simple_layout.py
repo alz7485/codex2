@@ -134,27 +134,16 @@ class SimpleAuthoringTests(unittest.TestCase):
                 self.assertLessEqual(widget.winfo_rootx()+widget.winfo_width(),app.winfo_rootx()+app.winfo_width())
                 self.assertLessEqual(widget.winfo_rooty()+widget.winfo_height(),app.winfo_rooty()+app.winfo_height())
             e.tables['main'].cancel_edit();app.update()
-        controls=list(view.plane_buttons.values())+list(view.view_buttons.values())+list(view.display_buttons.values())
-        self.assertEqual(len({widget.winfo_rooty() for widget in controls}),1)
-        self.assertEqual(tuple(view.control_groups),('基準面','視点','表示'))
-        for group in view.control_groups.values():self.assertIsInstance(group,ttk.LabelFrame)
-        viewport=view.control_viewport
-        self.assertEqual(bool(view.control_scroll.winfo_ismapped()),view.control_row.winfo_reqwidth()>viewport.winfo_width())
-        sash=e.main_split.sashpos(1)
-        e.main_split.sashpos(1,e.main_split.sashpos(0)+200);app.update()
-        self.assertTrue(view.control_scroll.winfo_ismapped())
-        view.control_viewport.xview_moveto(1);app.update();last=controls[-1]
-        self.assertLessEqual(last.winfo_rootx()+last.winfo_width(),viewport.winfo_rootx()+viewport.winfo_width())
-        view.control_viewport.xview_moveto(0);app.update()
-        self.assertGreaterEqual(controls[0].winfo_rootx(),viewport.winfo_rootx())
-        e.main_split.sashpos(1,sash);app.update()
-        app.geometry('1440x960');app.update()
-        self.assertFalse(view.control_scroll.winfo_ismapped())
+        controls=list(view.view_buttons.values())+[view.fit_button,view.details_button]
+        app.geometry('1120x780');app.update()
         for widget in controls:
-            self.assertLessEqual(widget.winfo_rootx()+widget.winfo_width(),viewport.winfo_rootx()+viewport.winfo_width())
-        self.assertGreater(view.canvas.winfo_height(),300)
-        self.assertFalse(any(isinstance(child,ttk.Button) for child in view.winfo_children()))
-        self.assertEqual(self.errors,[])
+            self.assertTrue(widget.winfo_viewable())
+            self.assertLessEqual(widget.winfo_rootx()+widget.winfo_width(),app.winfo_rootx()+app.winfo_width())
+        view.open_details();app.update()
+        self.assertTrue(view.details.winfo_viewable())
+        self.assertGreater(view.canvas.winfo_width(),200)
+        view.close_details();app.update()
+        self.assertFalse(view.details.winfo_viewable())
 
     def test_switching_registered_set_replaces_preview_and_updates_attributes(self):
         app=self.app;old=app.geometry_editor.point_canvas

@@ -5,7 +5,7 @@ from tkinter import ttk
 from . import element_schema as schema, presets, expressions
 from .point_geometry import Camera, PLANES, LAYOUT_KEY, DIMENSIONS_KEY, schematic_position, schematic_placement
 from .point_preview import PointPreview, empty, remember
-from . import theme
+from . import theme, preview_controls
 
 
 class PointCanvas(ttk.Frame):
@@ -17,57 +17,43 @@ class PointCanvas(ttk.Frame):
         self.show_grid=tk.BooleanVar(value=True);self.show_axes=tk.BooleanVar(value=True)
         self.show_labels=tk.BooleanVar(value=True);self.show_relations=tk.BooleanVar(value=True)
         self.columnconfigure(0,weight=1);self.rowconfigure(3,weight=1)
-        ttk.Label(self,text='3D プレビュー · 仮配置',style='Heading.TLabel').grid(row=0,column=0,sticky='w',pady=(0,8))
-        controls=ttk.Frame(self);controls.grid(row=1,column=0,sticky='ew',pady=(0,8));controls.columnconfigure(0,weight=1)
-        self.control_viewport=tk.Canvas(controls,width=1,height=1,highlightthickness=0,bg='white')
-        self.control_viewport.grid(row=0,column=0,sticky='ew')
-        self.control_scroll=ttk.Scrollbar(controls,orient='horizontal',command=self.control_viewport.xview)
-        self.control_viewport.configure(xscrollcommand=self.control_scroll.set)
-        self.control_row=ttk.Frame(self.control_viewport)
-        self.control_window=self.control_viewport.create_window(0,0,anchor='nw',window=self.control_row)
-        self.control_groups={}
-        for title in ('基準面','視点','表示'):
-            group=ttk.LabelFrame(self.control_row,text=title,padding=(4,3))
-            group.pack(side='left',fill='y',padx=(0,6));self.control_groups[title]=group
-        self.plane_buttons=self.toggles(self.control_groups['基準面'],self.plane,tuple(PLANES),self.plane_changed)
-        self.view_buttons=self.toggles(self.control_groups['視点'],self.view,('立体','正面'),self.view_changed)
+        ttk.Label(self,text='3D プレビュー　 ·　仮配置・単位なし',style='Heading.TLabel').grid(row=0,column=0,sticky='w',pady=(0,8))
+        preview_controls.build(self,1)
         self.display_buttons={}
         for label,var in (('グリッド',self.show_grid),('座標軸',self.show_axes),('点番号',self.show_labels),('関係線',self.show_relations)):
-            button=ttk.Checkbutton(self.control_groups['表示'],text=label,variable=var,command=self.redraw,style='Preview.Toolbutton')
-            button.pack(side='left',padx=(0,2));self.display_buttons[label]=button
-        self.control_row.bind('<Configure>',self.fit_controls)
-        self.control_viewport.bind('<Configure>',self.fit_controls)
+            button=ttk.Checkbutton(self.settings_content,text=label,variable=var,command=self.redraw,style='Preview.Toolbutton')
+            button.pack(anchor='w',fill='x',pady=2);self.display_buttons[label]=button
+        context=ttk.Frame(self);context.grid(row=2,column=0,sticky='ew',pady=(0,6))
+        self.selection_label=ttk.Label(context,text='選択：なし',style='Muted.TLabel');self.selection_label.pack(side='left')
+        ttk.Label(context,text='作図面',style='Muted.TLabel').pack(side='left',padx=(14,4))
+        self.plane_choice=ttk.Combobox(context,textvariable=self.plane,values=tuple(PLANES),state='readonly',width=4)
+        self.plane_choice.pack(side='left');self.plane_choice.bind('<<ComboboxSelected>>',lambda _:self.plane_changed())
         self.context_menu=tk.Menu(self,tearoff=False)
         self.create_menu=tk.Menu(self.context_menu,tearoff=False)
         for kind in schema.PT_TYPES:
             self.create_menu.add_command(label=kind+'：'+schema.PT_GUIDES[kind]['name'],command=lambda selected=kind:self.create_at_menu(selected))
         self.context_menu.add_cascade(label='点を作成',menu=self.create_menu)
         self.context_menu.add_separator();self.context_menu.add_command(label='閉じる',command=self.dismiss_menu)
-        self.canvas=tk.Canvas(self,bg=theme.SUBTLE,highlightthickness=1,highlightbackground=theme.BORDER,highlightcolor=theme.ACCENT,width=320,height=260);self.canvas.grid(row=3,column=0,sticky='nsew')
+        self.canvas=tk.Canvas(self.body,bg=theme.SUBTLE,highlightthickness=1,highlightbackground=theme.BORDER,highlightcolor=theme.ACCENT,width=320,height=260);self.canvas.grid(row=0,column=0,sticky='nsew')
+        preview_controls.zoom_buttons(self)
         self.canvas.bind('<Configure>',lambda _:self.redraw());self.canvas.bind('<Button-1>',self.press);self.canvas.bind('<B1-Motion>',self.move);self.canvas.bind('<ButtonRelease-1>',self.release)
         self.canvas.bind('<Button-3>',self.orbit_start);self.canvas.bind('<B3-Motion>',self.orbit_move)
         self.canvas.bind('<MouseWheel>',lambda ev:self.zoom(1.12 if ev.delta>0 else 1/1.12));self.canvas.bind('<Button-4>',lambda _:self.zoom(1.12));self.canvas.bind('<Button-5>',lambda _:self.zoom(1/1.12))
         self.note=ttk.Label(self,text='',wraplength=280,foreground='#738499');self.note.grid(row=4,column=0,sticky='ew',pady=(6,0))
         self.note.bind('<Configure>',lambda ev:self.note.configure(wraplength=max(140,ev.width-4)))
-        hint=ttk.Label(self,text='空白クリック：点を作成\n点をクリック：選択 / ドラッグ：移動\n右：回転 / ホイール：ズーム / Esc：取消\nグリッドに距離・単位はありません。',wraplength=280,style='Muted.TLabel');hint.grid(row=5,column=0,sticky='ew',pady=(6,0))
+        hint=ttk.Label(self,text='空白：点を作成 ｜ ドラッグ：移動 ｜ 右：回転 ｜ ホイール：ズーム',wraplength=280,style='Muted.TLabel');hint.grid(row=5,column=0,sticky='ew',pady=(6,0))
         hint.bind('<Configure>',lambda ev:hint.configure(wraplength=max(140,ev.width-4)))
         self.canvas.bind('<Escape>',lambda _:self.cancel());self.redraw()
 
-    @staticmethod
-    def toggles(parent,variable,values,command):
-        buttons={}
-        for value in values:
-            button=ttk.Radiobutton(parent,text=value,variable=variable,value=value,command=command,style='Preview.Toolbutton')
-            button.pack(side='left',padx=(0,2));buttons[value]=button
-        return buttons
-
-    def fit_controls(self,_=None):
-        width=self.control_row.winfo_reqwidth();height=self.control_row.winfo_reqheight()
-        visible=self.control_viewport.winfo_width()
-        self.control_viewport.configure(height=height,scrollregion=(0,0,max(width,visible),height))
-        self.control_viewport.itemconfigure(self.control_window,width=max(width,visible))
-        if width>visible:self.control_scroll.grid(row=1,column=0,sticky='ew')
-        else:self.control_scroll.grid_remove();self.control_viewport.xview_moveto(0)
+    def open_details(self):preview_controls.open_panel(self)
+    def close_details(self):preview_controls.close_panel(self)
+    def fit_all(self):
+        self.cancel();self.redraw()
+        right,up=self.camera.basis();points=list(self.positions.values())+[(0,0,0)]
+        xmax=max((abs(sum(a*b for a,b in zip(right,p))) for p in points),default=1)
+        ymax=max((abs(sum(a*b for a,b in zip(up,p))) for p in points),default=1)
+        self.camera.zoom=max(.001,min((self.canvas.winfo_width()-100)/max(2*xmax,.01),(self.canvas.winfo_height()-100)/max(2*ymax,.01)))
+        self.redraw()
 
     def dismiss_menu(self):
         self.context_menu.unpost();self.create_menu.unpost();self.menu_context=None
@@ -106,6 +92,8 @@ class PointCanvas(ttk.Frame):
                     c.create_line(*origin,*end,fill=color,width=2 if sign>0 else 1,arrow='last',tags=('axes',))
                     c.create_text(end[0]+8,end[1],text=('+' if sign>0 else '−')+'XYZ'[index],fill=color,tags=('axes',))
         definition=self.editor.definition()
+        selected=self.editor.element()
+        self.selection_label.configure(text='選択：'+(selected['name'] if selected else 'なし'))
         model=(self.pending or {}).get('preview') or (PointPreview(self.editor.data,definition) if definition else None)
         self.preview_model=model
         elements=enumerate((definition or {}).get('elements',[]))
@@ -137,11 +125,10 @@ class PointCanvas(ttk.Frame):
 
 
     def plane_changed(self):
-        self.view.set('正面');self.camera.face(self.plane.get())
         self.cancel()
     def view_changed(self):
         self.cancel();self.camera=Camera()
-        if self.view.get()=='正面':self.camera.face(self.plane.get())
+        if self.view.get()!='立体':self.camera.face(self.plane.get() if self.view.get()=='正面' else self.view.get())
         self.redraw()
     def face(self):self.view.set('正面');self.view_changed()
     def reset_view(self):self.view.set('立体');self.view_changed()

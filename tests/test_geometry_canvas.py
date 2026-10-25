@@ -33,7 +33,7 @@ class GeometryCanvasTests(unittest.TestCase):
     def test_plane_front_and_overlays_change_only_preview(self):
         before=copy.deepcopy(self.data)
         for plane in ('XY','XZ','YZ'):
-            self.view.plane_buttons[plane].invoke();self.app.update()
+            self.view.view_buttons[plane].invoke();self.app.update()
             self.assertEqual(self.view.view.get(),plane)
             self.assertEqual(self.view.view_mode.get(),'正面')
             expected=geo.FitCamera();expected.face(plane)
@@ -176,7 +176,7 @@ class GeometryCanvasTests(unittest.TestCase):
         self.assertTrue(self.view.details.winfo_viewable())
         self.view.transparency.set(35);self.view.redraw();self.app.update()
         self.assertEqual(self.view.transparency_label['text'],'35%')
-        self.view.details.withdraw();self.app.update()
+        self.view.close_details();self.app.update()
         self.assertFalse(self.view.details.winfo_viewable())
         self.assertEqual(self.view.transparency.get(),35)
         self.assertTrue(self.canvas.find_withtag('preview-mode'))
