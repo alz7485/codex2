@@ -6,6 +6,19 @@ from catalog_studio import macro_destinations as md, macro_export, macro_import,
 
 
 class MacroDestinationTests(unittest.TestCase):
+    def test_destination_lists_migrate_validate_and_keep_failed_edits_atomic(self):
+        data={md.KEY:{'PTSET':'LEGACY'}}
+        self.assertEqual(md.options(data,'PTSET'),['/LEGACY'])
+        md.save_options(data,'PTSET',['A','/B','A',''])
+        self.assertEqual(md.options(data,'PTSET'),['/A','/B'])
+        before=copy.deepcopy(data)
+        with self.assertRaises(ValueError):md.save_options(data,'PTSET',['/C','BAD;DELETE'])
+        self.assertEqual(data,before)
+        for invalid in ([1],['/A','/A'],['BAD'],['/A;LOCK']):
+            candidate=copy.deepcopy(data);candidate[md.LIST_KEY]['PTSET']=invalid
+            with self.assertRaises(ValueError):md.validate_storage(candidate)
+        md.save_options(data,'PTSET',[]);self.assertEqual(md.options(data,'PTSET'),[])
+
     def test_normalize_prefix_and_reject_command_injection(self):
         for raw, expected in [('PT-ROOT','/PT-ROOT'), (' /GM-ROOT ', '/GM-ROOT'), ('CAT/POINTS','/CAT/POINTS'), ('','')]:
             self.assertEqual(md.normalize(raw), expected)

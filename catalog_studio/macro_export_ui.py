@@ -21,7 +21,8 @@ def open_export(editor):
     if requested_name != definition['name']:
         return
     try:
-        destinations = dict(host.data.get(macro_destinations.KEY, {}))
+        choices = macro_destinations.options(host.data,definition['kind'])
+        destinations = {definition['kind']:choices[0] if choices else ''}
         source = macro_export.creation_text([definition], destinations=destinations)
     except ValueError as exc:
         messagebox.showerror('作成マクロを出力できません', str(exc), parent=host); return
@@ -30,6 +31,12 @@ def open_export(editor):
     window.geometry('820x650'); window.minsize(560, 400)
     window.transient(host); window.grab_set()
     ttk.Label(window, text=definition['name'] + '\n簡潔な作成マクロをShift-JIS（CP932）で出力します。INPUTの外枠・OLDは付けません。\nロックの有無は下で選べます。式・属性は保持します。E3D実行は未確認です。', padding=12, wraplength=520).pack(fill='x')
+    destination_row=ttk.Frame(window,padding=(12,0,12,8));destination_row.pack(fill='x')
+    ttk.Label(destination_row,text='登録先').pack(side='left',padx=(0,8))
+    window.destination_var=tk.StringVar(value=destinations[definition['kind']])
+    window.destination_choice=ttk.Combobox(destination_row,textvariable=window.destination_var,values=choices,state='readonly' if choices else 'disabled')
+    window.destination_choice.pack(side='left',fill='x',expand=True)
+    if not choices:ttk.Label(destination_row,text='未登録：現在要素に作成',style='Muted.TLabel').pack(side='left',padx=6)
     window.lock_created = tk.BooleanVar(value=False)
     option = ttk.Checkbutton(window, text='作成する要素をロックする（各要素の作成後にLOCK）', variable=window.lock_created)
     option.pack(anchor='w', padx=12, pady=(0,8))
@@ -46,10 +53,12 @@ def open_export(editor):
 
     def refresh():
         nonlocal source
+        destinations[definition['kind']]=window.destination_var.get()
         source = macro_export.creation_text([definition], lock_created=window.lock_created.get(), destinations=destinations)
         window.source.configure(state='normal'); window.source.delete('1.0', 'end')
         window.source.insert('1.0', source); window.source.configure(state='disabled')
     option.configure(command=refresh)
+    window.destination_choice.bind('<<ComboboxSelected>>',lambda _:refresh())
 
     def save():
         filename = re.sub(r'[^\w.-]+', '-', definition['name'].lstrip('/')) or definition['kind']

@@ -5,45 +5,40 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from catalog_studio import macro_import, project
+from catalog_studio import macro_import, project, macro_destinations as md
+from catalog_studio.macro_destinations_ui import edit_destinations
 from catalog_studio.integrated import IntegratedStudio
 from catalog_studio.macro_export_ui import open_export
 
 
 class MacroExportGuiTests(unittest.TestCase):
-    def test_destination_fields_are_independent_normalized_and_saved(self):
-        editor = self.editor('ptset')
-        self.assertTrue(editor.destination_entry.winfo_ismapped())
-        editor.destination_var.set('PT-ROOT')
-        preview = open_export(editor); self.app.update()
-        self.assertEqual(editor.destination_var.get(), '/PT-ROOT')
-        self.assertTrue(preview.source.get('1.0', 'end').startswith('/PT-ROOT\nNEW PTSET'))
-        preview.destroy()
-        editor = self.editor('gmset')
-        self.assertTrue(editor.destination_entry.winfo_ismapped())
-        self.assertEqual(editor.destination_var.get(), '')
-        editor.destination_var.set('/GM-ROOT')
-        preview = open_export(editor); self.app.update()
-        preview.lock_button.invoke(); self.app.update()
-        self.assertTrue(preview.source.get('1.0', 'end').startswith('/GM-ROOT\nNEW GMSET'))
+    def test_destinations_add_select_cancel_and_roundtrip(self):
+        editor=self.editor('ptset');before=copy.deepcopy(self.app.data)
+        win=edit_destinations(editor);self.app.update()
+        win.variables[0].set('PT-ROOT');win.add_button.invoke();win.variables[1].set('PT-SECOND')
+        win.destroy();self.assertEqual(self.app.data,before)
+        win=edit_destinations(editor);self.app.update()
+        win.variables[0].set('PT-ROOT');win.add_button.invoke();win.variables[1].set('PT-SECOND')
+        win.save_button.invoke();self.app.update()
+        self.assertEqual(md.options(self.app.data,'PTSET'),['/PT-ROOT','/PT-SECOND'])
+        before=copy.deepcopy(self.app.data)
+        preview=open_export(editor);self.app.update()
+        self.assertEqual(tuple(preview.destination_choice['values']),('/PT-ROOT','/PT-SECOND'))
+        preview.destination_choice.set('/PT-SECOND');preview.destination_choice.event_generate('<<ComboboxSelected>>');self.app.update()
+        self.assertTrue(preview.source.get('1.0','end').startswith('/PT-SECOND\nNEW PTSET'))
         with tempfile.TemporaryDirectory() as folder:
-            macro = Path(folder)/'gm.mac'
-            with patch('catalog_studio.macro_export_ui.filedialog.asksaveasfilename', return_value=str(macro)):
-                preview.save_button.invoke(); self.app.update()
-            self.assertEqual(macro_import.parse(macro.read_text(encoding='cp932')).definitions[0]['macro_destination'], '/GM-ROOT')
-            saved=Path(folder)/'project.json';self.app.path=str(saved)
-            self.assertTrue(self.app.save_project())
-            self.assertEqual(project.load(saved)['macro_destinations'], {'PTSET':'/PT-ROOT','GMSET':'/GM-ROOT'})
-            with patch('catalog_studio.integrated.filedialog.askopenfilename', return_value=str(saved)):
-                self.app.open_project();self.app.update()
-            self.app.switch('ptset');self.app.update()
-            self.assertEqual(self.app.geometry_editor.destination_var.get(), '/PT-ROOT')
-            self.app.switch('gmset');self.app.update()
-            self.assertEqual(self.app.geometry_editor.destination_var.get(), '/GM-ROOT')
-        self.assertEqual(self.errors, [])
+            macro=Path(folder)/'out.mac'
+            with patch('catalog_studio.macro_export_ui.filedialog.asksaveasfilename',return_value=str(macro)):
+                preview.save_button.invoke();self.app.update()
+            self.assertEqual(macro_import.parse(macro.read_text(encoding='cp932')).definitions[0]['macro_destination'],'/PT-SECOND')
+            saved=Path(folder)/'project.json';project.save(self.app.data,saved)
+            self.assertEqual(md.options(project.load(saved),'PTSET'),['/PT-ROOT','/PT-SECOND'])
+        self.assertEqual(self.app.data,before)
+        self.editor('gmset');self.assertEqual(md.options(self.app.data,'GMSET'),[])
+        self.assertEqual(self.errors,[])
 
     def test_invalid_destination_blocks_export_before_file_picker(self):
-        editor=self.editor('ptset');editor.destination_var.set('ROOT\nDELETE ALL')
+        editor=self.editor('ptset');self.app.data[md.KEY]={'PTSET':'ROOT\nDELETE ALL'}
         with patch('catalog_studio.macro_export_ui.messagebox.showerror') as error, patch('catalog_studio.macro_export_ui.filedialog.asksaveasfilename') as picker:
             self.assertIsNone(open_export(editor))
         error.assert_called_once();picker.assert_not_called()
@@ -93,7 +88,7 @@ class MacroExportGuiTests(unittest.TestCase):
         for page in ('ptset', 'gmset'):
             editor = self.editor(page)
             before = copy.deepcopy(self.app.data); dirty = self.app.dirty
-            self.assertTrue(editor.export_macro_button.winfo_ismapped())
+            self.assertTrue(self.app.registered_browser.macro_button.winfo_ismapped())
             window = open_export(editor); self.app.update()
             with tempfile.TemporaryDirectory() as folder:
                 path = Path(folder)/'export.mac'

@@ -24,6 +24,15 @@ class RegisteredBrowser(ttk.Frame):
         self.add_button=ttk.Button(organize,text='アイテムを追加',image=self.action_icons['new'],compound='none',command=self.add_definition,style='AttributeTool.TButton')
         self.folder_button=ttk.Button(organize,text='フォルダを追加',image=self.action_icons['folder_add'],compound='none',command=self.add_folder,style='AttributeTool.TButton');self.folder_button.pack(side='left')
         self.action_hints=(Hint(self.add_button,'アイテムを追加'),Hint(self.folder_button,'フォルダを追加'))
+        self.macro_button=ttk.Menubutton(organize,text='マクロ ▾',style='AttributeTool.TButton')
+        self.macro_menu=tk.Menu(self.macro_button,tearoff=False)
+        self.macro_button.configure(menu=self.macro_menu)
+        self.macro_menu.add_command(label='読込',command=host.import_creation_macro)
+        from .macro_export_ui import open_export
+        from .macro_destinations_ui import edit_destinations
+        self.macro_menu.add_command(label='出力',command=lambda:open_export(host.geometry_editor))
+        self.macro_menu.add_separator()
+        self.macro_menu.add_command(label='登録先編集',command=lambda:edit_destinations(host.geometry_editor))
         self.search = tk.StringVar()
         self.search_row=ttk.Frame(self,style='Sidebar.TFrame');self.search_row.pack(fill='x',pady=(0,8))
         ttk.Label(self.search_row,image=self.action_icons['search'],style='Sidebar.TLabel').pack(side='left',padx=(0,4))
@@ -137,6 +146,8 @@ class RegisteredBrowser(ttk.Frame):
         self.add_button.configure(text='PARAM プリセットを追加' if page=='rules' else 'アイテムを追加',width=0)
         state='normal' if page in folders.PAGES else 'disabled'
         self.folder_button.configure(state=state)
+        if page in ('ptset','gmset'):self.macro_button.pack(side='left',padx=(4,0))
+        else:self.macro_button.pack_forget()
         signature=(page,query,tuple((k,parent,text) for k,parent,text,_,_ in rows))
         if signature!=self.signature:
             states=dict(self.open_states.get(page,{}))

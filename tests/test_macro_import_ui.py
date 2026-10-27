@@ -54,7 +54,7 @@ class MacroImportGuiTests(unittest.TestCase):
 
     def test_visible_button_preview_and_cancel_do_not_modify_data(self):
         app = self.app
-        self.assertTrue(app.geometry_editor.import_macro_button.winfo_ismapped())
+        self.assertTrue(app.registered_browser.macro_button.winfo_ismapped())
         before = copy.deepcopy(app.data); dirty = app.dirty
         window = self.dialog(SAMPLE.read_text())
         self.assertEqual(len(window.records.get_children()), 2)

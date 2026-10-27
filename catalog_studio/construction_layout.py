@@ -48,11 +48,6 @@ def build_simple(editor):
     e.element_details.pack(anchor='w', fill='x', pady=(8, 0))
     e.element_details.bind('<Configure>', lambda event: e.element_details.configure(wraplength=max(160, event.width - 8)))
 
-    e.workspace_header=ttk.Frame(e,padding=(12,8),style='Card.TFrame')
-    e.workspace_header.pack(fill='x',pady=(0,8))
-    e.header_row=ttk.Frame(e.workspace_header);e.header_row.pack(fill='x')
-    e.header_row.columnconfigure(0,weight=1)
-    e.reference_bar=ttk.Frame(e.header_row)
     e.main_split = ttk.Panedwindow(e, orient='horizontal')
     e.main_split.pack(fill='both', expand=True)
     left = ttk.Frame(e.main_split, padding=(10,10),style='Card.TFrame')
@@ -60,6 +55,7 @@ def build_simple(editor):
     right = ttk.Frame(e.main_split, padding=(10,10),width=330,style='Card.TFrame')
     right.pack_propagate(False)
     e.element_pane,e.preview_pane,e.attribute_pane=left,center,right
+    e.reference_bar=ttk.Frame(center)
     e.main_split.add(left, weight=1)
     e.main_split.add(center, weight=4)
     e.main_split.add(right, weight=0)
@@ -74,20 +70,6 @@ def build_simple(editor):
     e.set_name_label=ttk.Label(left,textvariable=e.def_name,style='Heading.TLabel',wraplength=210)
     e.set_name_label.pack(anchor='w',fill='x',pady=(0,6))
     e.set_name_label.bind('<Configure>',lambda event:e.set_name_label.configure(wraplength=max(120,event.width-4)))
-    if not getattr(e.host,'is_preset_editor',False):
-        from . import macro_icons
-        from .macro_export_ui import open_export
-        from .macro_destinations_ui import build_field
-        e.macro_frame=ttk.Frame(e.header_row)
-        e.macro_frame.grid(row=0,column=1,sticky='e',padx=(12,0))
-        actions=ttk.Frame(e.header_row);actions.grid(row=0,column=2,sticky='e',padx=(8,0))
-        e.import_macro_image=macro_icons.create(e)
-        e.export_macro_image=macro_icons.create(e,export=True)
-        e.import_macro_button=ttk.Button(actions,text='マクロ読込',image=e.import_macro_image,compound='left',style='Macro.TButton',command=e.host.import_creation_macro)
-        e.import_macro_button.pack(side='left',padx=4)
-        e.export_macro_button=ttk.Button(actions,text='マクロ出力',image=e.export_macro_image,compound='left',style='Macro.TButton',command=lambda:open_export(e))
-        e.export_macro_button.pack(side='left',padx=4)
-        build_field(e,e.macro_frame,horizontal=True)
     row=ttk.Frame(left);row.pack(fill='x',pady=(0,6))
     if not getattr(e.host,'is_preset_editor',False):
         from .element_presets_ui import select_ptset_preset
@@ -220,13 +202,13 @@ def build_simple(editor):
         e.point_canvas.pack(fill='both',expand=True)
     else:
         if not getattr(e.host,'is_preset_editor',False):
-            e.reference_bar.grid(row=0,column=0,sticky='ew')
+            e.reference_bar.pack(side='bottom',fill='x',pady=(8,0))
             e.reference_bar.columnconfigure((0,1),weight=1,uniform='references')
             pair_row=ttk.Frame(e.reference_bar);pair_row.grid(row=0,column=0,sticky='ew',padx=(0,10))
             ttk.Label(pair_row,text='適用PTSET',style='Muted.TLabel').pack(side='left',padx=(0,8))
             e.ptset_choice=ttk.Combobox(pair_row,state='readonly',width=8);e.ptset_choice.pack(side='left',fill='x',expand=True)
             e.ptset_choice.bind('<<ComboboxSelected>>',e.assign_ptset)
-            e.pairing_note=ttk.Label(e.workspace_header,text='',style='AttributeMeaning.TLabel')
+            e.pairing_note=ttk.Label(center,text='',style='AttributeMeaning.TLabel')
         from .geometry_canvas import GeometryCanvas
         e.geometry_view=GeometryCanvas(e,center)
         e.geometry_view.pack(fill='both',expand=True)
