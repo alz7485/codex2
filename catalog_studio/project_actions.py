@@ -3,11 +3,11 @@ import tkinter as tk
 from . import theme
 
 
-def icon(master,kind):
+def icon(master,kind,*,color='#edf3ff'):
     image=tk.PhotoImage(master=master,width=24,height=24)
     def line(a,b):
         x,y=a;u,v=b;n=max(abs(u-x),abs(v-y),1)
-        for i in range(n+1):image.put('#edf3ff',(round(x+(u-x)*i/n),round(y+(v-y)*i/n)))
+        for i in range(n+1):image.put(color,(round(x+(u-x)*i/n),round(y+(v-y)*i/n)))
     def path(points):
         for a,b in zip(points,points[1:]):line(a,b)
     if kind=='new':
@@ -17,6 +17,12 @@ def icon(master,kind):
     elif kind=='open':
         path([(2,18),(2,5),(9,5),(11,8),(20,8),(20,11)])
         path([(2,20),(6,11),(22,11),(18,20),(2,20)])
+    elif kind=='folder_add':
+        path([(2,20),(2,5),(9,5),(11,8),(21,8),(21,12)])
+        line((2,20),(12,20));line((17,14),(17,22));line((13,18),(21,18))
+    elif kind=='search':
+        path([(4,4),(7,2),(11,2),(14,4),(16,7),(16,11),(14,14),(11,16),(7,16),(4,14),(2,11),(2,7),(4,4)])
+        line((14,14),(22,22));line((15,14),(22,21))
     else:
         path([(3,3),(18,3),(21,6),(21,21),(3,21),(3,3)])
         path([(7,3),(7,10),(17,10),(17,3)])

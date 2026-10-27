@@ -176,9 +176,10 @@ class IntegratedStudio(tk.Tk):
 
     def form(self,title,fields,apply):
         """Fields: key, label, initial text, optional display choices."""
-        win=tk.Toplevel(self);win.title(title);win.transient(self);win.grab_set();win.geometry('540x650')
-        container=ttk.Frame(win,padding=18);container.pack(fill='both',expand=True)
-        ttk.Label(container,text=title,style='Heading.TLabel').pack(anchor='w',pady=(0,10))
+        win=tk.Toplevel(self);win.title(title);win.transient(self);win.grab_set()
+        win.geometry('440x'+str(190+60*len(fields)) if len(fields)<=2 else '540x650')
+        container=ttk.Frame(win,padding=14 if len(fields)<=2 else 18);container.pack(fill='both',expand=True)
+        ttk.Label(container,text=title,style='Heading.TLabel').pack(anchor='w',pady=(0,6 if len(fields)<=2 else 10))
         canvas=tk.Canvas(container,highlightthickness=0,bg='white');canvas.pack(side='left',fill='both',expand=True)
         scroll=ttk.Scrollbar(container,orient='vertical',command=canvas.yview);scroll.pack(side='right',fill='y');canvas.configure(yscrollcommand=scroll.set)
         inner=ttk.Frame(canvas);window=canvas.create_window((0,0),window=inner,anchor='nw')
@@ -189,8 +190,8 @@ class IntegratedStudio(tk.Tk):
             ttk.Label(inner,text=label).pack(anchor='w',pady=(8,3));var=tk.StringVar(value=str(value));variables[key]=var
             widget=ttk.Combobox(inner,textvariable=var,values=choices,state='readonly') if choices is not None else ttk.Entry(inner,textvariable=var)
             widget.pack(fill='x')
-        error=ttk.Label(win,text='',foreground='#bb4949',wraplength=500,padding=10);error.pack(fill='x')
-        footer=ttk.Frame(win,padding=12);footer.pack(fill='x')
+        error=ttk.Label(win,text='',foreground='#bb4949',wraplength=400 if len(fields)<=2 else 500,padding=(10,4) if len(fields)<=2 else 10);error.pack(side='bottom',fill='x',before=container)
+        footer=ttk.Frame(win,padding=12);footer.pack(side='bottom',fill='x',before=error)
         def submit():
             try:apply({k:v.get().strip() for k,v in variables.items()})
             except (ValueError,KeyError,StopIteration) as exc:error.configure(text=str(exc) or '設定内容を確認してください。');return
@@ -415,9 +416,10 @@ class IntegratedStudio(tk.Tk):
         s=project.get(self.data,'scoms',self.scom_id)
         if s and s.get(key):self.definition_id=s[key];self.switch('gmset' if key=='gmset_id' else 'ptset')
 
-    def definition_form(self,kind,*,preset_id=None,ptset_id=None):
+    def definition_form(self,kind,*,preset_id=None,ptset_id=None,insert_after=None):
         """Create an empty set; numerical component data is entered later."""
         import uuid
+        data=self.data
         source=presets.selected_id(self.data) if preset_id is None else preset_id
         options=presets.choices(self.data)
         if source and source not in options.values():raise ValueError('PARAM プリセットが見つかりません。')
@@ -426,6 +428,7 @@ class IntegratedStudio(tk.Tk):
         if ptset_id is None:fields.append(('preset','PARAM プリセット',initial,list(options)))
         else:fields.append(('preset','PTSET から引き継ぐプリセット',initial,[initial]))
         def apply(v):
+            if self.data is not data:raise ValueError('プロジェクトが変更されています。追加をやり直してください。')
             name=self.required(v['name'],kind+' 名')
             if any(d['name']==name for d in self.data['definitions']):raise ValueError('定義名が重複しています。')
             if len(self.data['definitions'])>=project.LIMITS['definitions']:raise ValueError('定義数の上限です。')
@@ -436,6 +439,9 @@ class IntegratedStudio(tk.Tk):
                 if presets.selected_id(self.data,pointset)!=ident:raise ValueError('PTSET のプリセットが変更されています。作成をやり直してください。')
             definition={'id':uuid.uuid4().hex,'name':name,'kind':kind,'revision':'01','elements':[],'parameter_preset_id':ident}
             if kind=='GMSET' and ptset_id is not None:pairing.assign(self.data,definition,ptset_id)
+            if insert_after is not None:
+                from .browser_folders import place_created
+                place_created(self.data,kind.lower(),'definitions:'+definition['id'],insert_after)
             self.data['definitions'].append(definition);self.definition_id=definition['id']
             if kind=='PTSET':self.data['creation_draft']={'ptset_id':definition['id']}
             elif ptset_id is not None:self.data['creation_draft']={'ptset_id':ptset_id,'gmset_id':definition['id']}

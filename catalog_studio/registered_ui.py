@@ -18,13 +18,17 @@ class RegisteredBrowser(ttk.Frame):
         toolbar=ttk.Frame(self,style='Sidebar.TFrame');toolbar.pack(fill='x')
         self.heading=ttk.Label(toolbar, text='登録データ', style='SidebarTitle.TLabel')
         self.heading.pack(side='left')
+        from .project_actions import icon,Hint
+        self.action_icons={k:icon(self,k,color=theme.ACCENT) for k in ('new','folder_add','search')}
+        organize=ttk.Frame(self,style='Sidebar.TFrame');organize.pack(fill='x',pady=(8,6))
+        self.add_button=ttk.Button(organize,text='アイテムを追加',image=self.action_icons['new'],compound='none',command=self.add_definition,style='AttributeTool.TButton')
+        self.folder_button=ttk.Button(organize,text='フォルダを追加',image=self.action_icons['folder_add'],compound='none',command=self.add_folder,style='AttributeTool.TButton');self.folder_button.pack(side='left')
+        self.action_hints=(Hint(self.add_button,'アイテムを追加'),Hint(self.folder_button,'フォルダを追加'))
         self.search = tk.StringVar()
-        entry = ttk.Entry(self, textvariable=self.search)
-        entry.pack(fill='x', pady=(10, 4))
-        ttk.Label(self, text='名前・種類で検索', style='Sidebar.TLabel').pack(anchor='w', pady=(0, 10))
-        organize=ttk.Frame(self,style='Sidebar.TFrame');organize.pack(fill='x',pady=(0,8))
-        self.add_button=ttk.Button(organize,text='＋ 追加',command=self.add_definition,style='AttributeTool.TButton')
-        self.folder_button=ttk.Button(organize,text='フォルダ追加',command=self.add_folder,style='AttributeTool.TButton');self.folder_button.pack(side='left')
+        self.search_row=ttk.Frame(self,style='Sidebar.TFrame');self.search_row.pack(fill='x',pady=(0,8))
+        ttk.Label(self.search_row,image=self.action_icons['search'],style='Sidebar.TLabel').pack(side='left',padx=(0,4))
+        self.search_entry=ttk.Entry(self.search_row,textvariable=self.search)
+        self.search_entry.pack(side='left',fill='x',expand=True)
         self.clipboard=None
         holder = ttk.Frame(self)
         holder.pack(fill='both', expand=True)
@@ -98,6 +102,8 @@ class RegisteredBrowser(ttk.Frame):
                         parent='related:'+owner
                         if not any(row[0]==parent for row in rows):rows.append((parent,'cates:'+owner,'SPEC用の関連データ',None,{}))
                     append(col,r,parent,kind or r.get('type',''))
+        rank={k:i for i,k in enumerate(data.get('browser_order',{}).get(page,[]))}
+        rows.sort(key=lambda row:rank.get(row[0],len(rank)))
         return label,rows
 
     def _refresh(self):
@@ -128,7 +134,7 @@ class RegisteredBrowser(ttk.Frame):
         self.heading.configure(text=label+' ('+str(len(self.items))+')')
         if page in ('ptset','gmset','rules'):self.add_button.pack(side='left',before=self.folder_button,padx=(0,4))
         else:self.add_button.pack_forget()
-        self.add_button.configure(text='＋' if page=='rules' else '＋ 追加',width=2 if page=='rules' else 0)
+        self.add_button.configure(text='PARAM プリセットを追加' if page=='rules' else 'アイテムを追加',width=0)
         state='normal' if page in folders.PAGES else 'disabled'
         self.folder_button.configure(state=state)
         signature=(page,query,tuple((k,parent,text) for k,parent,text,_,_ in rows))
@@ -228,11 +234,14 @@ class RegisteredBrowser(ttk.Frame):
             text='カタログの中身はCATEを選択してまとめて移動してください。' if page=='catalog' else '移動する登録データを選択してください。従来データの既存規則は移動できません。'
             messagebox.showinfo('フォルダで整理',text,parent=self.host);return
         options=folders.choices(data,page);fields=[]
+        nearby=mode=='add' and page in ('ptset','gmset')
         if mode in ('add','rename'):fields.append(('name','フォルダ名',folder['name'] if mode=='rename' else '',None))
-        if mode!='rename':fields.append(('parent','配置先',next((n for n,i in options.items() if i==(folder['id'] if mode=='add' and folder else '')),'（最上位）'),list(options)))
+        if mode!='rename' and not nearby:fields.append(('parent','配置先',next((n for n,i in options.items() if i==(folder['id'] if mode=='add' and folder else '')),'（最上位）'),list(options)))
         def apply(values):
             if self.host.data is not data:raise ValueError('プロジェクトが変更されています。')
-            if mode=='add':ident=folders.add(data,page,values['name'],options[values['parent']])
+            if nearby:
+                ident=folders.add(data,page,values['name'],selected=key);self.search.set('')
+            elif mode=='add':ident=folders.add(data,page,values['name'],options[values['parent']])
             elif mode=='rename':folders.update(data,folder['id'],name=values['name']);ident=folder['id']
             elif folder:folders.update(data,folder['id'],parent=options[values['parent']]);ident=folder['id']
             else:folders.move(data,page,key,options[values['parent']]);ident=None
@@ -257,7 +266,8 @@ class RegisteredBrowser(ttk.Frame):
         if self.host.page=='rules':self.host.preset_editor.add();return
         if self.host.page not in ('ptset','gmset'):return
         if self.host.commit_definition_name() is False:return
-        self.host.definition_form(self.host.page.upper())
+        selected=self.tree.selection()
+        return self.host.definition_form(self.host.page.upper(),insert_after=selected[0] if selected else '')
 
     def select(self, _=None):
         if self.host.busy:

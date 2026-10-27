@@ -30,6 +30,7 @@ class Clipboard:
         if not cut and not self.root and not self.records:raise ValueError('コピーするセットが見つかりません。')
         if not cut and any(r['kind']!=page.upper() for r in self.records):raise ValueError('異なる種類のセットはコピーできません。')
         self.places=dict(data.get('browser_placements',{}))
+        self.order=folders.ordered_keys(data,page) if not cut else []
 
     def paste(self,data,page,target=''):
         if data is not self.data:raise ValueError('プロジェクトが変わりました。もう一度コピーしてください。')
@@ -43,6 +44,7 @@ class Clipboard:
         candidate=copy.deepcopy(data)
         copied_folders=copy.deepcopy(self.folders)
         ids={f['id']:uuid.uuid4().hex for f in copied_folders}
+        copied_keys={'folder:'+old:'folder:'+new for old,new in ids.items()}
         def unique(name,used):
             base=name+'-COPY';value=base;i=2
             while value.casefold() in used:value=base+str(i);i+=1
@@ -58,11 +60,17 @@ class Clipboard:
         places=candidate.setdefault('browser_placements',{})
         for r in new_records:
             old=r['id'];r['id']=uuid.uuid4().hex;r['name']=unique(r['name'],used)
+            copied_keys['definitions:'+old]='definitions:'+r['id']
             for node in schema.walk(r['elements']):node['id']=uuid.uuid4().hex
             destination=ids[self.places[page+'|definitions:'+old]] if self.root else target
             if destination:places[page+'|definitions:'+r['id']]=destination
         candidate['definitions'].extend(new_records)
+        if 'browser_order' in data:
+            order=folders.ordered_keys(data,page)
+            order.extend(copied_keys[k] for k in self.order if k in copied_keys)
+            candidate.setdefault('browser_order',{})[page]=order
         project.validate(candidate)
         data['definitions'].extend(new_records)
         data['browser_folders']=candidate['browser_folders'];data['browser_placements']=places
+        if 'browser_order' in candidate:data['browser_order']=candidate['browser_order']
         return 'folder:'+ids[self.root] if self.root else 'definitions:'+new_records[0]['id']

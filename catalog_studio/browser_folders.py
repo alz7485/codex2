@@ -28,6 +28,12 @@ def validate(data):
         if not isinstance(key,str) or len(key)>500 or '|' not in key or not isinstance(ident,str) or ident not in seen or key.split('|',1)[0]!=seen[ident]['page']:raise ValueError('フォルダ配置の参照が不正です。')
         page,record=key.split('|',1);collection,sep,rid=record.partition(':')
         if not sep or not rid or collection!=PAGE_COLLECTIONS[page]:raise ValueError('フォルダ配置の対象が不正です。')
+    order=data.get('browser_order',{})
+    if not isinstance(order,dict) or any(page not in PAGES for page in order):raise ValueError('一覧の並び順の形式を確認してください。')
+    for page,keys in order.items():
+        if not isinstance(keys,list) or len(keys)>20000 or any(not isinstance(k,str) or len(k)>500 for k in keys):raise ValueError('一覧の並び順の件数・形式を確認してください。')
+        if len(set(keys))!=len(keys):raise ValueError('一覧の並び順が重複しています。')
+        if any(k.partition(':')[0] not in ('folder',PAGE_COLLECTIONS[page]) or not k.partition(':')[2] for k in keys):raise ValueError('一覧の並び順の対象が不正です。')
 
 
 def check_name(name):
@@ -39,17 +45,65 @@ def candidate(data):
     result=dict(data)
     result['browser_folders']=copy.deepcopy(data.get('browser_folders',[]))
     result['browser_placements']=dict(data.get('browser_placements',{}))
+    if 'browser_order' in data:result['browser_order']=copy.deepcopy(data['browser_order'])
     return result
 
 
 def apply(data,result):
     validate(result)
     data['browser_folders']=result['browser_folders'];data['browser_placements']=result['browser_placements']
+    if 'browser_order' in result:data['browser_order']=result['browser_order']
 
 
-def add(data,page,name,parent=''):
+def add(data,page,name,parent='',*,selected=None):
     result=candidate(data);f=dict(id=str(uuid.uuid4()),page=page,name=check_name(name),parent_id=parent)
-    result['browser_folders'].append(f);apply(data,result);return f['id']
+    result['browser_folders'].append(f)
+    if selected is not None:place_created(result,page,'folder:'+f['id'],selected)
+    apply(data,result);return f['id']
+
+
+def ordered_keys(data,page,exclude=''):
+    """Flatten only folder/record rows; catalogue members retain their owner order."""
+    rows=[('folder:'+f['id'],'folder:'+f['parent_id'] if f['parent_id'] else '') for f in data.get('browser_folders',[]) if f['page']==page]
+    collection=PAGE_COLLECTIONS[page]
+    for record in data.get(collection,[]):
+        if page in ('ptset','gmset') and record['kind']!=page.upper():continue
+        if page=='structural' and record['kind'] in ('PTSET','GMSET'):continue
+        key=collection+':'+record['id'];parent=data.get('browser_placements',{}).get(page+'|'+key,'')
+        rows.append((key,'folder:'+parent if parent else ''))
+    rank={k:i for i,k in enumerate(data.get('browser_order',{}).get(page,[]))}
+    rows.sort(key=lambda row:rank.get(row[0],len(rank)))
+    children={}
+    for key,parent in rows:
+        if key!=exclude:children.setdefault(parent,[]).append(key)
+    result=[]
+    def walk(parent):
+        for key in children.get(parent,[]):result.append(key);walk(key)
+    walk('');return result
+
+
+def place_created(data,page,key,selected=''):
+    """Select a folder's first child, or the following sibling of a record."""
+    if page not in ('ptset','gmset'):raise ValueError('同じ種類の一覧へ追加してください。')
+    result=candidate(data);parent=''
+    if selected.startswith('folder:'):
+        parent=selected.split(':',1)[1]
+        if not any(f['id']==parent and f['page']==page for f in result['browser_folders']):raise ValueError('追加先のフォルダが変更されています。')
+    elif selected:
+        collection,_,ident=selected.partition(':')
+        if collection!='definitions' or not any(r['id']==ident and r['kind']==page.upper() for r in data['definitions']):raise ValueError('追加位置が変更されています。')
+        parent=result['browser_placements'].get(page+'|'+selected,'')
+    if key.startswith('folder:'):
+        f=next((f for f in result['browser_folders'] if 'folder:'+f['id']==key),None)
+        if not f or f['page']!=page:raise ValueError('追加するフォルダが見つかりません。')
+        f['parent_id']=parent
+    else:
+        if key.partition(':')[0]!='definitions' or not key.partition(':')[2]:raise ValueError('追加するセットが不正です。')
+        if parent:result['browser_placements'][page+'|'+key]=parent
+    order=ordered_keys(data,page,exclude=key)
+    if selected and selected not in order:raise ValueError('追加位置が変更されています。')
+    order.insert(order.index(selected)+1 if selected else len(order),key)
+    result.setdefault('browser_order',{})[page]=order;apply(data,result)
 
 
 def update(data,ident,*,name=None,parent=None):
