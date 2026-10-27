@@ -18,18 +18,14 @@ class RegisteredBrowser(ttk.Frame):
         toolbar=ttk.Frame(self,style='Sidebar.TFrame');toolbar.pack(fill='x')
         self.heading=ttk.Label(toolbar, text='登録データ', style='SidebarTitle.TLabel')
         self.heading.pack(side='left')
-        self.add_button=ttk.Button(toolbar,text='＋ 追加',command=self.add_definition,style='Compact.Primary.TButton')
         self.search = tk.StringVar()
         entry = ttk.Entry(self, textvariable=self.search)
         entry.pack(fill='x', pady=(10, 4))
         ttk.Label(self, text='名前・種類で検索', style='Sidebar.TLabel').pack(anchor='w', pady=(0, 10))
         organize=ttk.Frame(self,style='Sidebar.TFrame');organize.pack(fill='x',pady=(0,8))
-        self.folder_button=ttk.Button(organize,text='フォルダ＋',command=self.add_folder,style='AttributeTool.TButton');self.folder_button.pack(side='left')
-        self.organize_button=ttk.Menubutton(organize,text='整理 ▾',style='AttributeTool.TButton');self.organize_button.pack(side='right')
-        menu=tk.Menu(self.organize_button,tearoff=False)
-        for text,command in (('フォルダ名を変更',self.rename_folder),('選択項目を移動',self.move_item),('空フォルダを削除',self.delete_folder)):
-            menu.add_command(label=text,command=command)
-        self.organize_button.configure(menu=menu)
+        self.add_button=ttk.Button(organize,text='＋ 追加',command=self.add_definition,style='AttributeTool.TButton')
+        self.folder_button=ttk.Button(organize,text='フォルダ追加',command=self.add_folder,style='AttributeTool.TButton');self.folder_button.pack(side='left')
+        self.clipboard=None
         holder = ttk.Frame(self)
         holder.pack(fill='both', expand=True)
         style=ttk.Style(self)
@@ -40,6 +36,8 @@ class RegisteredBrowser(ttk.Frame):
         self.folder_image=tk.PhotoImage(master=self,width=16,height=16)
         self.folder_image.put('#bf8b2a',to=(1,3,8,6));self.folder_image.put('#e6b64d',to=(1,5,15,14))
         self.folder_image.put('#f7d477',to=(2,6,14,8))
+        from .preview_icons import create as preview_icon
+        self.record_image=preview_icon(self)
         self.tree = ttk.Treeview(holder, show='tree', selectmode='browse',style='Ruled.Treeview')
         self.tree.column('#0', width=240, minwidth=160)
         self.tree.grid(row=0, column=0, sticky='nsew')
@@ -51,6 +49,15 @@ class RegisteredBrowser(ttk.Frame):
         holder.rowconfigure(0, weight=1)
         holder.columnconfigure(0, weight=1)
         self.tree.bind('<<TreeviewSelect>>', self.select)
+        self.context_menu=tk.Menu(self.tree,tearoff=False)
+        for label,command,shortcut in (
+            ('切り取り',lambda:self.copy_item(cut=True),'Ctrl+X'),('コピー',self.copy_item,'Ctrl+C'),('貼り付け',self.paste_item,'Ctrl+V'),
+            ('移動先を選択…',self.move_item,''),('名前を変更',self.rename_item,''),('削除',self.delete_item,'')):
+            self.context_menu.add_command(label=label,command=command,accelerator=shortcut)
+        self.tree.bind('<Button-3>',self.popup)
+        for sequence,command in (('<Control-x>',lambda:self.copy_item(cut=True)),('<Control-c>',self.copy_item),('<Control-v>',self.paste_item)):
+            self.tree.bind(sequence,lambda event,fn=command:(fn(),'break')[1])
+        ttk.Label(self,text='右クリック：移動・コピー・貼り付け',style='Sidebar.TLabel',wraplength=190).pack(anchor='w',pady=6)
         self.search.trace_add('write', lambda *_: self.refresh())
         self.refresh()
 
@@ -118,11 +125,11 @@ class RegisteredBrowser(ttk.Frame):
         rows=[row for row in rows if row[0] in visible]
         self.items={k:v for k,v in self.items.items() if k in visible}
         self.heading.configure(text=label+' ('+str(len(self.items))+')')
-        if page in ('ptset','gmset','rules'):self.add_button.pack(side='right')
+        if page in ('ptset','gmset','rules'):self.add_button.pack(side='left',before=self.folder_button,padx=(0,4))
         else:self.add_button.pack_forget()
         self.add_button.configure(text='＋' if page=='rules' else '＋ 追加',width=2 if page=='rules' else 0)
         state='normal' if page in folders.PAGES else 'disabled'
-        self.folder_button.configure(state=state);self.organize_button.configure(state=state)
+        self.folder_button.configure(state=state)
         signature=(page,query,tuple((k,parent,text) for k,parent,text,_,_ in rows))
         if signature!=self.signature:
             states=dict(self.open_states.get(page,{}))
@@ -134,7 +141,7 @@ class RegisteredBrowser(ttk.Frame):
                 ready=[r for r in pending if not r[1] or self.tree.exists(r[1])]
                 if not ready:break
                 for key,parent,text,col,r in ready:
-                    options={'image':self.folder_image} if key.startswith('folder:') else {}
+                    options={'image':self.folder_image} if key.startswith('folder:') else {'image':self.record_image} if col=='definitions' else {}
                     self.tree.insert(parent,'end',iid=key,text=text,open=True if query else states.get(key,True),**options)
                 emitted={r[0] for r in ready}
                 pending=[r for r in pending if r[0] not in emitted]
@@ -158,6 +165,58 @@ class RegisteredBrowser(ttk.Frame):
     def ready(self):
         if self.host.page=='rules' and not self.host.preset_editor.can_leave():return False
         return self.host.commit_definition_name() is not False
+
+    def popup(self,event):
+        key=self.tree.identify_row(event.y)
+        if key:self.tree.selection_set(key);self.select()
+        else:self.tree.selection_remove(*self.tree.selection())
+        self.tree.focus_set()
+        folder=key in self.folder_nodes
+        movable=folder or key in self.items and folders.movable(self.host.page,key)
+        for i,enabled in enumerate((movable,movable and self.host.page in ('ptset','gmset'),bool(self.clipboard and self.clipboard.data is self.host.data and self.clipboard.page==self.host.page),movable,folder or key in self.items and self.host.page in ('ptset','gmset'),folder or key in self.items and self.host.page in ('ptset','gmset'))):
+            self.context_menu.entryconfigure(i,state='normal' if enabled else 'disabled')
+        try:self.context_menu.tk_popup(event.x_root,event.y_root)
+        finally:self.context_menu.grab_release()
+
+    def copy_item(self,cut=False):
+        if not self.ready():return
+        selected=self.tree.selection()
+        if not selected:return
+        from .browser_clipboard import Clipboard
+        try:self.clipboard=Clipboard(self.host.data,self.host.page,selected[0],cut=cut)
+        except ValueError as exc:self.host.status.configure(text=str(exc));return
+        self.host.status.configure(text='切り取りました。貼り付け先のフォルダか余白を右クリックしてください。' if cut else 'コピーしました。貼り付け先のフォルダか余白を右クリックしてください。')
+
+    def paste_item(self):
+        if not self.clipboard or not self.ready():return
+        selected=self.tree.selection();key=selected[0] if selected else ''
+        parent=key if key in self.folder_nodes else self.tree.parent(key) if key and self.tree.exists(key) else ''
+        folder=parent.split(':',1)[1] if parent.startswith('folder:') else ''
+        try:target=self.clipboard.paste(self.host.data,self.host.page,folder)
+        except ValueError as exc:self.host.status.configure(text=str(exc));return
+        if self.clipboard.cut:self.clipboard=None
+        self.search.set('');self.signature=None
+        if target.startswith('definitions:'):
+            self.host.definition_id=target.split(':',1)[1];self.host.render_page()
+        self.host.mark('貼り付けました。Ctrl+Sでプロジェクトを保存できます。')
+        self.tree.selection_set(target);self.tree.see(target)
+
+    def rename_item(self):
+        selected=self.tree.selection();key=selected[0] if selected else ''
+        if key in self.folder_nodes:self.rename_folder();return
+        if self.host.page not in ('ptset','gmset') or key not in self.items or not self.ready():return
+        record=self.items[key][1];data=self.host.data
+        def apply(values):
+            if self.host.data is not data or record not in data['definitions']:raise ValueError('プロジェクトが変更されています。')
+            name=values['name'].strip()
+            if not name or any(r is not record and r['name'].casefold()==name.casefold() for r in data['definitions']):raise ValueError('名前が空か重複しています。')
+            record['name']=name;self.host.geometry_editor.refresh()
+        self.host.form('セット名を変更',[('name','名前',record['name'],None)],apply)
+
+    def delete_item(self):
+        selected=self.tree.selection();key=selected[0] if selected else ''
+        if key in self.folder_nodes:self.delete_folder();return
+        if self.host.page in ('ptset','gmset') and key in self.items and self.ready():self.host.delete_definition()
 
     def folder_form(self,mode):
         if not self.ready():return

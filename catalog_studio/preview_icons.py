@@ -31,11 +31,11 @@ def create(master, plane='立体'):
             line(on_plane(offset,-1),on_plane(offset,1),'#a8c9ed')
             line(on_plane(-1,offset),on_plane(1,offset),'#a8c9ed')
     extent=.8 if plane=='立体' else .45
-    # +Z, -Y and +X are the visible faces for the default yaw/pitch.
+    # +Z, -Y and -X are the visible faces for the default yaw/pitch.
     for vertices,color in (
         (((-1,-1,1),(1,-1,1),(1,1,1),(-1,1,1)),'#d2e6ff'),
         (((-1,-1,-1),(1,-1,-1),(1,-1,1),(-1,-1,1)),'#4288e8'),
-        (((1,-1,-1),(1,1,-1),(1,1,1),(1,-1,1)),'#58c4df'),
+        (((-1,-1,-1),(-1,1,-1),(-1,1,1),(-1,-1,1)),'#58c4df'),
     ):
         polygon([project(tuple(extent*v for v in vertex)) for vertex in vertices],color,'#42638c')
     return image

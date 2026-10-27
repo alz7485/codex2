@@ -17,20 +17,20 @@ class PointCanvas(ttk.Frame):
         self.show_grid=tk.BooleanVar(value=True);self.show_axes=tk.BooleanVar(value=True)
         self.show_labels=tk.BooleanVar(value=True);self.show_relations=tk.BooleanVar(value=True)
         self.columnconfigure(0,weight=1);self.rowconfigure(3,weight=1)
-        ttk.Label(self,text='3D プレビュー　 ·　仮配置・単位なし',style='Heading.TLabel').grid(row=0,column=0,sticky='w',pady=(0,8))
-        preview_controls.build(self,1)
+        preview_controls.build(self,0)
         self.display_buttons={}
         for label,var in (('グリッド',self.show_grid),('座標軸',self.show_axes),('点番号',self.show_labels),('関係線',self.show_relations)):
             button=ttk.Checkbutton(self.settings_content,text=label,variable=var,command=self.redraw,style='Preview.Toolbutton')
             button.pack(anchor='w',fill='x',pady=2);self.display_buttons[label]=button
-        context=ttk.Frame(self);context.grid(row=2,column=0,sticky='ew',pady=(0,6))
-        self.selection_label=ttk.Label(context,text='選択：なし',style='Muted.TLabel');self.selection_label.pack(anchor='w',pady=(0,4))
+        context=ttk.Frame(self);context.grid(row=1,column=0,sticky='ew',pady=(0,6))
+        self.selection_label=ttk.Label(self,text='選択：なし',style='Muted.TLabel');self.selection_label.grid(row=4,column=0,sticky='w',pady=(6,0))
         plane_row=ttk.Frame(context);plane_row.pack(fill='x')
         ttk.Label(plane_row,text='作図面 (F5)',style='Muted.TLabel').pack(side='left',padx=(0,6))
         self.plane_buttons={}
         for plane in PLANES:
             button=ttk.Radiobutton(plane_row,text=plane,image=self.preview_icons[plane],compound='left',variable=self.plane,value=plane,command=self.plane_changed,style='Preview.Toolbutton')
             button.pack(side='left',padx=(0,2));self.plane_buttons[plane]=button
+        ttk.Label(plane_row,text='仮配置・単位なし',style='Muted.TLabel').pack(side='left',padx=(8,0))
         self.context_menu=tk.Menu(self,tearoff=False)
         self.create_menu=tk.Menu(self.context_menu,tearoff=False)
         for kind in schema.PT_TYPES:
@@ -42,9 +42,9 @@ class PointCanvas(ttk.Frame):
         self.canvas.bind('<Configure>',lambda _:self.redraw());self.canvas.bind('<Button-1>',self.press);self.canvas.bind('<B1-Motion>',self.move);self.canvas.bind('<ButtonRelease-1>',self.release)
         self.canvas.bind('<Button-3>',self.orbit_start);self.canvas.bind('<B3-Motion>',self.orbit_move)
         self.canvas.bind('<MouseWheel>',lambda ev:self.zoom(1.12 if ev.delta>0 else 1/1.12));self.canvas.bind('<Button-4>',lambda _:self.zoom(1.12));self.canvas.bind('<Button-5>',lambda _:self.zoom(1/1.12))
-        self.note=ttk.Label(self,text='',wraplength=280,foreground='#738499');self.note.grid(row=4,column=0,sticky='ew',pady=(6,0))
+        self.note=ttk.Label(self,text='',wraplength=280,foreground='#738499');self.note.grid(row=5,column=0,sticky='ew',pady=(6,0))
         self.note.bind('<Configure>',lambda ev:self.note.configure(wraplength=max(140,ev.width-4)))
-        hint=ttk.Label(self,text='空白：点を作成 ｜ ドラッグ：移動 ｜ 右：回転 ｜ ホイール：ズーム',wraplength=280,style='Muted.TLabel');hint.grid(row=5,column=0,sticky='ew',pady=(6,0))
+        hint=ttk.Label(self,text='空白：点を作成 ｜ ドラッグ：移動 ｜ 右：回転 ｜ ホイール：ズーム',wraplength=280,style='Muted.TLabel');hint.grid(row=6,column=0,sticky='ew',pady=(6,0))
         hint.bind('<Configure>',lambda ev:hint.configure(wraplength=max(140,ev.width-4)))
         self.canvas.bind('<Escape>',lambda _:self.cancel());self.redraw()
         from .preview_preferences import attach

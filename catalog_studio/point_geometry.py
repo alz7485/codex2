@@ -133,7 +133,7 @@ def placement(kind,coefficients,pid,axis='X',plane=None):
 
 
 class Camera:
-    def __init__(self):self.yaw=40;self.pitch=30;self.zoom=125
+    def __init__(self):self.yaw=-40;self.pitch=30;self.zoom=125
     def basis(self):
         a,b=math.radians(self.yaw),math.radians(self.pitch)
         return (math.cos(a),math.sin(a),0),(-math.sin(a)*math.sin(b),math.cos(a)*math.sin(b),math.cos(b))

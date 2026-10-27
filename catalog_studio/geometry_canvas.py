@@ -33,10 +33,15 @@ class GeometryCanvas(ttk.Frame):
             button.pack(anchor='w',fill='x',pady=2);self.overlay_buttons[label]=button
         row=ttk.Frame(self);row.grid(row=1,column=0,sticky='ew',pady=(0,3))
         mode_row=ttk.Frame(row);mode_row.pack(fill='x')
+        ttk.Label(mode_row,text='確認',style='Muted.TLabel').pack(side='left',padx=(0,6))
         self.mode_buttons=self.toggles(mode_row,self.mode,('仮サイズ','SCOM 実寸'),self.mode_changed)
         for key,label in (('仮サイズ','仮配置で確認'),('SCOM 実寸','登録寸法で確認')):
             self.mode_buttons[key].configure(text=label)
-        scom_row=ttk.Frame(row);scom_row.pack(fill='x',pady=(2,0))
+        self.render_status=ttk.Label(mode_row,text='',style='Muted.TLabel');self.render_status.pack(side='right',padx=(8,0))
+        references=getattr(editor,'reference_bar',None)
+        if references is not None:references.pack(fill='x',pady=(8,0))
+        scom_row=ttk.Frame(references if references is not None else row)
+        scom_row.pack(side='left',fill='x',expand=True) if references is not None else scom_row.pack(fill='x',pady=(2,0))
         ttk.Label(scom_row,text='参照SCOM',style='Muted.TLabel').pack(side='left',padx=(0,6))
         self.scom_choice=ttk.Combobox(scom_row,state='readonly',width=10);self.scom_choice.pack(side='left',fill='x',expand=True)
         self.scom_choice.bind('<<ComboboxSelected>>',self.select_scom)
@@ -53,9 +58,9 @@ class GeometryCanvas(ttk.Frame):
         self.representation_choice.pack(fill='x',pady=6);self.representation_choice.bind('<<ComboboxSelected>>',lambda _:self.representation_changed())
         ttk.Button(details,text='詳細な表示条件',command=lambda:representation.edit(self),style='Compact.TButton').pack(fill='x')
         # Design data edits remain outside appearance settings.
-        tools=ttk.Frame(self);tools.grid(row=2,column=0,sticky='ew',pady=(0,4))
+        tools=ttk.Frame(self);tools.grid(row=4,column=0,sticky='ew',pady=(6,0))
         self.selection_label=ttk.Label(tools,text='選択：なし',style='Muted.TLabel');self.selection_label.pack(side='left')
-        ttk.Button(tools,text='設計値を編集',command=lambda:model_settings.edit(editor),style='Compact.TButton').pack(side='right')
+        ttk.Button(scom_row,text='設計値を編集',command=lambda:model_settings.edit(editor),style='Compact.TButton').pack(side='right')
         self.zoom_factor=1.0
         self.transparency.trace_add('write',self.display_changed)
         self.canvas=tk.Canvas(self.body,bg=theme.SUBTLE,highlightthickness=1,highlightbackground=theme.BORDER,width=1,height=1)
@@ -63,9 +68,9 @@ class GeometryCanvas(ttk.Frame):
         preview_controls.zoom_buttons(self)
         self.canvas.bind('<MouseWheel>',lambda e:self.zoom(1.12 if e.delta>0 else 1/1.12))
         self.canvas.bind('<Button-4>',lambda _:self.zoom(1.12));self.canvas.bind('<Button-5>',lambda _:self.zoom(1/1.12))
-        self.note=ttk.Label(self,text='',style='Muted.TLabel',wraplength=360);self.note.grid(row=4,column=0,sticky='ew',pady=(6,0))
+        self.note=ttk.Label(self,text='',style='Muted.TLabel',wraplength=360);self.note.grid(row=5,column=0,sticky='ew',pady=(6,0))
         self.note.bind('<Configure>',lambda e:self.note.configure(wraplength=max(120,e.width-4)))
-        self.issue_label=ttk.Label(self,text='',foreground='#a15c24',wraplength=360);self.issue_label.grid(row=5,column=0,sticky='ew',pady=(4,0))
+        self.issue_label=ttk.Label(self,text='',foreground='#a15c24',wraplength=360);self.issue_label.grid(row=6,column=0,sticky='ew',pady=(4,0))
         self.issue_label.bind('<Configure>',lambda e:self.issue_label.configure(wraplength=max(120,e.width-4)))
         self.canvas.bind('<Configure>',lambda _:self.redraw())
         self.canvas.bind('<Button-1>',self.press);self.canvas.bind('<B1-Motion>',self.move);self.canvas.bind('<ButtonRelease-1>',self.release)
@@ -90,6 +95,7 @@ class GeometryCanvas(ttk.Frame):
         self.cancel(redraw=False);self.zoom_factor=max(.1,min(10,self.zoom_factor*factor));self.redraw()
 
     def sync_display_controls(self):
+        self.render_status.configure(text='表示：'+self.render_mode.get())
         self.transparency_label.configure(text=f'{round(self.transparency.get())}%')
         self.transparency_scale.configure(state='disabled' if self.render_mode.get()=='ワイヤー' else 'normal')
 
@@ -136,7 +142,7 @@ class GeometryCanvas(ttk.Frame):
         self.cancel(redraw=False)
         self.view_mode.set('立体' if self.view.get()=='立体' else '正面')
         if self.view.get()!='立体':self.plane.set(self.view.get())
-        if self.view.get()=='立体':self.camera.yaw,self.camera.pitch=40,30
+        if self.view.get()=='立体':self.camera.yaw,self.camera.pitch=-40,30
         else:self.camera.face(self.view.get())
         self.redraw()
 

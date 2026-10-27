@@ -50,7 +50,7 @@ class PointsetPresetSelectorTests(unittest.TestCase):
         self.assertEqual(e.element_id,copied['id'])
         self.assertEqual(e.element_preset_choice.get(),self.first['name'])
         self.app.switch('gmset');self.app.update()
-        self.assertFalse(hasattr(self.app.geometry_editor,'element_preset_choice'))
+        self.assertEqual(tuple(self.app.geometry_editor.element_preset_choice['values']),('形状専用の配置',))
 
     def test_one_existing_element_cancel_preserves_data_selection_and_dirty_state(self):
         e=self.e;e.definition()['elements'][:]=e.definition()['elements'][:1];e.refresh();self.app.update()

@@ -5,30 +5,30 @@ from . import preview_icons
 
 
 def build(view, row):
-    bar=ttk.Frame(view);bar.grid(row=row,column=0,columnspan=2,sticky='ew',pady=(0,8))
-    view.toolbar=bar
-    ttk.Label(bar,text='視点',style='Muted.TLabel').grid(row=0,column=0,padx=(0,6))
-    group=ttk.Frame(bar);group.grid(row=0,column=1,sticky='w')
+    view.toolbar=ttk.Frame(view);view.toolbar.grid(row=row,column=0,columnspan=2,sticky='ew',pady=(0,6))
+    # Keep a single button row; narrow panes scroll instead of adding rows.
+    viewport=tk.Canvas(view.toolbar,width=1,height=36,highlightthickness=0,bg='white')
+    viewport.pack(fill='x')
+    bar=ttk.Frame(viewport);window=viewport.create_window(0,0,anchor='nw',window=bar)
+    toolbar_scroll=ttk.Scrollbar(view.toolbar,orient='horizontal',command=viewport.xview)
+    view.toolbar_viewport=viewport;view.toolbar_scroll=toolbar_scroll
+    viewport.configure(xscrollcommand=toolbar_scroll.set)
+    def reflow(event=None):
+        width=bar.winfo_reqwidth();viewport.configure(height=bar.winfo_reqheight(),scrollregion=(0,0,width,bar.winfo_reqheight()))
+        viewport.itemconfigure(window,width=max(width,viewport.winfo_width()))
+        if viewport.winfo_width()<width:toolbar_scroll.pack(fill='x')
+        else:toolbar_scroll.pack_forget();viewport.xview_moveto(0)
+    bar.bind('<Configure>',reflow);viewport.bind('<Configure>',reflow)
+    ttk.Label(bar,text='視点',style='Muted.TLabel').pack(side='left',padx=(0,4))
     view.preview_icons={key:preview_icons.create(view,key) for key in ('立体','XY','XZ','YZ')}
     view.view_buttons={}
     for label in ('立体','XY','XZ','YZ'):
-        b=ttk.Radiobutton(group,text=label,image=view.preview_icons[label],compound='left',variable=view.view,value=label,command=view.view_changed,style='Preview.Toolbutton')
+        b=ttk.Radiobutton(bar,text=label,image=view.preview_icons[label],compound='left',variable=view.view,value=label,command=view.view_changed,style='Preview.Toolbutton')
         b.pack(side='left',padx=(0,2));view.view_buttons[label]=b
     view.fit_button=ttk.Button(bar,text='全体表示',command=view.fit_all,style='AttributeTool.TButton')
-    view.fit_button.grid(row=0,column=2,padx=4)
-    actions=ttk.Frame(bar);actions.grid(row=0,column=3,sticky='e');bar.columnconfigure(3,weight=1)
-    view.details_button=ttk.Button(actions,text='表示設定',command=view.open_details,style='AttributeTool.TButton');view.details_button.pack(side='left')
-    view.focus_button=ttk.Button(actions,text='拡大',command=lambda:focus(view),style='AttributeTool.TButton');view.focus_button.pack(side='left',padx=(4,0))
-    def reflow(event):
-        if event.width<490:
-            group.grid(row=0,column=1,columnspan=3,sticky='w')
-            view.fit_button.grid(row=1,column=0,columnspan=2,sticky='w',pady=(4,0))
-            actions.grid(row=1,column=2,columnspan=2,sticky='e',pady=(4,0))
-        else:
-            group.grid(row=0,column=1,columnspan=1,sticky='w')
-            view.fit_button.grid(row=0,column=2,columnspan=1,pady=0)
-            actions.grid(row=0,column=3,columnspan=1,sticky='e',pady=0)
-    bar.bind('<Configure>',reflow)
+    view.fit_button.pack(side='left',padx=(4,2))
+    view.details_button=ttk.Button(bar,text='表示設定',command=view.open_details,style='AttributeTool.TButton');view.details_button.pack(side='left',padx=2)
+    view.focus_button=ttk.Button(bar,text='拡大',command=lambda:focus(view),style='AttributeTool.TButton');view.focus_button.pack(side='left',padx=2)
     view.body=ttk.Frame(view);view.body.grid(row=3,column=0,columnspan=2,sticky='nsew')
     view.body.columnconfigure(0,weight=1);view.body.rowconfigure(0,weight=1)
     view.details=ttk.Frame(view.body,padding=(10,8),style='Card.TFrame')
