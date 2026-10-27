@@ -39,7 +39,7 @@ class GeometryCanvas(ttk.Frame):
         self.render_status=ttk.Label(self.body,text='',style='Muted.TLabel');self.render_status.grid(row=0,column=0,sticky='sw',padx=10,pady=10)
         references=getattr(editor,'reference_bar',None)
         if references is not None:
-            references.grid(row=0,column=1,sticky='ew',padx=(12,0))
+            references.grid(row=0,column=0,sticky='ew')
             references.columnconfigure((0,1),weight=1,uniform='references')
         scom_row=ttk.Frame(references if references is not None else self)
         scom_row.grid(row=0,column=1,sticky='ew') if references is not None else scom_row.grid(row=1,column=0,sticky='ew')

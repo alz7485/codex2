@@ -179,7 +179,7 @@ class AttributeTable(ttk.Frame):
             bbox=c.bbox(item);value_height=(bbox[3]-bbox[1]) if bbox else self.value_font.metrics('linespace')
             caption=self.value_caption(attr,value);caption_height=0
             if caption:
-                caption_item=c.create_text(divider+10,top+7+value_height,text=caption,anchor='nw',width=value_width,font=self.meaning_font,fill='#597fa5' if chosen else theme.MUTED,tags=('caption:'+iid,))
+                caption_item=c.create_text(divider+10,top+7+value_height,text=self.short_meaning(caption,value_width-2),anchor='nw',font=self.meaning_font,fill='#597fa5' if chosen else theme.MUTED,tags=('caption:'+iid,))
                 caption_bbox=c.bbox(caption_item);caption_height=caption_bbox[3]-caption_bbox[1]+2
             height=max(minimum,value_height+caption_height+10)
             c.coords(background,0,top,width,top+height)

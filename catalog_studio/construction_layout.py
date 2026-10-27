@@ -51,7 +51,7 @@ def build_simple(editor):
     e.workspace_header=ttk.Frame(e,padding=(12,8),style='Card.TFrame')
     e.workspace_header.pack(fill='x',pady=(0,8))
     e.header_row=ttk.Frame(e.workspace_header);e.header_row.pack(fill='x')
-    e.header_row.columnconfigure(1,weight=0 if point else 1)
+    e.header_row.columnconfigure(0,weight=1)
     e.reference_bar=ttk.Frame(e.header_row)
     e.main_split = ttk.Panedwindow(e, orient='horizontal')
     e.main_split.pack(fill='both', expand=True)
@@ -79,8 +79,8 @@ def build_simple(editor):
         from .macro_export_ui import open_export
         from .macro_destinations_ui import build_field
         e.macro_frame=ttk.Frame(e.header_row)
-        e.macro_frame.grid(row=0,column=0,sticky='w')
-        actions=ttk.Frame(e.header_row);actions.grid(row=0,column=2,sticky='w',padx=(8,0))
+        e.macro_frame.grid(row=0,column=1,sticky='e',padx=(12,0))
+        actions=ttk.Frame(e.header_row);actions.grid(row=0,column=2,sticky='e',padx=(8,0))
         e.import_macro_image=macro_icons.create(e)
         e.export_macro_image=macro_icons.create(e,export=True)
         e.import_macro_button=ttk.Button(actions,text='マクロ読込',image=e.import_macro_image,compound='left',style='Macro.TButton',command=e.host.import_creation_macro)
@@ -220,7 +220,7 @@ def build_simple(editor):
         e.point_canvas.pack(fill='both',expand=True)
     else:
         if not getattr(e.host,'is_preset_editor',False):
-            e.reference_bar.grid(row=0,column=1,sticky='ew',padx=(12,0))
+            e.reference_bar.grid(row=0,column=0,sticky='ew')
             e.reference_bar.columnconfigure((0,1),weight=1,uniform='references')
             pair_row=ttk.Frame(e.reference_bar);pair_row.grid(row=0,column=0,sticky='ew',padx=(0,10))
             ttk.Label(pair_row,text='適用PTSET',style='Muted.TLabel').pack(side='left',padx=(0,8))
