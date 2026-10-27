@@ -29,6 +29,7 @@ class RegisteredBrowser(ttk.Frame):
         holder = ttk.Frame(self)
         holder.pack(fill='both', expand=True)
         style=ttk.Style(self)
+        style.configure('Ruled.Treeview',rowheight=30)
         self.rule_image=tk.PhotoImage(master=self,width=512,height=64)
         self.rule_image.put(theme.RULE,to=(0,63,512,64))
         style.element_create('RegisteredRowRule','image',self.rule_image,border=(0,0,0,1),width=0,height=0,sticky='nswe')

@@ -170,24 +170,24 @@ class AttributeTable(ttk.Frame):
         self.header.create_line(divider,0,divider,32,fill=theme.RULE)
         self.header.create_line(0,31,width,31,fill=theme.RULE)
         top=0;name_height=self.name_font.metrics('linespace');meaning_height=self.meaning_font.metrics('linespace')
-        minimum=name_height+meaning_height+18
+        minimum=name_height+meaning_height+10
         for iid in self.order:
             attr,meaning,value=self.rows[iid];chosen=iid in self.selected
             color=theme.ACCENT if chosen else theme.INK
             background=c.create_rectangle(0,top,width,top+minimum,fill=theme.SELECT if chosen else 'white',outline='')
-            item=c.create_text(divider+10,top+8,text=value,anchor='nw',width=value_width,font=self.value_font,fill=color,tags=('value:'+iid,))
+            item=c.create_text(divider+10,top+5,text=value,anchor='nw',width=value_width,font=self.value_font,fill=color,tags=('value:'+iid,))
             bbox=c.bbox(item);value_height=(bbox[3]-bbox[1]) if bbox else self.value_font.metrics('linespace')
             caption=self.value_caption(attr,value);caption_height=0
             if caption:
-                caption_item=c.create_text(divider+10,top+10+value_height,text=caption,anchor='nw',width=value_width,font=self.meaning_font,fill='#597fa5' if chosen else theme.MUTED,tags=('caption:'+iid,))
+                caption_item=c.create_text(divider+10,top+7+value_height,text=caption,anchor='nw',width=value_width,font=self.meaning_font,fill='#597fa5' if chosen else theme.MUTED,tags=('caption:'+iid,))
                 caption_bbox=c.bbox(caption_item);caption_height=caption_bbox[3]-caption_bbox[1]+2
-            height=max(minimum,value_height+caption_height+16)
+            height=max(minimum,value_height+caption_height+10)
             c.coords(background,0,top,width,top+height)
             if self.missing_value(iid):
                 c.create_rectangle(divider+3,top+3,width-4,top+height-3,outline='#d94343',width=2,tags=('required:'+iid,))
                 c.itemconfigure(item,text='入力してください',fill='#bc3434')
-            c.create_text(10,top+8,text=attr,anchor='nw',font=self.name_font,fill=color,tags=('name:'+iid,))
-            c.create_text(10,top+8+name_height,text=self.short_meaning(meaning,divider-20),anchor='nw',font=self.meaning_font,fill='#597fa5' if chosen else theme.MUTED,tags=('meaning:'+iid,))
+            c.create_text(10,top+5,text=attr,anchor='nw',font=self.name_font,fill=color,tags=('name:'+iid,))
+            c.create_text(10,top+5+name_height,text=self.short_meaning(meaning,divider-20),anchor='nw',font=self.meaning_font,fill='#597fa5' if chosen else theme.MUTED,tags=('meaning:'+iid,))
             self.bounds[iid]=(top,top+height);top+=height
         for iid in self.selected:
             if iid in self.bounds:

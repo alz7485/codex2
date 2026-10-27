@@ -77,16 +77,19 @@ def build_simple(editor):
         from . import macro_icons
         from .macro_export_ui import open_export
         from .macro_destinations_ui import build_field
-        e.macro_frame=ttk.Frame(e.workspace_header)
-        actions=ttk.Frame(title);actions.grid(row=0,column=1,sticky='e')
+        title.columnconfigure(0,minsize=190)
+        title.columnconfigure(1,weight=2)
+        e.macro_frame=ttk.Frame(title)
+        e.macro_frame.grid(row=0,column=1,sticky='ew',padx=12)
+        actions=ttk.Frame(title);actions.grid(row=0,column=2,sticky='e')
         e.import_macro_image=macro_icons.create(e)
         e.export_macro_image=macro_icons.create(e,export=True)
         e.import_macro_button=ttk.Button(actions,text='マクロ読込',image=e.import_macro_image,compound='left',style='Macro.TButton',command=e.host.import_creation_macro)
         e.import_macro_button.pack(side='left',padx=4)
         e.export_macro_button=ttk.Button(actions,text='マクロ出力',image=e.export_macro_image,compound='left',style='Macro.TButton',command=lambda:open_export(e))
         e.export_macro_button.pack(side='left',padx=4)
-        e.macro_frame.pack(fill='x',pady=(6,0))
         build_field(e,e.macro_frame,horizontal=True)
+        e.destination_entry.configure(width=12)
     row=ttk.Frame(left);row.pack(fill='x',pady=(0,6))
     if not getattr(e.host,'is_preset_editor',False):
         from .element_presets_ui import select_ptset_preset

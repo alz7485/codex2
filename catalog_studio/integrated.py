@@ -96,14 +96,10 @@ class IntegratedStudio(tk.Tk):
         self.bind('<Control-n>',lambda _:self.new_project())
 
     def build_shell(self):
-        header=ttk.Frame(self,padding=(18,12),style='Header.TFrame');header.pack(fill='x')
-        logo=tk.Canvas(header,width=34,height=34,bg=theme.CHROME,highlightthickness=0);logo.pack(side='left',padx=(0,11))
-        logo.create_image(17,17,image=self.app_header_icon)
-        ttk.Label(header,text='Catalog Studio',style='HeaderTitle.TLabel').pack(side='left')
-        ttk.Label(header,text='E3D 4.0  /  カタログ編集',style='HeaderMeta.TLabel').pack(side='left',padx=18)
-        for text,command,style in [('保存',self.save_project,'Primary.TButton'),('読み込み',self.open_project,'Header.TButton'),('新規',self.new_project,'Header.TButton')]:
-            ttk.Button(header,text=text,command=command,style=style).pack(side='right',padx=(7,0))
         menu_bar=tk.Frame(self,bg=theme.NAV,padx=18,pady=6);menu_bar.pack(fill='x')
+        self.navigation_bar=menu_bar
+        from .project_actions import build as build_project_actions
+        build_project_actions(self,menu_bar)
         self.nav={}
         self.more_nav_button=tk.Menubutton(menu_bar,text='その他の管理 ▾',bg=theme.NAV,fg='#bbcadc',activebackground='#2b4160',activeforeground='white',relief='flat',borderwidth=0,font=(self.ui_font,10),cursor='hand2',padx=16,pady=8)
         self.more_nav_menu=tk.Menu(self.more_nav_button,tearoff=False)

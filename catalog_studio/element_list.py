@@ -12,7 +12,7 @@ class ElementList(tk.Canvas):
         self.name_font=font.Font(self,family=family,size=11)
         self.type_font=font.Font(self,family=family,size=9)
         self.heading_font=font.Font(self,family=family,size=10,weight='bold')
-        self.row_height=self.name_font.metrics('linespace')+self.type_font.metrics('linespace')+18
+        self.row_height=self.name_font.metrics('linespace')+self.type_font.metrics('linespace')+10
         self.bind('<Configure>',lambda _:self.schedule())
         self.bind('<Button-1>',self.click)
         self.bind('<Double-1>',self.edit_clicked)
@@ -168,9 +168,9 @@ class ElementList(tk.Canvas):
             for tag in row['tags']:background=self.tag_styles.get(tag,{}).get('background',background)
             self.create_rectangle(0,top,width,top+self.row_height,fill=background,outline='')
             x=53+self.depth(iid)*12;available=max(25,width-x-8)
-            self.create_text(8,top+9,text=number,anchor='nw',font=self.name_font,fill=color,tags=('number:'+iid,))
-            self.create_text(x,top+8,text=self.shorten(row['text'],available,self.name_font),anchor='nw',font=self.name_font,fill=color,tags=('name:'+iid,))
-            self.create_text(x,top+9+self.name_font.metrics('linespace'),text=self.shorten(kind,available,self.type_font),anchor='nw',font=self.type_font,fill='#597fa5' if chosen else theme.MUTED,tags=('type:'+iid,))
+            self.create_text(8,top+5,text=number,anchor='nw',font=self.name_font,fill=color,tags=('number:'+iid,))
+            self.create_text(x,top+5,text=self.shorten(row['text'],available,self.name_font),anchor='nw',font=self.name_font,fill=color,tags=('name:'+iid,))
+            self.create_text(x,top+6+self.name_font.metrics('linespace'),text=self.shorten(kind,available,self.type_font),anchor='nw',font=self.type_font,fill='#597fa5' if chosen else theme.MUTED,tags=('type:'+iid,))
             self.bounds[iid]=(top,top+self.row_height);top+=self.row_height
         for iid in self.selected:
             if iid in self.bounds:
