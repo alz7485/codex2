@@ -19,12 +19,12 @@ class RegisteredBrowser(ttk.Frame):
         self.heading=ttk.Label(toolbar, text='登録データ', style='SidebarTitle.TLabel')
         self.heading.pack(side='left')
         from .project_actions import icon,Hint
-        self.action_icons={k:icon(self,k,color=theme.ACCENT) for k in ('new','folder_add','search')}
+        self.action_icons={k:icon(self,k,color=theme.ACCENT) for k in ('new','folder_add','search','macro')}
         organize=ttk.Frame(self,style='Sidebar.TFrame');organize.pack(fill='x',pady=(8,6))
         self.add_button=ttk.Button(organize,text='アイテムを追加',image=self.action_icons['new'],compound='none',command=self.add_definition,style='AttributeTool.TButton')
         self.folder_button=ttk.Button(organize,text='フォルダを追加',image=self.action_icons['folder_add'],compound='none',command=self.add_folder,style='AttributeTool.TButton');self.folder_button.pack(side='left')
         self.action_hints=(Hint(self.add_button,'アイテムを追加'),Hint(self.folder_button,'フォルダを追加'))
-        self.macro_button=ttk.Menubutton(organize,text='マクロ ▾',style='AttributeTool.TButton')
+        self.macro_button=ttk.Menubutton(organize,text='マクロ ▾',image=self.action_icons['macro'],compound='left',style='AttributeTool.TButton')
         self.macro_menu=tk.Menu(self.macro_button,tearoff=False)
         self.macro_button.configure(menu=self.macro_menu)
         self.macro_menu.add_command(label='読込',command=host.import_creation_macro)

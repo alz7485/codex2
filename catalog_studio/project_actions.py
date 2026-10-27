@@ -10,7 +10,12 @@ def icon(master,kind,*,color='#edf3ff'):
         for i in range(n+1):image.put(color,(round(x+(u-x)*i/n),round(y+(v-y)*i/n)))
     def path(points):
         for a,b in zip(points,points[1:]):line(a,b)
-    if kind=='new':
+    if kind=='macro':
+        path([(3,21),(3,2),(14,2),(20,8),(20,21),(3,21)])
+        path([(14,2),(14,8),(20,8)])
+        path([(9,11),(6,14),(9,17)])
+        path([(14,11),(17,14),(14,17)])
+    elif kind=='new':
         path([(4,21),(4,2),(13,2),(18,7),(18,11)])
         path([(13,2),(13,7),(18,7)]);line((4,21),(11,21))
         line((17,13),(17,21));line((13,17),(21,17))
