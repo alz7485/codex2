@@ -31,19 +31,20 @@ class GeometryCanvas(ttk.Frame):
         for label,var in (('グリッド',self.show_grid),('座標軸',self.show_axes),('点番号',self.show_labels)):
             button=ttk.Checkbutton(self.settings_content,text=label,variable=var,command=self.redraw,style='Preview.Toolbutton')
             button.pack(anchor='w',fill='x',pady=2);self.overlay_buttons[label]=button
-        row=ttk.Frame(self);row.grid(row=1,column=0,sticky='ew',pady=(0,3))
-        mode_row=ttk.Frame(row);mode_row.pack(fill='x')
-        ttk.Label(mode_row,text='確認',style='Muted.TLabel').pack(side='left',padx=(0,6))
+        self.mode_overlay=mode_row=ttk.Frame(self.body,padding=4)
+        mode_row.grid(row=0,column=0,sticky='nw',padx=8,pady=8)
         self.mode_buttons=self.toggles(mode_row,self.mode,('仮サイズ','SCOM 実寸'),self.mode_changed)
-        for key,label in (('仮サイズ','仮配置で確認'),('SCOM 実寸','登録寸法で確認')):
+        for key,label in (('仮サイズ','仮配置'),('SCOM 実寸','登録寸法')):
             self.mode_buttons[key].configure(text=label)
-        self.render_status=ttk.Label(mode_row,text='',style='Muted.TLabel');self.render_status.pack(side='right',padx=(8,0))
+        self.render_status=ttk.Label(self.body,text='',style='Muted.TLabel');self.render_status.grid(row=0,column=0,sticky='sw',padx=10,pady=10)
         references=getattr(editor,'reference_bar',None)
-        if references is not None:references.pack(fill='x',pady=(8,0))
-        scom_row=ttk.Frame(references if references is not None else row)
-        scom_row.pack(side='left',fill='x',expand=True) if references is not None else scom_row.pack(fill='x',pady=(2,0))
+        if references is not None:
+            references.grid(row=0,column=1,sticky='ew',padx=(12,0))
+            references.columnconfigure((0,1),weight=1,uniform='references')
+        scom_row=ttk.Frame(references if references is not None else self)
+        scom_row.grid(row=0,column=1,sticky='ew') if references is not None else scom_row.grid(row=1,column=0,sticky='ew')
         ttk.Label(scom_row,text='参照SCOM',style='Muted.TLabel').pack(side='left',padx=(0,6))
-        self.scom_choice=ttk.Combobox(scom_row,state='readonly',width=10);self.scom_choice.pack(side='left',fill='x',expand=True)
+        self.scom_choice=ttk.Combobox(scom_row,state='readonly',width=8);self.scom_choice.pack(side='left',fill='x',expand=True)
         self.scom_choice.bind('<<ComboboxSelected>>',self.select_scom)
         details=self.settings_content
         ttk.Label(details,text='描画方式',style='Muted.TLabel').pack(anchor='w',pady=(8,3))
@@ -60,11 +61,12 @@ class GeometryCanvas(ttk.Frame):
         # Design data edits remain outside appearance settings.
         tools=ttk.Frame(self);tools.grid(row=4,column=0,sticky='ew',pady=(6,0))
         self.selection_label=ttk.Label(tools,text='選択：なし',style='Muted.TLabel');self.selection_label.pack(side='left')
-        ttk.Button(scom_row,text='設計値を編集',command=lambda:model_settings.edit(editor),style='Compact.TButton').pack(side='right')
+        ttk.Button(tools,text='設計値を編集',command=lambda:model_settings.edit(editor),style='Compact.TButton').pack(side='right')
         self.zoom_factor=1.0
         self.transparency.trace_add('write',self.display_changed)
         self.canvas=tk.Canvas(self.body,bg=theme.SUBTLE,highlightthickness=1,highlightbackground=theme.BORDER,width=1,height=1)
         self.canvas.grid(row=0,column=0,sticky='nsew')
+        mode_row.lift();self.render_status.lift()
         preview_controls.zoom_buttons(self)
         self.canvas.bind('<MouseWheel>',lambda e:self.zoom(1.12 if e.delta>0 else 1/1.12))
         self.canvas.bind('<Button-4>',lambda _:self.zoom(1.12));self.canvas.bind('<Button-5>',lambda _:self.zoom(1/1.12))
@@ -243,7 +245,7 @@ class GeometryCanvas(ttk.Frame):
             dimensions='\n外形：'+' / '.join('XYZ'[i]+' '+format(max(p[i] for p in points)-min(p[i] for p in points),'.5g') for i in range(3))+' mm（DB 単位）'
         self.note.configure(text=('登録寸法で確認：寸法比を保持して全体表示 / 右ドラッグ：回転'+dimensions if self.actual else '仮配置・単位なし ｜ 右ドラッグ：回転 ｜ ホイール：ズーム')+'')
         status=('登録寸法で確認 · '+(scom['name'] if scom else '参照SCOMを選択してください')) if self.actual else '仮配置で確認 · 編集用の仮値'
-        c.create_text(12,12,text=status,anchor='nw',fill=theme.MUTED,width=max(100,width-24),font=(e.host.ui_font,9),tags='preview-mode')
+        c.create_text(width-12,12,text=status,anchor='ne',justify='right',fill=theme.MUTED,width=max(100,width-self.mode_overlay.winfo_reqwidth()-36),font=(e.host.ui_font,9),tags='preview-mode')
         hidden=self.scene.hidden
         selected_reason=hidden.get(e.element_id)
         messages=([selected_reason] if selected_reason else [])+self.scene.issues+([self.resize_issue] if self.resize_issue else [])

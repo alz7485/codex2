@@ -22,15 +22,16 @@ class PointCanvas(ttk.Frame):
         for label,var in (('グリッド',self.show_grid),('座標軸',self.show_axes),('点番号',self.show_labels),('関係線',self.show_relations)):
             button=ttk.Checkbutton(self.settings_content,text=label,variable=var,command=self.redraw,style='Preview.Toolbutton')
             button.pack(anchor='w',fill='x',pady=2);self.display_buttons[label]=button
-        context=ttk.Frame(self);context.grid(row=1,column=0,sticky='ew',pady=(0,6))
         self.selection_label=ttk.Label(self,text='選択：なし',style='Muted.TLabel');self.selection_label.grid(row=4,column=0,sticky='w',pady=(6,0))
-        plane_row=ttk.Frame(context);plane_row.pack(fill='x')
+        self.plane_overlay=plane_row=ttk.Frame(self.body,padding=4)
+        plane_row.grid(row=0,column=0,sticky='nw',padx=8,pady=8)
         ttk.Label(plane_row,text='作図面 (F5)',style='Muted.TLabel').pack(side='left',padx=(0,6))
         self.plane_buttons={}
         for plane in PLANES:
             button=ttk.Radiobutton(plane_row,text=plane,image=self.preview_icons[plane],compound='left',variable=self.plane,value=plane,command=self.plane_changed,style='Preview.Toolbutton')
             button.pack(side='left',padx=(0,2));self.plane_buttons[plane]=button
-        ttk.Label(plane_row,text='仮配置・単位なし',style='Muted.TLabel').pack(side='left',padx=(8,0))
+        self.unit_label=ttk.Label(self.body,text='仮配置・単位なし',style='Muted.TLabel')
+        self.unit_label.grid(row=0,column=0,sticky='sw',padx=10,pady=10)
         self.context_menu=tk.Menu(self,tearoff=False)
         self.create_menu=tk.Menu(self.context_menu,tearoff=False)
         for kind in schema.PT_TYPES:
@@ -38,6 +39,7 @@ class PointCanvas(ttk.Frame):
         self.context_menu.add_cascade(label='点を作成',menu=self.create_menu)
         self.context_menu.add_separator();self.context_menu.add_command(label='閉じる',command=self.dismiss_menu)
         self.canvas=tk.Canvas(self.body,bg=theme.SUBTLE,highlightthickness=1,highlightbackground=theme.BORDER,highlightcolor=theme.ACCENT,width=320,height=260);self.canvas.grid(row=0,column=0,sticky='nsew')
+        plane_row.lift();self.unit_label.lift()
         preview_controls.zoom_buttons(self)
         self.canvas.bind('<Configure>',lambda _:self.redraw());self.canvas.bind('<Button-1>',self.press);self.canvas.bind('<B1-Motion>',self.move);self.canvas.bind('<ButtonRelease-1>',self.release)
         self.canvas.bind('<Button-3>',self.orbit_start);self.canvas.bind('<B3-Motion>',self.orbit_move)
@@ -59,7 +61,8 @@ class PointCanvas(ttk.Frame):
         right,up=self.camera.basis();points=list(self.positions.values())+[(0,0,0)]
         xmax=max((abs(sum(a*b for a,b in zip(right,p))) for p in points),default=1)
         ymax=max((abs(sum(a*b for a,b in zip(up,p))) for p in points),default=1)
-        self.camera.zoom=max(.001,min((self.canvas.winfo_width()-100)/max(2*xmax,.01),(self.canvas.winfo_height()-100)/max(2*ymax,.01)))
+        vertical_margin=max(50,self.plane_overlay.winfo_reqheight()+30)
+        self.camera.zoom=max(.001,min((self.canvas.winfo_width()-100)/max(2*xmax,.01),(self.canvas.winfo_height()-2*vertical_margin)/max(2*ymax,.01)))
         self.redraw()
 
     def dismiss_menu(self):

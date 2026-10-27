@@ -71,6 +71,8 @@ def focus(view):
         positions=view.focus_positions
         def restore():
             if split.winfo_exists():
+                # Let reinserted panes settle before restoring their dividers.
+                split.update_idletasks()
                 for i,pos in enumerate(positions):split.sashpos(i,pos)
         view.editor.host.after_idle(restore);view.focused=False;view.focus_button.configure(text='拡大')
     else:

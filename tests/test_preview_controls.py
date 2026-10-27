@@ -23,8 +23,12 @@ class PreviewControlsTests(unittest.TestCase):
                 for point in (v.positions.values() if kind=='PTSET' else v.scene.vertices()):
                     x,y=v.camera.project(point,v.canvas.winfo_width(),v.canvas.winfo_height())
                     self.assertTrue(0<=x<=v.canvas.winfo_width() and 0<=y<=v.canvas.winfo_height())
-                v.focus_button.invoke();app.update();self.assertEqual(len(app.geometry_editor.main_split.panes()),1)
-                v.focus_button.invoke();app.update();self.assertEqual(len(app.geometry_editor.main_split.panes()),3)
+                split=app.geometry_editor.main_split
+                dividers=[split.sashpos(i) for i in (0,1)]
+                v.focus_button.invoke();app.update();self.assertEqual(len(split.panes()),1)
+                v.focus_button.invoke();app.update();self.assertEqual(len(split.panes()),3)
+                self.assertEqual([split.sashpos(i) for i in (0,1)],dividers)
+                self.assertLess(app.geometry_editor.attribute_pane.winfo_x(),split.winfo_width())
                 v.open_details();app.update();self.assertTrue(v.details.winfo_viewable())
                 v.close_details();app.update();self.assertFalse(v.details.winfo_viewable())
                 self.assertEqual(app.data,before)
