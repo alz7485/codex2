@@ -175,10 +175,17 @@ class GeometryCanvas(ttk.Frame):
         if not self.drag:
             self.camera.fit(vertices,width,height,padding=55);self.camera.zoom*=self.zoom_factor
         def xy(point):return self.camera.project(point,width,height)
-        # A fixed screen grid provides depth cues without claiming a distance scale.
+        # Project the XY construction grid with the model in the 3D view.
         if self.show_grid.get():
-            for x in range(20,width,32):c.create_line(x,0,x,height,fill='#e9eef6',tags='grid')
-            for y in range(20,height,32):c.create_line(0,y,width,y,fill='#e9eef6',tags='grid')
+            if self.view.get()=='立体':
+                extent=max(self.camera.span*.65,max((abs(p[i]) for p in vertices for i in (0,1)),default=0))
+                for i in range(-8,9):
+                    offset=extent*i/8
+                    for a,b in (((offset,-extent,0),(offset,extent,0)),((-extent,offset,0),(extent,offset,0))):
+                        c.create_line(*xy(a),*xy(b),fill='#e9eef6',tags='grid')
+            else:
+                for x in range(20,width,32):c.create_line(x,0,x,height,fill='#e9eef6',tags='grid')
+                for y in range(20,height,32):c.create_line(0,y,width,y,fill='#e9eef6',tags='grid')
         right,up=self.camera.basis()
         if self.show_axes.get():
             for i,color in enumerate(('#d85d59','#34986a','#387bd4')):
