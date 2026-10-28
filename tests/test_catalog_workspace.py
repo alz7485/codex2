@@ -91,10 +91,26 @@ class CatalogWorkspaceGuiTests(unittest.TestCase):
     def create_bundle(self):
         with patch.object(self.app,'form',side_effect=self.accept_bundle):bundle_form(self.app)
         self.app.mark();self.app.render_page();self.app.update()
+    def test_left_selection_switches_content_without_tabs_or_data_changes(self):
+        self.create_bundle();app=self.app
+        self.assertFalse(hasattr(app,'catalog_notebook'))
+        before=copy.deepcopy(app.data)
+        records=[('texts',r) for r in app.data['texts'] if r['parent_id']==app.cate_id]
+        records += [(c,r) for c in ('catalog_details','catalog_props') for r in app.data[c] if r['cate_id']==app.cate_id]
+        for collection,record in records:
+            app.catalog_tree.selection_set(collection+':'+record['id']);app.update()
+            self.assertTrue(app.catalog_members_page.winfo_ismapped())
+            self.assertFalse(app.catalog_scom_page.winfo_ismapped())
+            self.assertEqual(app.catalog_members.item()[1]['id'],record['id'])
+        app.catalog_tree.selection_set('cates:'+app.cate_id);app.update()
+        self.assertTrue(app.catalog_scom_page.winfo_ismapped())
+        self.assertFalse(app.catalog_members_page.winfo_ismapped())
+        self.assertEqual(app.data,before);self.assertEqual(self.errors,[])
+
     def test_menu_tree_and_triple_selection(self):
         app=self.app;self.assertEqual(app.nav['catalog'].cget('text'),'カタログ作成')
         self.create_bundle()
-        self.assertEqual(app.catalog_notebook.index('current'),1)
+        self.assertTrue(app.catalog_members_page.winfo_ismapped());self.assertFalse(app.catalog_scom_page.winfo_ismapped())
         self.assertGreater(app.catalog_panes.sashpos(0),100)
         self.assertEqual(len(app.catalog_panes.panes()),2)
         self.assertIs(app.catalog_tree,app.registered_browser.tree)
@@ -102,10 +118,10 @@ class CatalogWorkspaceGuiTests(unittest.TestCase):
         self.assertTrue(app.catalog_tree.exists('cates:'+app.cate_id))
         sdte=next(record for record in app.data['texts'] if record['parent_id']==app.cate_id and record['type']=='SDTE')
         app.catalog_tree.selection_set('texts:'+sdte['id']);app.update()
-        self.assertEqual(app.catalog_notebook.index('current'),1)
+        self.assertTrue(app.catalog_members_page.winfo_ismapped());self.assertFalse(app.catalog_scom_page.winfo_ismapped())
         self.assertEqual(app.catalog_members.item()[1]['id'],sdte['id'])
         app.catalog_tree.selection_set('scoms:'+app.scom_id);app.update()
-        self.assertEqual(app.catalog_notebook.index('current'),0)
+        self.assertTrue(app.catalog_scom_page.winfo_ismapped());self.assertFalse(app.catalog_members_page.winfo_ismapped())
         selected=app.scom_id
         spec=project.add_spec(app.data,'/GUI-SPEC');app.spec_id=spec['id'];app.switch('specs');app.update()
         seen={}

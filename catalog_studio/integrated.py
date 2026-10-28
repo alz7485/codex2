@@ -220,12 +220,12 @@ class IntegratedStudio(tk.Tk):
         cate_tools=ttk.Frame(middle);cate_tools.pack(fill='x',pady=(0,8))
         ttk.Button(cate_tools,text='CATE の情報を編集',command=self.edit_cate).pack(side='left',padx=3)
         ttk.Button(cate_tools,text='空の CATE を削除',command=self.delete_cate).pack(side='left',padx=3)
-        self.catalog_notebook=ttk.Notebook(middle);self.catalog_notebook.pack(fill='both',expand=True)
-        scom_page=ttk.Frame(self.catalog_notebook);members_page=ttk.Frame(self.catalog_notebook)
-        self.catalog_notebook.add(scom_page,text='SCOM');self.catalog_notebook.add(members_page,text='SDTE・TEXT・DETAIL・PROP')
+        content=ttk.Frame(middle);content.pack(fill='both',expand=True)
+        self.catalog_scom_page=scom_page=ttk.Frame(content)
+        self.catalog_members_page=members_page=ttk.Frame(content)
+        active=members_page if getattr(self,'catalog_tab','scom')=='members' else scom_page
+        active.pack(fill='both',expand=True)
         self.catalog_members=CatalogMembers(self,members_page);self.catalog_members.pack(fill='both',expand=True)
-        if getattr(self,'catalog_tab','scom')=='members':self.catalog_notebook.select(members_page)
-        self.catalog_notebook.bind('<<NotebookTabChanged>>',lambda _:setattr(self,'catalog_tab','members' if self.catalog_notebook.index('current')==1 else 'scom'))
         middle=scom_page
         top=ttk.Frame(middle);top.pack(fill='x',pady=(0,10))
         ttk.Label(top,text='SCOM の寸法・文字列',style='Heading.TLabel').pack(side='left')

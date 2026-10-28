@@ -59,7 +59,7 @@ class FolderBrowserGuiTests(unittest.TestCase):
         self.app.switch('catalog');self.app.update();self.select('cates:'+cate['id'])
         self.assertIs(self.app.catalog_tree,self.b.tree);self.assertEqual(len(self.app.catalog_panes.panes()),2)
         self.assertEqual(self.app.cate_id,cate['id']);self.assertIsNone(self.app.scom_id)
-        self.select('catalog_props:'+prop['id']);self.assertEqual(self.app.catalog_notebook.index('current'),1)
+        self.select('catalog_props:'+prop['id']);self.assertTrue(self.app.catalog_members_page.winfo_ismapped())
         self.assertEqual(self.app.catalog_members.item()[1]['id'],prop['id'])
         self.b.search.set(prop['name']);self.app.update()
         self.assertTrue(self.b.tree.exists('folder:'+f));self.assertTrue(self.b.tree.exists('cates:'+cate['id']))
