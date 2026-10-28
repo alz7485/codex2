@@ -76,7 +76,7 @@ class IntegratedStudio(tk.Tk):
         self.title('Catalog Studio — カタログ編集')
         from .app_icon import install as install_app_icon
         install_app_icon(self)
-        self.geometry('1440x960'); self.minsize(1120,780); self.configure(bg=BG)
+        self.geometry('1580x960'); self.minsize(1260,780); self.configure(bg=BG)
         families=set(font.families(self))
         self.ui_font=next((f for f in ('Yu Gothic UI','Meiryo','Noto Sans CJK JP','Hiragino Sans','Arial') if f in families),'TkDefaultFont')
         self.style=theme.apply(self,self.ui_font)

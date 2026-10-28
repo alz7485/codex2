@@ -125,7 +125,7 @@ class RegisteredBrowser(ttk.Frame):
         if self.category!=page:
             if self.category:self.open_states[self.category]={key:bool(self.tree.item(key,'open')) for key in self.all_keys if self.tree.exists(key)}
             self.category=page;self.search.set('');previous=()
-        self.configure(width=280 if page=='catalog' else 260)
+        self.configure(width=320 if page=='catalog' else 300)
         self.tree.column('#0',width=460 if page=='catalog' else 320 if page=='specs' else 240)
         label,rows=self.rows();self.all_keys=[row[0] for row in rows]
         self.items={k:(col,r) for k,_,_,col,r in rows if col}

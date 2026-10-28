@@ -52,7 +52,7 @@ def build_simple(editor):
     e.main_split.pack(fill='both', expand=True)
     left = ttk.Frame(e.main_split, padding=(10,10),style='Card.TFrame')
     center = ttk.Frame(e.main_split, padding=(12,10),style='Card.TFrame')
-    right = ttk.Frame(e.main_split, padding=(10,10),width=330,style='Card.TFrame')
+    right = ttk.Frame(e.main_split, padding=(10,10),width=390,style='Card.TFrame')
     right.pack_propagate(False)
     e.element_pane,e.preview_pane,e.attribute_pane=left,center,right
     e.reference_bar=ttk.Frame(center)
@@ -63,8 +63,8 @@ def build_simple(editor):
     def initialize_panes(event):
         if e.panes_initialized or event.width<600:return
         e.panes_initialized=True
-        e.main_split.sashpos(0,max(160,min(230,int(event.width*.19))))
-        e.main_split.sashpos(1,event.width-336)
+        e.main_split.sashpos(0,max(160,min(270,int(event.width*.21))))
+        e.main_split.sashpos(1,event.width-396)
     e.main_split.bind('<Configure>',initialize_panes)
     e.def_choice = tk.StringVar()
     e.set_name_label=ttk.Label(left,textvariable=e.def_name,style='Heading.TLabel',wraplength=210)
