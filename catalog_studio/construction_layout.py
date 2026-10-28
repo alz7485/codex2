@@ -63,7 +63,7 @@ def build_simple(editor):
     def initialize_panes(event):
         if e.panes_initialized or event.width<600:return
         e.panes_initialized=True
-        e.main_split.sashpos(0,max(160,min(270,int(event.width*.21))))
+        e.main_split.sashpos(0,max(160,min(310,int(event.width*.24))))
         e.main_split.sashpos(1,event.width-396)
     e.main_split.bind('<Configure>',initialize_panes)
     e.def_choice = tk.StringVar()
