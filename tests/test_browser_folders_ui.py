@@ -36,7 +36,8 @@ class FolderBrowserGuiTests(unittest.TestCase):
             values={k:str(v) for k,_,v,_ in fields};values['name']='/ICON-'+('SDTE' if 'SDTE' in title else 'TEXT')
             apply(values)
         for kind in ('SDTE','TEXT'):
-            with patch.object(self.app,'form',side_effect=accept):self.b.catalog_buttons[kind].invoke()
+            with patch.object(self.app,'form',side_effect=accept):
+                self.b.text_menu.invoke(1) if kind=='TEXT' else self.b.catalog_buttons[kind].invoke()
             record=self.app.data['texts'][-1]
             self.assertEqual(record['type'],kind);self.assertEqual(record['parent_id'],second['id'])
         with patch.object(self.app,'scom_form') as create:
@@ -59,7 +60,7 @@ class FolderBrowserGuiTests(unittest.TestCase):
         self.app.switch('catalog');self.app.update();self.select('cates:'+cate['id'])
         self.assertIs(self.app.catalog_tree,self.b.tree);self.assertEqual(len(self.app.catalog_panes.panes()),2)
         self.assertEqual(self.app.cate_id,cate['id']);self.assertIsNone(self.app.scom_id)
-        self.select('catalog_props:'+prop['id']);self.assertTrue(self.app.catalog_members_page.winfo_ismapped())
+        self.select('catalog_props:'+prop['id']);self.assertTrue(self.app.catalog_inspector.winfo_ismapped())
         self.assertEqual(self.app.catalog_members.item()[1]['id'],prop['id'])
         self.b.search.set(prop['name']);self.app.update()
         self.assertTrue(self.b.tree.exists('folder:'+f));self.assertTrue(self.b.tree.exists('cates:'+cate['id']))

@@ -27,7 +27,13 @@ class RegisteredBrowser(ttk.Frame):
         self.action_hints=(Hint(self.add_button,'アイテムを追加'),Hint(self.folder_button,'フォルダを追加'))
         self.catalog_buttons={};self.catalog_hints=[]
         for kind in ('SDTE','TEXT','SCOM'):
-            button=ttk.Button(organize,text=kind+'追加',image=self.action_icons[kind.lower()+'_add'],compound='none',command=lambda k=kind:self.add_catalog_record(k),style='AttributeTool.TButton')
+            if kind=='TEXT':
+                button=ttk.Menubutton(organize,text='▾',width=2,image=self.action_icons['text_add'],compound='left',style='AttributeTool.TButton')
+                self.text_menu=tk.Menu(button,tearoff=False);button.configure(menu=self.text_menu)
+                self.text_menu.add_command(label='プリセットから作成',command=self.add_text_batch)
+                self.text_menu.add_command(label='TEXT作成',command=lambda:self.add_catalog_record('TEXT'))
+            else:
+                button=ttk.Button(organize,text=kind+'追加',image=self.action_icons[kind.lower()+'_add'],compound='none',command=lambda k=kind:self.add_catalog_record(k),style='AttributeTool.TButton')
             self.catalog_buttons[kind]=button
             self.catalog_hints.append(Hint(button,kind+'を追加'))
         self.macro_button=ttk.Menubutton(organize,text='マクロ ▾',image=self.action_icons['macro'],compound='left',style='AttributeTool.TButton')
@@ -342,6 +348,11 @@ class RegisteredBrowser(ttk.Frame):
         except ValueError as exc:messagebox.showinfo('フォルダを削除できません',str(exc),parent=self.host);return
         self.host.mark('空の整理フォルダを削除しました。')
 
+    def add_text_batch(self):
+        if self.host.page!='catalog' or not self.ready():return
+        from .catalog_text_batch import open_batch
+        return open_batch(self.host)
+
     def add_catalog_record(self,kind):
         if self.host.page!='catalog' or not self.ready():return
         from . import project
@@ -373,6 +384,9 @@ class RegisteredBrowser(ttk.Frame):
         selected = self.tree.selection()
         if not selected or selected[0] not in self.items:
             return
+        if self.host.page=='catalog' and hasattr(self.host,'catalog_inspector') and self.host.catalog_inspector.winfo_exists():
+            if not self.host.catalog_inspector.finish():self.refresh();return
+            if self.tree.exists(selected[0]) and self.tree.selection()!=selected:self.tree.selection_set(selected)
         collection, record = self.items[selected[0]]
         host = self.host
         if host.page=='catalog' and collection in ('cates','scoms','texts','catalog_details','catalog_props'):

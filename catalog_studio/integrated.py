@@ -217,6 +217,10 @@ class IntegratedStudio(tk.Tk):
         split.add(middle,weight=4);split.add(right,weight=2)
         self.catalog_panes=split;self.balance(split,(.70,))
         self.catalog_tree=self.registered_browser.tree
+        visible_middle=middle
+        # Keep the existing form controllers off screen; the inspector owns visible editing.
+        legacy=ttk.Frame(middle)
+        middle=legacy
         cate_tools=ttk.Frame(middle);cate_tools.pack(fill='x',pady=(0,8))
         ttk.Button(cate_tools,text='CATE の情報を編集',command=self.edit_cate).pack(side='left',padx=3)
         ttk.Button(cate_tools,text='空の CATE を削除',command=self.delete_cate).pack(side='left',padx=3)
@@ -249,6 +253,9 @@ class IntegratedStudio(tk.Tk):
         self.scom_detail=ttk.Label(right,text='',style='Muted.TLabel',wraplength=330);self.scom_detail.pack(anchor='w',pady=12)
         ttk.Label(right,text='寸法は SCOM の値です。定義側には保存しません。',style='Muted.TLabel',wraplength=330).pack(anchor='w')
         self.update_scom_preview()
+        from .catalog_inspector import CatalogInspector
+        self.catalog_inspector=CatalogInspector(self,visible_middle)
+        self.catalog_inspector.pack(fill='both',expand=True)
 
     def fill_scom_table(self):
         self.scom_table.delete(*self.scom_table.get_children())
@@ -572,6 +579,8 @@ class IntegratedStudio(tk.Tk):
     def definition(self):return project.get(self.data,'definitions',self.definition_id)
     def element(self):return next((e for e in (self.definition() or {}).get('elements',[]) if e['id']==self.element_id),None)
     def commit_definition_name(self):
+        if self.page=='catalog' and hasattr(self,'catalog_inspector') and self.catalog_inspector.winfo_exists():
+            if not self.catalog_inspector.finish():return False
         if self.page=='rules' and hasattr(self,'preset_editor') and self.preset_editor.winfo_exists():return self.preset_editor.finish_cell()
         if self.page in ('ptset','gmset','structural') and hasattr(self,'geometry_editor') and self.geometry_editor.winfo_exists():
             if not self.geometry_editor.commit_inline():return False

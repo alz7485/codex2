@@ -99,18 +99,18 @@ class CatalogWorkspaceGuiTests(unittest.TestCase):
         records += [(c,r) for c in ('catalog_details','catalog_props') for r in app.data[c] if r['cate_id']==app.cate_id]
         for collection,record in records:
             app.catalog_tree.selection_set(collection+':'+record['id']);app.update()
-            self.assertTrue(app.catalog_members_page.winfo_ismapped())
+            self.assertTrue(app.catalog_inspector.winfo_ismapped())
             self.assertFalse(app.catalog_scom_page.winfo_ismapped())
             self.assertEqual(app.catalog_members.item()[1]['id'],record['id'])
         app.catalog_tree.selection_set('cates:'+app.cate_id);app.update()
-        self.assertTrue(app.catalog_scom_page.winfo_ismapped())
+        self.assertTrue(app.catalog_inspector.winfo_ismapped())
         self.assertFalse(app.catalog_members_page.winfo_ismapped())
         self.assertEqual(app.data,before);self.assertEqual(self.errors,[])
 
     def test_menu_tree_and_triple_selection(self):
         app=self.app;self.assertEqual(app.nav['catalog'].cget('text'),'カタログ作成')
         self.create_bundle()
-        self.assertTrue(app.catalog_members_page.winfo_ismapped());self.assertFalse(app.catalog_scom_page.winfo_ismapped())
+        self.assertTrue(app.catalog_inspector.winfo_ismapped())
         self.assertGreater(app.catalog_panes.sashpos(0),100)
         self.assertEqual(len(app.catalog_panes.panes()),2)
         self.assertIs(app.catalog_tree,app.registered_browser.tree)
@@ -118,10 +118,10 @@ class CatalogWorkspaceGuiTests(unittest.TestCase):
         self.assertTrue(app.catalog_tree.exists('cates:'+app.cate_id))
         sdte=next(record for record in app.data['texts'] if record['parent_id']==app.cate_id and record['type']=='SDTE')
         app.catalog_tree.selection_set('texts:'+sdte['id']);app.update()
-        self.assertTrue(app.catalog_members_page.winfo_ismapped());self.assertFalse(app.catalog_scom_page.winfo_ismapped())
+        self.assertTrue(app.catalog_inspector.winfo_ismapped())
         self.assertEqual(app.catalog_members.item()[1]['id'],sdte['id'])
         app.catalog_tree.selection_set('scoms:'+app.scom_id);app.update()
-        self.assertTrue(app.catalog_scom_page.winfo_ismapped());self.assertFalse(app.catalog_members_page.winfo_ismapped())
+        self.assertTrue(app.catalog_inspector.winfo_ismapped())
         selected=app.scom_id
         spec=project.add_spec(app.data,'/GUI-SPEC');app.spec_id=spec['id'];app.switch('specs');app.update()
         seen={}
@@ -171,11 +171,9 @@ class CatalogWorkspaceGuiTests(unittest.TestCase):
 
     def test_actions_are_visible_in_minimum_window(self):
         app=self.app;self.create_bundle();app.geometry('1120x780');app.update()
-        for button in app.catalog_members.add_buttons.values():
-            self.assertTrue(button.winfo_viewable())
-            self.assertLessEqual(button.winfo_rootx()+button.winfo_width(),app.catalog_members.winfo_rootx()+app.catalog_members.winfo_width())
-        self.assertGreater(app.catalog_members.table.winfo_height(),60)
-        self.assertGreater(app.catalog_members.attributes.winfo_height(),60)
+        self.assertTrue(app.catalog_inspector.winfo_viewable())
+        self.assertGreater(app.catalog_inspector.tree.winfo_height(),60)
+        self.assertTrue(all(not b.winfo_viewable() for b in app.catalog_members.add_buttons.values()))
         self.assertEqual(self.errors,[])
 
     def test_legacy_spec_edit_does_not_add_empty_combination_references(self):
