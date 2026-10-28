@@ -74,21 +74,27 @@ class CreationUiTests(unittest.TestCase):
             self.assertEqual(self.b.tree.get_children('folder:'+folder)[1],'folder:'+self.app.data['browser_folders'][-1]['id'])
         self.assertEqual(self.errors,[])
 
-    def test_compact_add_dialog_cancel_and_missing_anchor_leave_data_unchanged(self):
-        before=copy.deepcopy(self.app.data)
-        win=self.b.add_definition();self.app.update()
-        self.assertLessEqual(win.winfo_width(),460);self.assertLessEqual(win.winfo_height(),330)
-        def descendants(widget):
-            for child in widget.winfo_children():yield child;yield from descendants(child)
-        buttons={str(w['text']):w for w in descendants(win) if w.winfo_class()=='TButton'}
-        self.assertTrue(buttons['適用'].winfo_ismapped());self.assertTrue(buttons['キャンセル'].winfo_ismapped())
-        buttons['キャンセル'].invoke();self.app.update();self.assertEqual(self.app.data,before)
-        selected=self.b.tree.selection()[0]
-        def stale(title,fields,apply):
-            values={k:str(v) for k,_,v,_ in fields};values['name']='/SHOULD-NOT-APPEAR'
-            self.app.data['definitions'][:]=[d for d in self.app.data['definitions'] if 'definitions:'+d['id']!=selected]
-            snapshot=copy.deepcopy(self.app.data)
-            with self.assertRaises(ValueError):apply(values)
-            self.assertEqual(self.app.data,snapshot)
-        with patch.object(self.app,'form',side_effect=stale):self.b.add_definition()
+    def test_immediate_creation_names_inline_rename_and_cancel(self):
+        with patch.object(self.app,'form') as form:
+            self.b.add_definition();self.app.update()
+            self.assertEqual(self.app.geometry_editor.definition()['name'],'新しいアイテム(1)')
+            self.b.add_definition();self.app.update()
+            self.assertEqual(self.app.geometry_editor.definition()['name'],'新しいアイテム(2)')
+            self.b.add_folder();self.app.update()
+            self.assertEqual(self.app.data['browser_folders'][-1]['name'],'新しいフォルダ(1)')
+            form.assert_not_called()
+        self.b.rename_item();self.app.update()
+        self.b.renaming['variable'].set('変更したフォルダ')
+        self.assertTrue(self.b.finish_rename());self.app.update()
+        self.assertEqual(self.app.data['browser_folders'][-1]['name'],'変更したフォルダ')
+        self.b.rename_item();self.b.renaming['variable'].set('取り消す')
+        self.b.cancel_rename();self.app.update()
+        self.assertEqual(self.app.data['browser_folders'][-1]['name'],'変更したフォルダ')
+        self.b.add_definition();self.app.update();record=self.app.geometry_editor.definition()
+        before=copy.deepcopy(record)
+        self.b.rename_item();self.b.renaming['variable'].set('新しいアイテム(1)')
+        self.assertFalse(self.b.finish_rename());self.assertEqual(record,before)
+        self.b.renaming['variable'].set('/RENAMED');self.assertTrue(self.b.finish_rename());self.app.update()
+        self.assertEqual(record['name'],'/RENAMED')
+        self.assertGreaterEqual(self.b.winfo_width(),250)
         self.assertEqual(self.errors,[])

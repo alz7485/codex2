@@ -30,17 +30,11 @@ class PointAuthoringTests(unittest.TestCase):
             yield child
             yield from self.descendants(child)
 
-    def new_set_dialog(self):
-        self.app.registered_browser.add_button.invoke()
-        self.app.update()
-        return next(w for w in self.app.winfo_children() if isinstance(w, tk.Toplevel))
-
     def create_set(self):
-        dialog = self.new_set_dialog()
-        entry = next(w for w in self.descendants(dialog) if isinstance(w, ttk.Entry) and not isinstance(w, ttk.Combobox))
-        entry.insert(0, '/MY-POINTS')
-        next(w for w in self.descendants(dialog) if isinstance(w, ttk.Button) and w['text'] == '適用').invoke()
-        self.app.update()
+        browser=self.app.registered_browser
+        browser.add_button.invoke();self.app.update()
+        browser.rename_item();browser.renaming['variable'].set('/MY-POINTS')
+        self.assertTrue(browser.finish_rename());self.app.update()
         return self.app.geometry_editor
 
     def choose_type(self, editor, index):
@@ -55,19 +49,13 @@ class PointAuthoringTests(unittest.TestCase):
     def test_named_set_is_empty_until_explicit_point_creation(self):
         editor = self.app.geometry_editor
         self.assertEqual(str(editor.create_element_button['state']), 'disabled')
-        dialog = self.new_set_dialog()
-        widgets = list(self.descendants(dialog))
-        entry = next(w for w in widgets if isinstance(w, ttk.Entry) and not isinstance(w, ttk.Combobox))
-        self.assertEqual(entry.get(), '')
-        submit = next(w for w in widgets if isinstance(w, ttk.Button) and w['text'] == '適用')
-        submit.invoke()
-        self.app.update()
-        self.assertTrue(dialog.winfo_exists())
-        self.assertEqual(self.app.data['definitions'], [])
-        self.assertTrue(any('PTSET 名を入力' in str(w['text']) for w in widgets if isinstance(w, ttk.Label)))
-        entry.insert(0, '/NAMED-SET')
-        submit.invoke()
-        self.app.update()
+        browser=self.app.registered_browser
+        browser.add_button.invoke();self.app.update()
+        self.assertEqual(self.app.geometry_editor.definition()['name'],'新しいアイテム(1)')
+        browser.rename_item();browser.renaming['variable'].set('')
+        self.assertFalse(browser.finish_rename())
+        browser.renaming['variable'].set('/NAMED-SET')
+        self.assertTrue(browser.finish_rename());self.app.update()
         editor = self.app.geometry_editor
         self.assertEqual(editor.definition()['name'], '/NAMED-SET')
         self.assertTrue(self.app.registered_browser.tree.exists('definitions:' + editor.definition_id))
@@ -140,11 +128,12 @@ class PointAuthoringTests(unittest.TestCase):
         self.assertEqual(editor.expression.get(), '0.5 * APARAM[3]')
         self.assertEqual(self.errors, [])
 
-    def test_cancel_set_dialog_creates_nothing(self):
-        before = copy.deepcopy(self.app.data)
-        dialog = self.new_set_dialog()
-        next(w for w in self.descendants(dialog) if isinstance(w, ttk.Button) and w['text'] == 'キャンセル').invoke()
-        self.app.update()
-        self.assertEqual(self.app.data, before)
-        self.assertEqual(str(self.app.geometry_editor.create_element_button['state']), 'disabled')
-        self.assertEqual(self.errors, [])
+    def test_cancel_rename_preserves_created_set(self):
+        browser=self.app.registered_browser
+        browser.add_button.invoke();self.app.update()
+        before=copy.deepcopy(self.app.data)
+        browser.rename_item();browser.renaming['variable'].set('取消')
+        browser.cancel_rename();self.app.update()
+        self.assertEqual(self.app.data,before)
+        self.assertEqual(self.app.geometry_editor.definition()['name'],'新しいアイテム(1)')
+        self.assertEqual(self.errors,[])

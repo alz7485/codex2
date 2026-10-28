@@ -12,6 +12,7 @@ class RegisteredBrowser(ttk.Frame):
         self.items = {}
         self.category = None
         self.refreshing = False
+        self.renaming=None
         self.open_states={}
         self.pack(side='left', fill='y')
         self.pack_propagate(False)
@@ -63,6 +64,8 @@ class RegisteredBrowser(ttk.Frame):
         holder.rowconfigure(0, weight=1)
         holder.columnconfigure(0, weight=1)
         self.tree.bind('<<TreeviewSelect>>', self.select)
+        self.tree.bind('<F2>',lambda _:self.rename_item())
+        self.tree.bind('<Double-1>',self.rename_at)
         self.context_menu=tk.Menu(self.tree,tearoff=False)
         for label,command,shortcut in (
             ('切り取り',lambda:self.copy_item(cut=True),'Ctrl+X'),('コピー',self.copy_item,'Ctrl+C'),('貼り付け',self.paste_item,'Ctrl+V'),
@@ -76,6 +79,7 @@ class RegisteredBrowser(ttk.Frame):
         self.refresh()
 
     def refresh(self):
+        if self.renaming:self.cancel_rename()
         if self.refreshing:return
         self.refreshing=True
         try:self._refresh()
@@ -121,7 +125,7 @@ class RegisteredBrowser(ttk.Frame):
         if self.category!=page:
             if self.category:self.open_states[self.category]={key:bool(self.tree.item(key,'open')) for key in self.all_keys if self.tree.exists(key)}
             self.category=page;self.search.set('');previous=()
-        self.configure(width=280 if page=='catalog' else 260 if page=='specs' else 220)
+        self.configure(width=280 if page=='catalog' else 260)
         self.tree.column('#0',width=460 if page=='catalog' else 320 if page=='specs' else 240)
         label,rows=self.rows();self.all_keys=[row[0] for row in rows]
         self.items={k:(col,r) for k,_,_,col,r in rows if col}
@@ -181,6 +185,7 @@ class RegisteredBrowser(ttk.Frame):
             if previous!=(target,):self.tree.see(target)
 
     def ready(self):
+        if not self.finish_rename():return False
         if self.host.page=='rules' and not self.host.preset_editor.can_leave():return False
         return self.host.commit_definition_name() is not False
 
@@ -219,17 +224,51 @@ class RegisteredBrowser(ttk.Frame):
         self.host.mark('貼り付けました。Ctrl+Sでプロジェクトを保存できます。')
         self.tree.selection_set(target);self.tree.see(target)
 
+    def rename_at(self,event):
+        key=self.tree.identify_row(event.y)
+        editable=key in self.folder_nodes or self.host.page in ('ptset','gmset') and key in self.items
+        if editable and self.tree.identify_element(event.x,event.y)!='Treeitem.indicator':
+            self.tree.selection_set(key);self.rename_item();return 'break'
+
+    def cancel_rename(self):
+        if self.renaming:
+            state=self.renaming;self.renaming=None;state['entry'].destroy()
+        return 'break'
+
+    def finish_rename(self):
+        state=self.renaming
+        if not state:return True
+        data=state['data'];record=state['record'];name=state['variable'].get().strip()
+        try:
+            if self.host.data is not data or self.host.page!=state['page']:raise ValueError('プロジェクト・画面が変更されています。')
+            if state['folder']:
+                folders.update(data,record['id'],name=name)
+            else:
+                if not any(r is record for r in data['definitions']):raise ValueError('項目が削除されています。')
+                if not name or any(r is not record and r['name'].casefold()==name.casefold() for r in data['definitions']):raise ValueError('名前が空か重複しています。')
+                record['name']=name
+        except ValueError as exc:self.host.status.configure(text=str(exc));return False
+        self.cancel_rename()
+        if not state['folder']:self.host.geometry_editor.refresh()
+        self.host.mark('名前を変更しました。');return True
+
     def rename_item(self):
+        if not self.finish_rename() or not self.ready():return
         selected=self.tree.selection();key=selected[0] if selected else ''
-        if key in self.folder_nodes:self.rename_folder();return
-        if self.host.page not in ('ptset','gmset') or key not in self.items or not self.ready():return
-        record=self.items[key][1];data=self.host.data
-        def apply(values):
-            if self.host.data is not data or record not in data['definitions']:raise ValueError('プロジェクトが変更されています。')
-            name=values['name'].strip()
-            if not name or any(r is not record and r['name'].casefold()==name.casefold() for r in data['definitions']):raise ValueError('名前が空か重複しています。')
-            record['name']=name;self.host.geometry_editor.refresh()
-        self.host.form('セット名を変更',[('name','名前',record['name'],None)],apply)
+        folder=key in self.folder_nodes
+        if not folder and (self.host.page not in ('ptset','gmset') or key not in self.items):return
+        record=self.folder_nodes[key] if folder else self.items[key][1]
+        self.tree.see(key);self.tree.update_idletasks();box=self.tree.bbox(key,'#0')
+        if not box:return
+        x,y,w,h=box
+        variable=tk.StringVar(value=record['name']);entry=ttk.Entry(self.tree,textvariable=variable)
+        entry.place(x=x+22,y=y,width=max(80,min(w-22,self.tree.winfo_width()-x-22)),height=h)
+        self.renaming=dict(entry=entry,variable=variable,record=record,folder=folder,data=self.host.data,page=self.host.page)
+        entry.bind('<Return>',lambda _:(self.finish_rename(),'break')[1])
+        entry.bind('<Escape>',lambda _:self.cancel_rename())
+        entry.bind('<FocusOut>',lambda _:self.finish_rename())
+        entry.focus_set();entry.selection_range(0,'end')
+        return 'break'
 
     def delete_item(self):
         selected=self.tree.selection();key=selected[0] if selected else ''
@@ -263,7 +302,26 @@ class RegisteredBrowser(ttk.Frame):
             self.host.after_idle(reveal)
         self.host.form({'add':'フォルダを追加','rename':'フォルダ名を変更','move':'フォルダへ移動'}[mode],fields,apply)
 
-    def add_folder(self):self.folder_form('add')
+    def add_folder(self):
+        if self.host.page not in ('ptset','gmset'):return self.folder_form('add')
+        if not self.ready():return
+        selected=self.tree.selection();key=selected[0] if selected else ''
+        names={f['name'] for f in self.host.data.get('browser_folders',[]) if f['page']==self.host.page}
+        name=self.fresh_name('新しいフォルダ',names)
+        try:ident=folders.add(self.host.data,self.host.page,name,selected=key)
+        except ValueError as exc:self.host.status.configure(text=str(exc));return
+        self.reveal_created('folder:'+ident)
+
+    @staticmethod
+    def fresh_name(base,names):
+        number=1
+        while f'{base}({number})' in names:number+=1
+        return f'{base}({number})'
+
+    def reveal_created(self,key):
+        self.search.set('');self.signature=None;self.host.mark()
+        self.tree.selection_set(key);self.tree.see(key);self.tree.focus(key)
+
     def rename_folder(self):self.folder_form('rename')
     def move_item(self):self.folder_form('move')
     def delete_folder(self):
@@ -275,10 +333,21 @@ class RegisteredBrowser(ttk.Frame):
 
     def add_definition(self):
         if self.host.page=='rules':self.host.preset_editor.add();return
-        if self.host.page not in ('ptset','gmset'):return
-        if self.host.commit_definition_name() is False:return
-        selected=self.tree.selection()
-        return self.host.definition_form(self.host.page.upper(),insert_after=selected[0] if selected else '')
+        if self.host.page not in ('ptset','gmset') or not self.ready():return
+        from . import project,presets
+        import uuid
+        data=self.host.data
+        if len(data['definitions'])>=project.LIMITS['definitions']:
+            self.host.status.configure(text='定義数の上限です。');return
+        selected=self.tree.selection();anchor=selected[0] if selected else ''
+        name=self.fresh_name('新しいアイテム',{r['name'] for r in data['definitions']})
+        record=dict(id=uuid.uuid4().hex,name=name,kind=self.host.page.upper(),revision='01',elements=[],parameter_preset_id=presets.selected_id(data))
+        key='definitions:'+record['id']
+        try:folders.place_created(data,self.host.page,key,anchor)
+        except ValueError as exc:self.host.status.configure(text=str(exc));return
+        data['definitions'].append(record);self.host.definition_id=record['id']
+        if record['kind']=='PTSET':data['creation_draft']={'ptset_id':record['id']}
+        self.host.render_page();self.reveal_created(key)
 
     def select(self, _=None):
         if self.host.busy:
