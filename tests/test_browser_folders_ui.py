@@ -28,6 +28,29 @@ class FolderBrowserGuiTests(unittest.TestCase):
         self.select(key);self.assertEqual(self.app.geometry_editor.definition_id,d['id'])
         self.assertEqual(self.errors,[])
 
+    def test_catalog_add_icons_create_in_selected_cate_and_hide_on_other_pages(self):
+        first=project.add_cate(self.app.data,'/ICON-FIRST')
+        second=project.add_cate(self.app.data,'/ICON-SECOND')
+        self.app.switch('catalog');self.app.update();self.select('cates:'+second['id'])
+        def accept(title,fields,apply):
+            values={k:str(v) for k,_,v,_ in fields};values['name']='/ICON-'+('SDTE' if 'SDTE' in title else 'TEXT')
+            apply(values)
+        for kind in ('SDTE','TEXT'):
+            with patch.object(self.app,'form',side_effect=accept):self.b.catalog_buttons[kind].invoke()
+            record=self.app.data['texts'][-1]
+            self.assertEqual(record['type'],kind);self.assertEqual(record['parent_id'],second['id'])
+        with patch.object(self.app,'scom_form') as create:
+            self.b.catalog_buttons['SCOM'].invoke();create.assert_called_once_with()
+        self.select('cates:'+first['id'])
+        with patch.object(self.app,'scom_form') as create:
+            self.b.catalog_buttons['SCOM'].invoke();create.assert_called_once_with()
+            self.assertEqual(self.app.cate_id,first['id'])
+        self.app.cate_id=None;self.b.refresh()
+        self.assertTrue(all(str(b['state'])=='disabled' for b in self.b.catalog_buttons.values()))
+        self.app.switch('ptset');self.app.update()
+        self.assertTrue(all(not b.winfo_ismapped() for b in self.b.catalog_buttons.values()))
+        self.assertEqual(self.errors,[])
+
     def test_catalogue_uses_left_tree_for_empty_cate_and_related_data(self):
         from catalog_studio.catalog_workspace import add_association
         cate=project.add_cate(self.app.data,'/EMPTY-CATE')

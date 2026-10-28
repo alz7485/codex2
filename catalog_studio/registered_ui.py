@@ -20,11 +20,16 @@ class RegisteredBrowser(ttk.Frame):
         self.heading=ttk.Label(toolbar, text='登録データ', style='SidebarTitle.TLabel')
         self.heading.pack(side='left')
         from .project_actions import icon,Hint
-        self.action_icons={k:icon(self,k,color=theme.ACCENT) for k in ('new','folder_add','search','macro')}
+        self.action_icons={k:icon(self,k,color=theme.ACCENT) for k in ('new','folder_add','search','macro','sdte_add','text_add','scom_add')}
         organize=ttk.Frame(self,style='Sidebar.TFrame');organize.pack(fill='x',pady=(8,6))
         self.add_button=ttk.Button(organize,text='アイテムを追加',image=self.action_icons['new'],compound='none',command=self.add_definition,style='AttributeTool.TButton')
         self.folder_button=ttk.Button(organize,text='フォルダを追加',image=self.action_icons['folder_add'],compound='none',command=self.add_folder,style='AttributeTool.TButton');self.folder_button.pack(side='left')
         self.action_hints=(Hint(self.add_button,'アイテムを追加'),Hint(self.folder_button,'フォルダを追加'))
+        self.catalog_buttons={};self.catalog_hints=[]
+        for kind in ('SDTE','TEXT','SCOM'):
+            button=ttk.Button(organize,text=kind+'追加',image=self.action_icons[kind.lower()+'_add'],compound='none',command=lambda k=kind:self.add_catalog_record(k),style='AttributeTool.TButton')
+            self.catalog_buttons[kind]=button
+            self.catalog_hints.append(Hint(button,kind+'を追加'))
         self.macro_button=ttk.Menubutton(organize,text='マクロ ▾',image=self.action_icons['macro'],compound='left',style='AttributeTool.TButton')
         self.macro_menu=tk.Menu(self.macro_button,tearoff=False)
         self.macro_button.configure(menu=self.macro_menu)
@@ -150,6 +155,12 @@ class RegisteredBrowser(ttk.Frame):
         self.add_button.configure(text='PARAM プリセットを追加' if page=='rules' else 'アイテムを追加',width=0)
         state='normal' if page in folders.PAGES else 'disabled'
         self.folder_button.configure(state=state)
+        from . import project
+        cate=project.get(data,'cates',host.cate_id) if page=='catalog' else None
+        for button in self.catalog_buttons.values():
+            if page=='catalog':button.pack(side='left',padx=(4,0))
+            else:button.pack_forget()
+            button.configure(state='normal' if cate else 'disabled')
         if page in ('ptset','gmset'):self.macro_button.pack(side='left',padx=(4,0))
         else:self.macro_button.pack_forget()
         signature=(page,query,tuple((k,parent,text) for k,parent,text,_,_ in rows))
@@ -330,6 +341,13 @@ class RegisteredBrowser(ttk.Frame):
         try:folders.remove(self.host.data,folder['id'])
         except ValueError as exc:messagebox.showinfo('フォルダを削除できません',str(exc),parent=self.host);return
         self.host.mark('空の整理フォルダを削除しました。')
+
+    def add_catalog_record(self,kind):
+        if self.host.page!='catalog' or not self.ready():return
+        from . import project
+        if not project.get(self.host.data,'cates',self.host.cate_id):return
+        if kind=='SCOM':return self.host.scom_form()
+        if kind in ('SDTE','TEXT'):return self.host.catalog_members.create(kind)
 
     def add_definition(self):
         if self.host.page=='rules':self.host.preset_editor.add();return
