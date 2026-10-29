@@ -172,7 +172,7 @@ class GeometryCanvas(ttk.Frame):
         width,height=max(c.winfo_width(),100),max(c.winfo_height(),100)
         vertices=[p for m in meshes for p in m.vertices]+([p[0] for p in self.scene.points.values()] if self.show_points.get() else [])
         if not self.drag:
-            self.camera.fit(vertices,width,height,padding=55);self.camera.zoom*=self.zoom_factor
+            self.camera.fit(vertices,width,height,padding=getattr(self,'fit_padding',55));self.camera.zoom*=self.zoom_factor
         def xy(point):return self.camera.project(point,width,height)
         # Project the XY construction grid with the model in the 3D view.
         if self.show_grid.get():

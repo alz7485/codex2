@@ -222,6 +222,8 @@ def validate(data):
                  ('type', 'bore1', 'bore2', 'scom_id', 'description'), 5000)
     from . import catalog_workspace
     catalog_workspace.validate(data)
+    from .catalog_dimensions import validate as validate_catalog_dimensions
+    validate_catalog_dimensions(data)
     for collection in ('texts','tables'):
         _records(data.get(collection,[]), collection, ('name','type','parent_id','revision'),5000)
         for record in data.get(collection,[]):

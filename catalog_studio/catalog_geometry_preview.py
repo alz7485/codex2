@@ -1,7 +1,7 @@
 """Catalogue view using the same GeometryCanvas as the GMSET editor."""
 import tkinter as tk
 from tkinter import ttk
-from . import project
+from . import project,catalog_dimensions
 from .geometry_canvas import GeometryCanvas
 
 
@@ -28,6 +28,9 @@ class CatalogueEditor:
 
 class CatalogGeometryPreview(GeometryCanvas):
     def __init__(self,host,parent):
+        self.dimension_drag=None;self.dimension_items={};self.dimension_measurements=[]
+        self.dimension_lines=tk.BooleanVar(master=host,value=True)
+        self.connection_dimensions=tk.BooleanVar(master=host,value=True)
         editor=CatalogueEditor(host);editor.view=self
         editor.reference_bar=ttk.Frame(parent)
         super().__init__(editor,parent)
@@ -36,12 +39,17 @@ class CatalogGeometryPreview(GeometryCanvas):
         self.note.grid_remove()
         from . import model_settings
         ttk.Button(self.settings_content,text='設計値を編集',command=lambda:model_settings.edit(editor),style='AttributeTool.TButton').pack(fill='x',pady=(8,0))
+        ttk.Checkbutton(self.settings_content,text='寸法線（登録寸法のみ）',variable=self.dimension_lines,command=self.dimensions_changed).pack(anchor='w',pady=(8,0))
+        ttk.Checkbutton(self.settings_content,text='接続点間の寸法',variable=self.connection_dimensions,command=self.dimensions_changed).pack(anchor='w')
         self.pack(fill='both',expand=True)
         self.focus_override=self.toggle_focus
         # Selection is controlled by the catalogue list; keep its SCOM context.
         self.scom_choice.configure(state='disabled')
     def redraw(self):
+        if getattr(self,'refreshing',False):return
+        self.fit_padding=100 if self.actual and self.dimension_lines.get() else 55
         super().redraw()
+        catalog_dimensions.draw(self)
         if hasattr(self,'issue_label') and self.winfo_exists():
             if self.issue_label.cget('text'):self.issue_label.grid()
             else:self.issue_label.grid_remove()
@@ -56,7 +64,22 @@ class CatalogGeometryPreview(GeometryCanvas):
         self.redraw()
     def press(self,event):
         self.canvas.focus_set()
-        if self.editor.commit_inline():self.orbit_start(event)
+        if not self.editor.commit_inline():return
+        key=catalog_dimensions.hit(self,event.x,event.y)
+        if key:catalog_dimensions.start(self,key,event)
+        else:self.orbit_start(event)
+    def move(self,event):
+        if self.dimension_drag:catalog_dimensions.move(self,event)
+        else:super().move(event)
+    def release(self,event=None):
+        if self.dimension_drag:catalog_dimensions.release(self)
+        else:super().release(event)
+    def cancel(self,redraw=True):
+        self.dimension_drag=None
+        return super().cancel(redraw)
+    def dimensions_changed(self):
+        self.dimension_drag=None;self.redraw()
+
     def toggle_focus(self):
         host=self.editor.host;split=host.catalog_panes;attribute=host.catalog_inspector.master
         if getattr(self,'focused',False):
