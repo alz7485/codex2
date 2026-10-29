@@ -479,6 +479,7 @@ class RegisteredBrowser(ttk.Frame):
                 finally:host.busy=False
                 host.catalog_inspector.refresh()
                 if old_scom!=host.scom_id:host.update_scom_preview()
+                else:host.preview.cancel(redraw=True)
                 self.refresh();return
             host.switch('catalog');return
         if collection == 'definitions':

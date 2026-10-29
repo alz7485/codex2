@@ -53,9 +53,7 @@ def offsets(view):
     return result
 
 
-def description(view,dimension):
-    japanese=dimension['label'] if dimension['key'].startswith('extent:') else dimension['label']+' 接続点間距離'
-    if not view.dimension_stext.get():return japanese
+def matching_texts(view,dimension):
     # Only use explicit PARAM provenance; never guess by coincident numeric values.
     from . import pairing,presets,expressions,element_schema as schema
     e=view.editor
@@ -78,15 +76,33 @@ def description(view,dimension):
         if record.get('type')!='TEXT' or record.get('parent_id')!=scom.get('cate_id'):continue
         if source.get('preset_id')!=presets.selected_id(e.data,scom):continue
         if set(source.get('parameters','').split(', '))!=ids or not ids:continue
-        value=record.get('attrs',{}).get('STEXT','').strip()
-        if value and value not in texts:texts.append(value)
-    return texts[0] if len(texts)==1 else japanese+'（対応STEXTなし）'
+        texts.append(record)
+    return texts
+
+
+def description(view,dimension):
+    japanese=dimension['label'] if dimension['key'].startswith('extent:') else dimension['label']+' 接続点間距離'
+    if not view.dimension_stext.get():return japanese
+    values={r.get('attrs',{}).get('STEXT','').strip() for r in matching_texts(view,dimension)}-{''}
+    return next(iter(values)) if len(values)==1 else japanese+'（対応STEXTなし）'
+
+
+def selected_text(view):
+    from . import project
+    host=view.editor.host
+    key=getattr(host,'catalog_member_key','') or ''
+    if getattr(host,'catalog_tab','scom')!='members' or not key.startswith('texts:'):return None
+    record=project.get(view.editor.data,'texts',key.split(':',1)[1])
+    return record if record and record.get('type')=='TEXT' else None
 
 
 def draw(view):
     c=view.canvas;c.delete('catalog-dimension');view.dimension_items={};view.dimension_measurements=[]
     if not view.actual or not view.dimension_lines.get():return
-    dimensions=measurements(view.scene,True,view.connection_dimensions.get());view.dimension_measurements=dimensions
+    dimensions=measurements(view.scene,True,view.connection_dimensions.get())
+    selected=selected_text(view)
+    if selected:dimensions=[d for d in dimensions if any(r['id']==selected['id'] for r in matching_texts(view,d))]
+    view.dimension_measurements=dimensions
     width,height=c.winfo_width(),c.winfo_height()
     saved=offsets(view)
     vertices=[p for m in view.scene.meshes if not m.negative for p in m.vertices]

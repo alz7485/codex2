@@ -38,6 +38,20 @@ class CatalogDimensionTests(unittest.TestCase):
             view.dimension_buttons['visible'].invoke();app.update()
             self.assertFalse(view.dimension_items)
             view.dimension_buttons['visible'].invoke();view.dimension_buttons['stext'].invoke();app.update()
+            from unittest.mock import patch
+            text={'id':'dimension-text','type':'TEXT','parent_id':s['cate_id'],'name':'/DIMENSION-TEXT','attrs':{'STEXT':'Face to face'}}
+            app.data['texts'].append(text)
+            app.catalog_tab='members';app.catalog_member_key='texts:'+text['id']
+            with patch.object(dims,'matching_texts',side_effect=lambda v,d:[text] if d['key']=='points:1:2' else []):
+                view.redraw();app.update()
+                self.assertEqual(set(view.dimension_items),{'points:1:2'})
+                view.dimension_lines.set(False);view.redraw()
+                self.assertFalse(view.dimension_items)
+                app.catalog_tab='scom';view.redraw()
+                self.assertFalse(view.dimension_items)
+                view.dimension_lines.set(True);view.redraw()
+                self.assertIn('extent:X',view.dimension_items)
+            app.data['texts'].remove(text)
             before=copy.deepcopy(app.data);yaw=view.camera.yaw
             key='extent:X';item=view.dimension_items[key]['text'];x,y=view.canvas.coords(item)
             view.canvas.event_generate('<Button-1>',x=round(x),y=round(y));app.update()
