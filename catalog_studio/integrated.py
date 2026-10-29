@@ -210,7 +210,7 @@ class IntegratedStudio(tk.Tk):
 
     def build_catalog(self):
         from .catalog_members_ui import CatalogMembers, bundle_form
-        self.heading('カタログ作成','CATE と配下の SDTE・TEXT・SCOM、スペック登録用の DETAIL・PROP を作成します。', [('SCOM を追加',self.add_scom),('CATE を追加',self.add_cate),('CATE 一式を作成',lambda:bundle_form(self))])
+        self.heading('カタログ作成','CATE と配下の SDTE・TEXT・SCOM、スペック登録用の DETAIL・PROP を作成します。', [])
         split=ttk.Panedwindow(self.content,orient='horizontal');split.pack(fill='both',expand=True)
         middle=ttk.Frame(split,padding=10,width=560);right=ttk.Frame(split,padding=10,width=300)
         middle.pack_propagate(False);right.pack_propagate(False)

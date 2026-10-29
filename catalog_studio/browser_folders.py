@@ -84,21 +84,21 @@ def ordered_keys(data,page,exclude=''):
 
 def place_created(data,page,key,selected=''):
     """Select a folder's first child, or the following sibling of a record."""
-    if page not in ('ptset','gmset'):raise ValueError('同じ種類の一覧へ追加してください。')
+    if page not in ('ptset','gmset','catalog'):raise ValueError('同じ種類の一覧へ追加してください。')
     result=candidate(data);parent=''
     if selected.startswith('folder:'):
         parent=selected.split(':',1)[1]
         if not any(f['id']==parent and f['page']==page for f in result['browser_folders']):raise ValueError('追加先のフォルダが変更されています。')
     elif selected:
         collection,_,ident=selected.partition(':')
-        if collection!='definitions' or not any(r['id']==ident and r['kind']==page.upper() for r in data['definitions']):raise ValueError('追加位置が変更されています。')
+        if collection!=PAGE_COLLECTIONS[page] or not any(r['id']==ident and (page=='catalog' or r['kind']==page.upper()) for r in data[collection]):raise ValueError('追加位置が変更されています。')
         parent=result['browser_placements'].get(page+'|'+selected,'')
     if key.startswith('folder:'):
         f=next((f for f in result['browser_folders'] if 'folder:'+f['id']==key),None)
         if not f or f['page']!=page:raise ValueError('追加するフォルダが見つかりません。')
         f['parent_id']=parent
     else:
-        if key.partition(':')[0]!='definitions' or not key.partition(':')[2]:raise ValueError('追加するセットが不正です。')
+        if key.partition(':')[0]!=PAGE_COLLECTIONS[page] or not key.partition(':')[2]:raise ValueError('追加するセットが不正です。')
         if parent:result['browser_placements'][page+'|'+key]=parent
     order=ordered_keys(data,page,exclude=key)
     if selected and selected not in order:raise ValueError('追加位置が変更されています。')

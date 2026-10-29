@@ -10,8 +10,11 @@ def icon(master,kind,*,color='#edf3ff'):
         for i in range(n+1):image.put(color,(round(x+(u-x)*i/n),round(y+(v-y)*i/n)))
     def path(points):
         for a,b in zip(points,points[1:]):line(a,b)
-    if kind in ('sdte_add','text_add','scom_add'):
-        if kind=='scom_add':
+    if kind in ('cate_add','sdte_add','text_add','scom_add'):
+        if kind=='cate_add':
+            path([(2,17),(2,5),(8,5),(10,7),(20,7),(20,12)])
+            line((2,17),(11,17));line((4,10),(16,10))
+        elif kind=='scom_add':
             path([(3,7),(10,3),(17,7),(17,13),(10,17),(3,13),(3,7),(10,11),(17,7)])
             line((10,11),(10,17))
         else:

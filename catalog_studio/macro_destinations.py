@@ -3,7 +3,7 @@ import re
 
 KEY = 'macro_destinations'
 LIST_KEY = 'macro_destination_lists'
-KINDS = ('PTSET', 'GMSET')
+KINDS = ('PTSET', 'GMSET', 'CATE')
 
 
 def normalize(value, *, strict=True):

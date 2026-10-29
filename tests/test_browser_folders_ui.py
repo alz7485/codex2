@@ -32,22 +32,26 @@ class FolderBrowserGuiTests(unittest.TestCase):
         first=project.add_cate(self.app.data,'/ICON-FIRST')
         second=project.add_cate(self.app.data,'/ICON-SECOND')
         self.app.switch('catalog');self.app.update();self.select('cates:'+second['id'])
-        def accept(title,fields,apply):
-            values={k:str(v) for k,_,v,_ in fields};values['name']='/ICON-'+('SDTE' if 'SDTE' in title else 'TEXT')
-            apply(values)
-        for kind in ('SDTE','TEXT'):
-            with patch.object(self.app,'form',side_effect=accept):
+        for kind in ('SDTE','TEXT','SCOM'):
+            with patch.object(self.app,'form') as form,patch.object(self.app,'scom_form') as modal:
                 self.b.text_menu.invoke(1) if kind=='TEXT' else self.b.catalog_buttons[kind].invoke()
-            record=self.app.data['texts'][-1]
-            self.assertEqual(record['type'],kind);self.assertEqual(record['parent_id'],second['id'])
-        with patch.object(self.app,'scom_form') as create:
-            self.b.catalog_buttons['SCOM'].invoke();create.assert_called_once_with()
-        self.select('cates:'+first['id'])
-        with patch.object(self.app,'scom_form') as create:
-            self.b.catalog_buttons['SCOM'].invoke();create.assert_called_once_with()
-            self.assertEqual(self.app.cate_id,first['id'])
+                self.app.update();form.assert_not_called();modal.assert_not_called()
+            collection='scoms' if kind=='SCOM' else 'texts'
+            record=self.app.data[collection][-1]
+            self.assertEqual(record.get('type','SCOM'),kind)
+            self.assertEqual(record.get('parent_id',record.get('cate_id')),second['id'])
+            self.assertEqual(self.b.tree.selection(),(collection+':'+record['id'],))
+            self.assertTrue(self.app.catalog_inspector.fields)
+        self.b.folder_button.invoke();self.app.update()
+        folder=self.b.tree.selection()[0]
+        self.b.catalog_buttons['CATE'].invoke();self.app.update()
+        self.assertEqual(self.b.tree.parent(self.b.tree.selection()[0]),folder)
+        self.assertIsNone(self.app.grab_current())
+        self.assertTrue(self.b.macro_button.winfo_ismapped())
+        self.assertEqual([self.b.macro_menu.entrycget(i,'label') for i in (0,1,3)],['読込','出力','登録先編集'])
         self.app.cate_id=None;self.b.refresh()
-        self.assertTrue(all(str(b['state'])=='disabled' for b in self.b.catalog_buttons.values()))
+        self.assertEqual(str(self.b.catalog_buttons['CATE']['state']),'normal')
+        self.assertTrue(all(str(b['state'])=='disabled' for k,b in self.b.catalog_buttons.items() if k!='CATE'))
         self.app.switch('ptset');self.app.update()
         self.assertTrue(all(not b.winfo_ismapped() for b in self.b.catalog_buttons.values()))
         self.assertEqual(self.errors,[])

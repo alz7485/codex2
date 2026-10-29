@@ -20,13 +20,13 @@ class RegisteredBrowser(ttk.Frame):
         self.heading=ttk.Label(toolbar, text='登録データ', style='SidebarTitle.TLabel')
         self.heading.pack(side='left')
         from .project_actions import icon,Hint
-        self.action_icons={k:icon(self,k,color=theme.ACCENT) for k in ('new','folder_add','search','macro','sdte_add','text_add','scom_add')}
+        self.action_icons={k:icon(self,k,color=theme.ACCENT) for k in ('new','folder_add','search','macro','cate_add','sdte_add','text_add','scom_add')}
         organize=ttk.Frame(self,style='Sidebar.TFrame');organize.pack(fill='x',pady=(8,6))
         self.add_button=ttk.Button(organize,text='アイテムを追加',image=self.action_icons['new'],compound='none',command=self.add_definition,style='AttributeTool.TButton')
         self.folder_button=ttk.Button(organize,text='フォルダを追加',image=self.action_icons['folder_add'],compound='none',command=self.add_folder,style='AttributeTool.TButton');self.folder_button.pack(side='left')
         self.action_hints=(Hint(self.add_button,'アイテムを追加'),Hint(self.folder_button,'フォルダを追加'))
         self.catalog_buttons={};self.catalog_hints=[]
-        for kind in ('SDTE','TEXT','SCOM'):
+        for kind in ('CATE','SDTE','TEXT','SCOM'):
             if kind=='TEXT':
                 button=ttk.Menubutton(organize,text='▾',width=2,image=self.action_icons['text_add'],compound='left',style='AttributeTool.TButton')
                 self.text_menu=tk.Menu(button,tearoff=False);button.configure(menu=self.text_menu)
@@ -39,12 +39,10 @@ class RegisteredBrowser(ttk.Frame):
         self.macro_button=ttk.Menubutton(organize,text='マクロ ▾',image=self.action_icons['macro'],compound='left',style='AttributeTool.TButton')
         self.macro_menu=tk.Menu(self.macro_button,tearoff=False)
         self.macro_button.configure(menu=self.macro_menu)
-        self.macro_menu.add_command(label='読込',command=host.import_creation_macro)
-        from .macro_export_ui import open_export
-        from .macro_destinations_ui import edit_destinations
-        self.macro_menu.add_command(label='出力',command=lambda:open_export(host.geometry_editor))
+        self.macro_menu.add_command(label='読込',command=self.import_macro)
+        self.macro_menu.add_command(label='出力',command=self.export_macro)
         self.macro_menu.add_separator()
-        self.macro_menu.add_command(label='登録先編集',command=lambda:edit_destinations(host.geometry_editor))
+        self.macro_menu.add_command(label='登録先編集',command=self.edit_macro_destinations)
         self.search = tk.StringVar()
         self.search_row=ttk.Frame(self,style='Sidebar.TFrame');self.search_row.pack(fill='x',pady=(0,8))
         ttk.Label(self.search_row,image=self.action_icons['search'],style='Sidebar.TLabel').pack(side='left',padx=(0,4))
@@ -136,7 +134,7 @@ class RegisteredBrowser(ttk.Frame):
         if self.category!=page:
             if self.category:self.open_states[self.category]={key:bool(self.tree.item(key,'open')) for key in self.all_keys if self.tree.exists(key)}
             self.category=page;self.search.set('');previous=()
-        self.configure(width=320 if page=='catalog' else 300)
+        self.configure(width=390 if page=='catalog' else 300)
         self.tree.column('#0',width=460 if page=='catalog' else 320 if page=='specs' else 240)
         label,rows=self.rows();self.all_keys=[row[0] for row in rows]
         self.items={k:(col,r) for k,_,_,col,r in rows if col}
@@ -163,11 +161,12 @@ class RegisteredBrowser(ttk.Frame):
         self.folder_button.configure(state=state)
         from . import project
         cate=project.get(data,'cates',host.cate_id) if page=='catalog' else None
-        for button in self.catalog_buttons.values():
+        self.macro_button.pack_forget()
+        for kind,button in self.catalog_buttons.items():
             if page=='catalog':button.pack(side='left',padx=(4,0))
             else:button.pack_forget()
-            button.configure(state='normal' if cate else 'disabled')
-        if page in ('ptset','gmset'):self.macro_button.pack(side='left',padx=(4,0))
+            button.configure(state='normal' if cate or kind=='CATE' else 'disabled')
+        if page in ('ptset','gmset','catalog'):self.macro_button.pack(side='left',padx=(4,0))
         else:self.macro_button.pack_forget()
         signature=(page,query,tuple((k,parent,text) for k,parent,text,_,_ in rows))
         if signature!=self.signature:
@@ -320,9 +319,11 @@ class RegisteredBrowser(ttk.Frame):
         self.host.form({'add':'フォルダを追加','rename':'フォルダ名を変更','move':'フォルダへ移動'}[mode],fields,apply)
 
     def add_folder(self):
-        if self.host.page not in ('ptset','gmset'):return self.folder_form('add')
+        if self.host.page not in ('ptset','gmset','catalog'):return self.folder_form('add')
         if not self.ready():return
         selected=self.tree.selection();key=selected[0] if selected else ''
+        if self.host.page=='catalog':
+            while key and not key.startswith(('folder:','cates:')):key=self.tree.parent(key)
         names={f['name'] for f in self.host.data.get('browser_folders',[]) if f['page']==self.host.page}
         name=self.fresh_name('新しいフォルダ',names)
         try:ident=folders.add(self.host.data,self.host.page,name,selected=key)
@@ -332,7 +333,7 @@ class RegisteredBrowser(ttk.Frame):
     @staticmethod
     def fresh_name(base,names):
         number=1
-        while f'{base}({number})' in names:number+=1
+        while f'{base}({number})'.casefold() in {n.casefold() for n in names}:number+=1
         return f'{base}({number})'
 
     def reveal_created(self,key):
@@ -355,10 +356,54 @@ class RegisteredBrowser(ttk.Frame):
 
     def add_catalog_record(self,kind):
         if self.host.page!='catalog' or not self.ready():return
-        from . import project
-        if not project.get(self.host.data,'cates',self.host.cate_id):return
-        if kind=='SCOM':return self.host.scom_form()
-        if kind in ('SDTE','TEXT'):return self.host.catalog_members.create(kind)
+        from . import project,catalogue
+        data=self.host.data
+        if kind!='CATE' and not project.get(data,'cates',self.host.cate_id):return
+        names={r['name'].casefold() for col in ('cates','scoms','texts','definitions','specs','catalog_details','catalog_props') for r in data.get(col,[])}
+        name=self.fresh_name('新しい'+kind,names)
+        import copy
+        original=data;data=copy.deepcopy(data)
+        try:
+            if kind=='CATE':
+                record=project.add_cate(data,name)
+                selected=self.tree.selection();anchor=selected[0] if selected else ''
+                while anchor and not anchor.startswith(('folder:','cates:')):anchor=self.tree.parent(anchor)
+                folders.place_created(data,'catalog','cates:'+record['id'],anchor)
+                collection='cates';self.host.cate_id=record['id'];self.host.scom_id=None
+            elif kind=='SCOM':
+                record=project.add_scom(data,self.host.cate_id,name)
+                record.update(gmset_id='',ptset_id='');collection='scoms'
+                self.host.scom_id=record['id']
+            else:
+                record=catalogue.add_record(data,'texts',kind,name,self.host.cate_id);collection='texts'
+        except ValueError as exc:self.host.status.configure(text=str(exc));return
+        self.host.data=original
+        original.clear();original.update(data)
+        key=collection+':'+record['id'];self.catalog_target=key
+        self.host.catalog_tab='members' if collection=='texts' else 'scom'
+        if collection=='texts':self.host.catalog_member_key=key
+        self.host.render_page();self.reveal_created(key)
+
+    def import_macro(self):
+        if not self.ready():return
+        if self.host.page=='catalog':
+            from .catalog_macro_ui import import_macro
+            return import_macro(self.host)
+        return self.host.import_creation_macro()
+
+    def export_macro(self):
+        if not self.ready():return
+        if self.host.page=='catalog':
+            from .catalog_macro_ui import export_macro
+            return export_macro(self.host)
+        from .macro_export_ui import open_export
+        return open_export(self.host.geometry_editor)
+
+    def edit_macro_destinations(self):
+        if not self.ready():return
+        from .macro_destinations_ui import edit_destinations
+        from types import SimpleNamespace
+        return edit_destinations(SimpleNamespace(host=self.host,kind='CATE') if self.host.page=='catalog' else self.host.geometry_editor)
 
     def add_definition(self):
         if self.host.page=='rules':self.host.preset_editor.add();return
