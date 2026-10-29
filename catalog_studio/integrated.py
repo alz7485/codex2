@@ -248,7 +248,8 @@ class IntegratedStudio(tk.Tk):
         ttk.Button(references,text='GMSET を編集',command=lambda:self.goto_definition('gmset_id')).pack(side='left',pady=8,padx=3)
         ttk.Button(references,text='PTSET を編集',command=lambda:self.goto_definition('ptset_id')).pack(side='left',pady=8,padx=3)
         ttk.Label(preview_parent,text='プレビュー',style='Heading.TLabel').pack(anchor='w')
-        self.preview=Preview(preview_parent,self.ui_font)
+        from .catalog_geometry_preview import CatalogGeometryPreview
+        self.preview=CatalogGeometryPreview(self,preview_parent)
         self.scom_detail=ttk.Label(preview_parent,text='',style='Muted.TLabel',wraplength=600);self.scom_detail.pack(anchor='w',pady=12)
         ttk.Label(preview_parent,text='寸法は SCOM の値です。定義側には保存しません。',style='Muted.TLabel',wraplength=330).pack(anchor='w')
         self.update_scom_preview()

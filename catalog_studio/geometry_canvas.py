@@ -76,8 +76,7 @@ class GeometryCanvas(ttk.Frame):
         self.issue_label.bind('<Configure>',lambda e:self.issue_label.configure(wraplength=max(120,e.width-4)))
         self.canvas.bind('<Configure>',lambda _:self.redraw())
         self.canvas.bind('<Button-1>',self.press);self.canvas.bind('<B1-Motion>',self.move);self.canvas.bind('<ButtonRelease-1>',self.release)
-        self.canvas.bind('<Button-3>',self.orbit_start);self.canvas.bind('<B3-Motion>',self.orbit_move)
-        self.canvas.bind('<ButtonRelease-3>',lambda _:setattr(self,'orbit',None));self.canvas.bind('<Escape>',lambda _:self.cancel())
+        self.canvas.bind('<Escape>',lambda _:self.cancel())
         self.bind('<Destroy>',lambda e:self.dispose() if e.widget is self else None)
         from .preview_preferences import attach
         attach(self)
@@ -250,7 +249,7 @@ class GeometryCanvas(ttk.Frame):
         if self.actual and meshes:
             points=[p for m in meshes for p in m.vertices]
             dimensions='\n外形：'+' / '.join('XYZ'[i]+' '+format(max(p[i] for p in points)-min(p[i] for p in points),'.5g') for i in range(3))+' mm（DB 単位）'
-        self.note.configure(text=('登録寸法で確認：寸法比を保持して全体表示 / 右ドラッグ：回転'+dimensions if self.actual else '仮配置・単位なし ｜ 右ドラッグ：回転 ｜ ホイール：ズーム')+'')
+        self.note.configure(text=('登録寸法で確認：寸法比を保持して全体表示 / 左ドラッグ：回転'+dimensions if self.actual else '仮配置・単位なし ｜ 左ドラッグ：回転 ｜ ホイール：ズーム')+'')
         status=('登録寸法で確認 · '+(scom['name'] if scom else '参照SCOMを選択してください')) if self.actual else '仮配置で確認 · 編集用の仮値'
         c.create_text(width-12,12,text=status,anchor='ne',justify='right',fill=theme.MUTED,width=max(100,width-self.mode_overlay.winfo_reqwidth()-36),font=(e.host.ui_font,9),tags='preview-mode')
         hidden=self.scene.hidden
@@ -280,10 +279,11 @@ class GeometryCanvas(ttk.Frame):
     def press(self,event):
         self.canvas.focus_set()
         if not self.editor.commit_inline():return
-        self.resize_issue=''
+        self.resize_issue='';self.orbit_start(event)
         if not self.actual:
             hit=next((i for i,h in self.handles.items() if math.hypot(event.x-h['screen'][0],event.y-h['screen'][1])<=10),None)
             if hit is not None:
+                self.orbit=None
                 node=self.editor.element();handle=self.handles[hit]
                 self.drag={'data':self.editor.data,'definition':self.editor.definition_id,'node':node,'axis':hit,'origin':(event.x,event.y),'screen':handle['screen'],'center':handle['start'],'extent':handle['extent'],'old':copy.deepcopy(node.get(geometry.SCALE_KEY)),'scale':list(node.get(geometry.SCALE_KEY,(1,1,1))),
                            'context':geometry_preview.context(self.editor.data,self.editor.definition()),'state':self.scene.preview.snapshot()}
@@ -299,7 +299,7 @@ class GeometryCanvas(ttk.Frame):
                     self.editor.elements.selection_set(ident);self.editor.select_element();return
 
     def move(self,event):
-        if not self.drag:return
+        if not self.drag:self.orbit_move(event);return
         d=self.drag
         if self.actual or d['data'] is not self.editor.data or d['definition']!=self.editor.definition_id:self.cancel();return
         if d['context']!=geometry_preview.context(self.editor.data,self.editor.definition()):
@@ -321,6 +321,7 @@ class GeometryCanvas(ttk.Frame):
         self.redraw()
 
     def release(self,_=None):
+        self.orbit=None
         if not self.drag:return
         d=self.drag;self.drag=None
         if d['data'] is self.editor.data and d['definition']==self.editor.definition_id and any(n is d['node'] for n in schema.walk((self.editor.definition() or {}).get('elements',[]))):
@@ -335,7 +336,7 @@ class GeometryCanvas(ttk.Frame):
         self.redraw()
 
     def cancel(self,redraw=True):
-        self.drag=None;self.resize_issue=''
+        self.drag=None;self.orbit=None;self.resize_issue=''
         if redraw and self.winfo_exists():self.redraw()
 
     def orbit_start(self,event):self.orbit=(event.x,event.y,self.camera.yaw,self.camera.pitch)

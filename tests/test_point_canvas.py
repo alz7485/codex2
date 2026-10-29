@@ -59,8 +59,8 @@ class PointCanvasGuiTests(unittest.TestCase):
         if hasattr(self,'app'):self.app.destroy()
     def pixels(self,point):
         return tuple(round(v) for v in self.view.camera.project(point,self.view.canvas.winfo_width(),self.view.canvas.winfo_height()))
-    def click(self,point):
-        x,y=self.pixels(point);self.view.canvas.event_generate('<Button-1>',x=x,y=y);self.view.canvas.event_generate('<ButtonRelease-1>',x=x,y=y);self.app.update()
+    def click(self,point,button=3):
+        x,y=self.pixels(point);self.view.canvas.event_generate(f'<Button-{button}>',x=x,y=y);self.view.canvas.event_generate(f'<ButtonRelease-{button}>',x=x,y=y);self.app.update()
     def create(self,point,kind='PTCAR'):
         self.click(point);self.assertTrue(self.view.context_menu.winfo_ismapped())
         self.view.create_menu.invoke(list(schema.PT_TYPES).index(kind));self.app.update()
@@ -93,7 +93,7 @@ class PointCanvasGuiTests(unittest.TestCase):
         self.app.update()
 
     def test_click_only_selects_and_drag_commits_on_release(self):
-        original=copy.deepcopy(self.point);self.click(self.view.positions[self.point['id']])
+        original=copy.deepcopy(self.point);self.click(self.view.positions[self.point['id']],button=1)
         self.assertEqual(self.editor.element_id,self.point['id']);self.assertEqual(self.point,original)
         self.assertFalse(self.view.context_menu.winfo_ismapped())
         self.drag((1,.53,.8),release=False);self.assertEqual(self.point,original)
@@ -118,7 +118,7 @@ class PointCanvasGuiTests(unittest.TestCase):
 
     def test_distance_edits_follow_the_older_point_but_scom_values_do_not_change_the_layout(self):
         other=schema.add_element(self.editor.definition(),'PTAXI');other['attrs'].update(PAXI='-X',PDIS='PARAM 3')
-        self.editor.refresh();self.app.update();layout=self.view.positions[other['id']];self.click(layout)
+        self.editor.refresh();self.app.update();layout=self.view.positions[other['id']];self.click(layout,button=1)
         self.assertEqual(self.editor.element_id,other['id'])
         self.editor.tables['main'].selection_set('PDIS');self.app.update();self.editor.expression.set('PARAM 3 / 2');self.app.update()
         expected=tuple(v/2 for v in layout);self.assertEqual(self.view.positions[other['id']],expected)
@@ -126,7 +126,7 @@ class PointCanvasGuiTests(unittest.TestCase):
         self.assertEqual(self.view.positions[other['id']],expected);self.assertEqual(self.errors,[])
 
     def test_rotation_zoom_and_navigation_do_not_edit_data(self):
-        before=copy.deepcopy(self.app.data);self.view.canvas.event_generate('<Button-3>',x=200,y=200);self.view.canvas.event_generate('<B3-Motion>',x=240,y=230);self.view.zoom(1.2);self.app.update()
+        before=copy.deepcopy(self.app.data);self.view.canvas.event_generate('<Button-1>',x=200,y=200);self.view.canvas.event_generate('<B1-Motion>',x=240,y=230);self.view.zoom(1.2);self.app.update()
         self.assertNotEqual(self.view.camera.yaw,0);self.assertEqual(self.app.data,before)
         win=self.view;self.app.switch('gmset');self.app.update();self.assertFalse(win.winfo_exists());self.assertEqual(self.errors,[])
 

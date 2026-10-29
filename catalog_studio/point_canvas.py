@@ -42,11 +42,11 @@ class PointCanvas(ttk.Frame):
         plane_row.lift();self.unit_label.lift()
         preview_controls.zoom_buttons(self)
         self.canvas.bind('<Configure>',lambda _:self.redraw());self.canvas.bind('<Button-1>',self.press);self.canvas.bind('<B1-Motion>',self.move);self.canvas.bind('<ButtonRelease-1>',self.release)
-        self.canvas.bind('<Button-3>',self.orbit_start);self.canvas.bind('<B3-Motion>',self.orbit_move)
+        self.canvas.bind('<Button-3>',self.create_press)
         self.canvas.bind('<MouseWheel>',lambda ev:self.zoom(1.12 if ev.delta>0 else 1/1.12));self.canvas.bind('<Button-4>',lambda _:self.zoom(1.12));self.canvas.bind('<Button-5>',lambda _:self.zoom(1/1.12))
         self.note=ttk.Label(self,text='',wraplength=280,foreground='#738499');self.note.grid(row=5,column=0,sticky='ew',pady=(6,0))
         self.note.bind('<Configure>',lambda ev:self.note.configure(wraplength=max(140,ev.width-4)))
-        hint=ttk.Label(self,text='空白：点を作成 ｜ ドラッグ：移動 ｜ 右：回転 ｜ ホイール：ズーム',wraplength=280,style='Muted.TLabel');hint.grid(row=6,column=0,sticky='ew',pady=(6,0))
+        hint=ttk.Label(self,text='左ドラッグ：回転 ｜ 点ドラッグ：移動 ｜ 右クリック：点作成 ｜ ホイール：ズーム',wraplength=280,style='Muted.TLabel');hint.grid(row=6,column=0,sticky='ew',pady=(6,0))
         hint.bind('<Configure>',lambda ev:hint.configure(wraplength=max(140,ev.width-4)))
         self.canvas.bind('<Escape>',lambda _:self.cancel());self.redraw()
         from .preview_preferences import attach
@@ -168,17 +168,23 @@ class PointCanvas(ttk.Frame):
         if ident:
             self.editor.elements.selection_set(ident);self.editor.select_element()
             self.dragging=ident;self.press_position=(event.x,event.y);self.redraw()
-        else:
-            self.menu_context={'pixels':(event.x,event.y),'data':self.editor.data,'definition':self.editor.definition_id,'plane':self.plane.get()}
-            self.context_menu.entryconfigure(0,state='normal' if self.editor.definition() else 'disabled')
-            try:self.context_menu.tk_popup(self.canvas.winfo_rootx()+event.x,self.canvas.winfo_rooty()+event.y)
-            finally:self.context_menu.grab_release()
+        else:self.orbit_start(event)
+
+    def create_press(self,event):
+        if not self.editor.commit_inline():return
+        self.cancel();self.canvas.focus_set()
+        self.menu_context={'pixels':(event.x,event.y),'data':self.editor.data,'definition':self.editor.definition_id,'plane':self.plane.get()}
+        self.context_menu.entryconfigure(0,state='normal' if self.editor.definition() else 'disabled')
+        try:self.context_menu.tk_popup(self.canvas.winfo_rootx()+event.x,self.canvas.winfo_rooty()+event.y)
+        finally:self.context_menu.grab_release()
 
     def move(self,event):
+        if not self.dragging:self.orbit_move(event);return
         if self.dragging and self.press_position and max(abs(event.x-self.press_position[0]),abs(event.y-self.press_position[1]))>=4:
             self.propose(event.x,event.y,self.dragging)
 
     def release(self,event):
+        self.orbit=None
         if self.dragging and self.pending:self.apply()
         self.dragging=None;self.press_position=None
 
@@ -223,7 +229,7 @@ class PointCanvas(ttk.Frame):
         except (ValueError,KeyError) as exc:self.error_message=str(exc);self.pending=None;self.redraw()
 
     def cancel(self):
-        self.dismiss_menu();self.error_message='';self.pending=None;self.dragging=None;self.press_position=None;self.redraw()
+        self.dismiss_menu();self.error_message='';self.pending=None;self.dragging=None;self.press_position=None;self.orbit=None;self.redraw()
     def apply(self):
         if not self.pending:return
         p=self.pending;e=self.editor

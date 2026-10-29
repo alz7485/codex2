@@ -102,7 +102,7 @@ class GeometryCanvasTests(unittest.TestCase):
                 w,h=self.canvas.winfo_width(),self.canvas.winfo_height()
                 for point in self.view.scene.vertices():
                     x,y=self.view.camera.project(point,w,h);self.assertTrue(40<=x<=w-40 and 40<=y<=h-40)
-                self.canvas.event_generate('<Button-3>',x=100,y=100);self.canvas.event_generate('<B3-Motion>',x=145,y=130);self.canvas.event_generate('<ButtonRelease-3>',x=145,y=130);self.app.update()
+                self.canvas.event_generate('<Button-1>',x=100,y=100);self.canvas.event_generate('<B1-Motion>',x=145,y=130);self.canvas.event_generate('<ButtonRelease-1>',x=145,y=130);self.app.update()
         self.assertEqual(self.errors,[])
 
     def test_picking_shapes_and_display_toggles_select_attributes_without_mutation(self):

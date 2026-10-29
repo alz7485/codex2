@@ -103,7 +103,7 @@ class PresetGuiTests(unittest.TestCase):
         editor.list.selection_set('parameter_presets:'+profile['id']);app.update()
         self.assertEqual(presets.selected_id(app.data),profile['id']);self.assertEqual(app.data['scoms'][0],old)
         self.assertIn('日本語の詳細説明',app.preset_editor.table.item('P1','values'))
-        app.switch('catalog');app.update();self.assertIn('大径側外径',app.scom_detail.cget('text'));self.assertNotIn('胴部径',app.scom_detail.cget('text'))
+        app.switch('catalog');app.update();meanings=' '.join(row[1] for row in app.catalog_inspector.tree.rows.values());self.assertIn('大径側外径',meanings);self.assertNotIn('胴部径',meanings)
         self.assertEqual(self.errors,[])
     def test_definition_assignment_and_role_label_paste_binding(self):
         app=self.app;profile=presets.add(app.data,'コンポーネント専用');profile['parameters'][0].update(role='部品の外径',description='部品専用の日本語説明')

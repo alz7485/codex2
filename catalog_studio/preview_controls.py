@@ -65,6 +65,7 @@ def close_panel(view):
 
 
 def focus(view):
+    if hasattr(view,'focus_override'):return view.focus_override()
     e=view.editor;split=e.main_split
     if getattr(view,'focused',False):
         split.insert(0,e.element_pane,weight=1);split.add(e.attribute_pane,weight=0)

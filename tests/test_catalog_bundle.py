@@ -8,6 +8,10 @@ class CatalogBundleTests(unittest.TestCase):
     def source(self):
         data=project.sample();preset=presets.add(data,'Synthetic bundle',empty=True)
         preset['parameters']=[{'id':'P1','role':'BORE','unit':'mm','english_name':'NOM BORE'}, {'id':'P3','role':'LENGTH','unit':'mm','english_name':'LENGTH'}]
+        import uuid
+        pt={'id':uuid.uuid4().hex,'name':'/BUNDLE-PT','kind':'PTSET','revision':'01','elements':[],'parameter_preset_id':preset['id']}
+        gm={'id':uuid.uuid4().hex,'name':'/BUNDLE-GM','kind':'GMSET','revision':'01','elements':[],'parameter_preset_id':preset['id'],'paired_ptset_id':pt['id']}
+        data['definitions'].extend([pt,gm])
         return data,preset
 
     def test_prepare_exact_contents_preset_and_atomic_errors(self):
@@ -48,6 +52,8 @@ class CatalogBundleTests(unittest.TestCase):
             self.assertEqual(len(data['cates'])-len(before['cates']),1)
             self.assertEqual(len(data['scoms'])-len(before['scoms']),1)
             self.assertEqual(len(data['texts'])-len(before['texts']),3)
+            self.assertEqual(data['scoms'][-1]['ptset_id'],next(d['id'] for d in data['definitions'] if d['name']=='/BUNDLE-PT'))
+            self.assertEqual(data['scoms'][-1]['gmset_id'],next(d['id'] for d in data['definitions'] if d['name']=='/BUNDLE-GM'))
             self.assertEqual(b.tree.selection(),('cates:'+app.cate_id,))
             count=len(data['cates']);b.cate_menu.invoke(1);app.update()
             self.assertIsNone(app.grab_current());self.assertEqual(len(data['cates']),count+1)
