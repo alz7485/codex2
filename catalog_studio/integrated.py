@@ -271,7 +271,7 @@ class IntegratedStudio(tk.Tk):
             changed=self.scom_id!=items[0];self.scom_id=items[0];self.update_scom_preview()
             if changed:
                 browser=self.registered_browser;browser.catalog_target='scoms:'+self.scom_id
-                browser.catalog_context=(self.cate_id,self.scom_id,'scom',getattr(self,'catalog_member_key',None));browser.refresh()
+                browser.catalog_context=(self.cate_id,self.scom_id,'scom',getattr(self,'catalog_member_key',None),browser.catalog_target);browser.refresh()
 
     def update_scom_preview(self):
         s=project.get(self.data,'scoms',self.scom_id)

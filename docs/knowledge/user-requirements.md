@@ -381,3 +381,8 @@ PTSET・GMSETのアイテム追加・フォルダ追加は名前入力窓を開�
 新たな3枚を根拠にカタログMAC読込を拡張。CATEGORY→SDTEXT/TEXT/SCOMPONENT、単独SDTEXT、CMPTYPE→CMPDATAを扱う。INPUT外枠のルート型・名前を照合し、NEW/END階層とOLD再選択を分離。OLDは当該ファイル内で作成した同型同名要素に限定。LOCKはmacro_lockedとして保存するだけで実行しない。行末$継続、PURP・GTYP、引用符内の空白を含む各テキスト、TEXTのSTEX→内部STEXT、数値/WORD混在PARA、後段のPTRE PTSET/GMRE GMSET、数値CWEIに対応。既存データの変更は候補全体検証後。未対応命令・重複名・不正値では全体取消。
 
 単独DETAILはcatalog_detailsにe3d_type=SDTEと属性を保存。PROPはcatalog_propsにe3d_type=CMPTYPEとCMPDATA childrenを保存し、子名とCWEIを中央で編集。選択中CATEへの関連はツール内の整理用であり、実機の所有関係やSPEC参照を推測しない。CATE未選択でも未関連グループに表示する。未読込PT/GMは外部名として参照欄へ残し、存在する場合はIDで参照する。PARAM専用プリセットは型のみを設定し、意味・単位を推測しない。CATEの既知属性と外部参照は簡潔な再出力でも保持する。DETAIL/PROP出力の追加やCWEIの一般式対応は今回の範囲外。
+
+
+## 54. 左リストで改名・選択項目の実機属性だけを中央編集（2026-10-29）
+
+カタログ左の通常追加は即時作成のまま、CATE・SDTE・TEXT・SCOM・DETAIL・PROPの名前変更をF2／ダブルクリック／右クリックから行内入力する。ID・参照を保ち、重複名は拒否。中央は選択した項目のみを編集し、CATE選択で配下全件は表示しない。CATEはPURP、SDTEはSKEY/TTEX/RTEX、TEXTはSTEX（内部STEXT）、SCOMはGTYP・PARA各値・PTRE/GMRE、DETAILはSKEY/RTEX、PROPはCMPDATAのCWEIを表示。未設定でも既知属性欄を表示する。NAME・REVISION・DESCRIPTION・SIZE・ANGL・構造材参照やPARAMプリセット選択は中央の属性欄から除くが、保存済み値を削除しない。過去の編集APIは既存フォーム互換用に維持する。TEXTプリセット一括作成は従来どおり選択確認後に作成。

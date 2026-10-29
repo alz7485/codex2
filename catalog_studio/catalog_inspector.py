@@ -6,7 +6,7 @@ from tkinter import ttk
 from . import project, presets, catalogue, catalog_workspace as workspace
 
 
-def record_fields(data,collection,record):
+def legacy_fields(data,collection,record):
     """Return (label, storage path, choice map) for known and retained attributes."""
     result=[('NAME',('name',),None),('REVISION',('revision',),None)]
     if collection=='cates':result.append(('DESCRIPTION',('description',),None))
@@ -34,6 +34,21 @@ def record_fields(data,collection,record):
     return result
 
 
+def record_fields(data,collection,record):
+    """Only attributes observed in the user-supplied E3D macros."""
+    if collection=='cates':return [('PURP',('attrs','PURP'),None)]
+    if collection=='texts':
+        keys=('STEXT',) if record['type']=='TEXT' else ('SKEY','TTEX','RTEX')
+        return [('STEX' if key=='STEXT' else key,('attrs',key),None) for key in keys]
+    if collection=='catalog_details':return [(key,('attrs',key),None) for key in ('SKEY','RTEX')]
+    if collection=='catalog_props':
+        return [(child['name']+' / CWEI',('children',i,'attrs','CWEI'),None) for i,child in enumerate(record.get('children',[]))]
+    if collection=='scoms':
+        fields=legacy_fields(data,collection,record)
+        return [('GTYP',('attrs','GTYP'),None)]+[(label,path,choices) for label,path,choices in fields if path[0]=='values' or path[0] in ('ptset_id','gmset_id')]
+    return []
+
+
 def value_at(record,path):
     value=record
     for part in path:
@@ -47,7 +62,7 @@ def edit_value(data,collection,ident,path,value):
     original=project.get(data,collection,ident)
     if not original:raise ValueError('選択項目が削除されています。')
     candidate=copy.deepcopy(data);record=project.get(candidate,collection,ident)
-    if path not in [p for _,p,_ in record_fields(data,collection,original)]:raise ValueError('編集できない属性です。')
+    if path not in [p for _,p,_ in (legacy_fields(data,collection,original)+record_fields(data,collection,original))]:raise ValueError('編集できない属性です。')
     old=value_at(record,path)
     if path[0]=='children':
         target=record
@@ -92,7 +107,7 @@ class CatalogInspector(ttk.Frame):
         key=getattr(h.registered_browser,'catalog_target','')
         if getattr(h,'catalog_tab','scom')=='members':key=getattr(h,'catalog_member_key',None) or ''
         if cate and key=='cates:'+cate['id']:
-            return [('cates',cate)]+[('texts',r) for r in data['texts'] if r['parent_id']==cate['id']]+[('scoms',r) for r in data['scoms'] if r['cate_id']==cate['id']]
+            return [('cates',cate)]
         collection,_,ident=key.partition(':');record=project.get(data,collection,ident) if collection in ('texts','catalog_details','catalog_props') else None
         if record and getattr(h,'catalog_tab','scom')=='members':return [(collection,record)]
         if not cate:return []

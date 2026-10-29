@@ -216,7 +216,7 @@ class RegisteredBrowser(ttk.Frame):
         self.tree.focus_set()
         folder=key in self.folder_nodes
         movable=folder or key in self.items and folders.movable(self.host.page,key)
-        for i,enabled in enumerate((movable,movable and self.host.page in ('ptset','gmset'),bool(self.clipboard and self.clipboard.data is self.host.data and self.clipboard.page==self.host.page),movable,folder or key in self.items and self.host.page in ('ptset','gmset'),folder or key in self.items and self.host.page in ('ptset','gmset'))):
+        for i,enabled in enumerate((movable,movable and self.host.page in ('ptset','gmset'),bool(self.clipboard and self.clipboard.data is self.host.data and self.clipboard.page==self.host.page),movable,folder or key in self.items and self.host.page in ('ptset','gmset','catalog'),folder or key in self.items and self.host.page in ('ptset','gmset'))):
             self.context_menu.entryconfigure(i,state='normal' if enabled else 'disabled')
         try:self.context_menu.tk_popup(event.x_root,event.y_root)
         finally:self.context_menu.grab_release()
@@ -246,7 +246,7 @@ class RegisteredBrowser(ttk.Frame):
 
     def rename_at(self,event):
         key=self.tree.identify_row(event.y)
-        editable=key in self.folder_nodes or self.host.page in ('ptset','gmset') and key in self.items
+        editable=key in self.folder_nodes or self.host.page in ('ptset','gmset','catalog') and key in self.items
         if editable and self.tree.identify_element(event.x,event.y)!='Treeitem.indicator':
             self.tree.selection_set(key);self.rename_item();return 'break'
 
@@ -264,26 +264,33 @@ class RegisteredBrowser(ttk.Frame):
             if state['folder']:
                 folders.update(data,record['id'],name=name)
             else:
-                if not any(r is record for r in data['definitions']):raise ValueError('項目が削除されています。')
-                if not name or any(r is not record and r['name'].casefold()==name.casefold() for r in data['definitions']):raise ValueError('名前が空か重複しています。')
+                collection=state.get('collection','definitions')
+                if not any(r is record for r in data.get(collection,[])):raise ValueError('項目が削除されています。')
+                if self.host.page=='catalog':
+                    from .catalog_workspace import check_name
+                    name=check_name(data,name,exclude=record)
+                if not name or any(r is not record and r['name'].casefold()==name.casefold() for r in data.get(collection,[])):raise ValueError('名前が空か重複しています。')
                 record['name']=name
         except ValueError as exc:self.host.status.configure(text=str(exc));return False
         self.cancel_rename()
-        if not state['folder']:self.host.geometry_editor.refresh()
+        if not state['folder']:
+            if self.host.page=='catalog':
+                self.host.catalog_inspector.refresh();self.host.fill_scom_table();self.host.update_scom_preview()
+            else:self.host.geometry_editor.refresh()
         self.host.mark('名前を変更しました。');return True
 
     def rename_item(self):
         if not self.finish_rename() or not self.ready():return
         selected=self.tree.selection();key=selected[0] if selected else ''
         folder=key in self.folder_nodes
-        if not folder and (self.host.page not in ('ptset','gmset') or key not in self.items):return
+        if not folder and (self.host.page not in ('ptset','gmset','catalog') or key not in self.items):return
         record=self.folder_nodes[key] if folder else self.items[key][1]
         self.tree.see(key);self.tree.update_idletasks();box=self.tree.bbox(key,'#0')
         if not box:return
         x,y,w,h=box
         variable=tk.StringVar(value=record['name']);entry=ttk.Entry(self.tree,textvariable=variable)
         entry.place(x=x+22,y=y,width=max(80,min(w-22,self.tree.winfo_width()-x-22)),height=h)
-        self.renaming=dict(entry=entry,variable=variable,record=record,folder=folder,data=self.host.data,page=self.host.page)
+        self.renaming=dict(entry=entry,variable=variable,record=record,folder=folder,data=self.host.data,page=self.host.page,collection=None if folder else self.items[key][0])
         entry.bind('<Return>',lambda _:(self.finish_rename(),'break')[1])
         entry.bind('<Escape>',lambda _:self.cancel_rename())
         entry.bind('<FocusOut>',lambda _:self.finish_rename())
@@ -449,7 +456,7 @@ class RegisteredBrowser(ttk.Frame):
                 host.cate_id=record.get('parent_id') if collection=='texts' else record['cate_id']
                 host.scom_id=next((r['id'] for r in host.data['scoms'] if r['cate_id']==host.cate_id),None)
                 host.catalog_member_key=selected[0];host.catalog_tab='members'
-            current=(host.cate_id,host.scom_id,host.catalog_tab,getattr(host,'catalog_member_key',None))
+            current=(host.cate_id,host.scom_id,host.catalog_tab,getattr(host,'catalog_member_key',None),self.catalog_target)
             if getattr(self,'catalog_context',None)==current:return
             self.catalog_context=current;host.switch('catalog');return
         if collection == 'definitions':
