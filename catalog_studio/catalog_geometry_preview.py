@@ -30,11 +30,8 @@ class CatalogGeometryPreview(GeometryCanvas):
     def __init__(self,host,parent):
         editor=CatalogueEditor(host);editor.view=self
         editor.reference_bar=ttk.Frame(parent)
-        row=ttk.Frame(editor.reference_bar);row.grid(row=0,column=0,sticky='ew')
-        ttk.Label(row,text='適用PTSET',style='Muted.TLabel').pack(side='left',padx=(0,6))
-        self.ptset_name=tk.StringVar(master=host)
-        ttk.Combobox(row,textvariable=self.ptset_name,state='disabled',width=8).pack(side='left',fill='x',expand=True)
         super().__init__(editor,parent)
+        editor.reference_bar.pack_forget()
         self.pack(fill='both',expand=True)
         self.focus_override=self.toggle_focus
         # Selection is controlled by the catalogue list; keep its SCOM context.
@@ -42,10 +39,10 @@ class CatalogGeometryPreview(GeometryCanvas):
     def refresh_options(self):
         super().refresh_options();self.scom_choice.configure(state='disabled')
     def load(self,data,scom,selected=None):
-        self.cancel(redraw=False);self.editor.preview_scom_id=(scom or {}).get('id')
-        pt=project.get(data,'definitions',(scom or {}).get('ptset_id'))
-        self.ptset_name.set(pt['name'] if pt else (scom or {}).get('ptset_id','') or '未設定')
-        self.mode.set('SCOM 実寸' if scom and scom.get('values') else '仮サイズ')
+        ident=(scom or {}).get('id');changed=ident!=self.editor.preview_scom_id
+        self.cancel(redraw=False);self.editor.preview_scom_id=ident
+        if changed or not getattr(self,'loaded',False):self.mode.set('SCOM 実寸' if scom and scom.get('values') else '仮サイズ')
+        self.loaded=True
         self.redraw()
     def press(self,event):
         self.canvas.focus_set()

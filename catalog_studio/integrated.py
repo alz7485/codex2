@@ -269,7 +269,8 @@ class IntegratedStudio(tk.Tk):
         if self.busy:return
         items=self.scom_table.selection()
         if items:
-            changed=self.scom_id!=items[0];self.scom_id=items[0];self.update_scom_preview()
+            changed=self.scom_id!=items[0];self.scom_id=items[0]
+            if changed:self.update_scom_preview()
             if changed:
                 browser=self.registered_browser;browser.catalog_target='scoms:'+self.scom_id
                 browser.catalog_context=(self.cate_id,self.scom_id,'scom',getattr(self,'catalog_member_key',None),browser.catalog_target);browser.refresh()

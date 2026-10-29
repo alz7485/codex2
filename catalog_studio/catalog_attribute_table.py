@@ -38,3 +38,10 @@ class CatalogAttributeTable(AttributeTable):
         if iid not in self.bounds:return ()
         top,bottom=self.bounds[iid];width=max(220,self.canvas.winfo_width());divider=max(105,int(width*.39))
         return (self.canvas.winfo_x()+divider+4,int(top-self.canvas.canvasy(0))+self.canvas.winfo_y()+3,max(80,width-divider-10),min(30,int(bottom-top-6)))
+
+    def redraw(self):
+        super().redraw()
+        headings=getattr(self,'headings',None)
+        if headings:
+            texts=[item for item in self.header.find_all() if self.header.type(item)=='text']
+            for item,label in zip(texts,headings):self.header.itemconfigure(item,text=label)

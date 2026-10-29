@@ -11,7 +11,7 @@ class CatalogSelectionTests(unittest.TestCase):
         errors=[];app.report_callback_exception=lambda k,v,t:errors.append(str(v))
         try:
             app.switch('catalog');app.update();b=app.registered_browser
-            for kind,labels in (('CATE',{'PURP'}),('SDTE',{'SKEY','TTEX','RTEX'}),('TEXT',{'STEX'}),('SCOM',{'GTYP','GMRE','PTRE'})):
+            for kind,labels in (('CATE',set()),('SDTE',{'SKEY','TTEX','RTEX'}),('TEXT',{'STEX'}),('SCOM',{'GTYP','GMRE','PTRE'})):
                 with patch.object(app,'form') as form:
                     b.add_catalog_record(kind);app.update();form.assert_not_called()
                 key=b.tree.selection()[0];collection,record=b.items[key]
@@ -32,9 +32,9 @@ class CatalogSelectionTests(unittest.TestCase):
             b.rename_item();b.renaming['variable'].set(app.data['cates'][-1]['name'])
             self.assertFalse(b.finish_rename());self.assertEqual(s['name'],old);b.cancel_rename()
             b.tree.selection_set('cates:'+app.cate_id);app.update()
-            view=app.catalog_inspector;row=next(iter(view.fields));view.begin(row)
-            view.editing['variable'].set('COMP');self.assertTrue(view.finish());app.update()
-            self.assertEqual(project.get(app.data,'cates',app.cate_id)['attrs']['PURP'],'COMP')
+            view=app.catalog_inspector;row=next(iter(view.fields));field=view.fields[row];view.begin(row)
+            view.editing['variable'].set('/RIGHT-LIST-RENAMED');self.assertTrue(view.finish());app.update()
+            self.assertEqual(project.get(app.data,field[0],field[1])['name'],'/RIGHT-LIST-RENAMED')
             self.assertEqual(errors,[])
         finally:app.destroy()
 

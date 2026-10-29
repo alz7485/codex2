@@ -458,19 +458,29 @@ class RegisteredBrowser(ttk.Frame):
         collection, record = self.items[selected[0]]
         host = self.host
         if host.page=='catalog' and collection in ('cates','scoms','texts','catalog_details','catalog_props'):
+            old_cate=host.cate_id;old_scom=host.scom_id
             self.catalog_target=selected[0]
             if collection=='cates':
-                host.cate_id=record['id'];host.scom_id=next((r['id'] for r in host.data['scoms'] if r['cate_id']==record['id']),None)
-                host.catalog_tab='scom'
+                host.cate_id=record['id'];host.catalog_tab='scom'
             elif collection=='scoms':
-                host.cate_id=record['cate_id'];host.scom_id=record['id'];host.catalog_tab='scom'
+                host.cate_id=record['cate_id'];host.catalog_tab='scom'
             else:
                 host.cate_id=record.get('parent_id') if collection=='texts' else record['cate_id']
-                host.scom_id=next((r['id'] for r in host.data['scoms'] if r['cate_id']==host.cate_id),None)
                 host.catalog_member_key=selected[0];host.catalog_tab='members'
+            current_scom=next((r for r in host.data['scoms'] if r['id']==old_scom and r['cate_id']==host.cate_id),None)
+            host.scom_id=record['id'] if collection=='scoms' else old_scom if old_cate==host.cate_id and current_scom else next((r['id'] for r in host.data['scoms'] if r['cate_id']==host.cate_id),None)
             current=(host.cate_id,host.scom_id,host.catalog_tab,getattr(host,'catalog_member_key',None),self.catalog_target)
             if getattr(self,'catalog_context',None)==current:return
-            self.catalog_context=current;host.switch('catalog');return
+            self.catalog_context=current
+            if old_cate==host.cate_id and getattr(host,'catalog_inspector',None) and host.catalog_inspector.winfo_exists():
+                # Keep the canvas object, camera and display mode when changing the editor selection.
+                host.busy=True
+                try:host.catalog_members.refresh();host.fill_scom_table()
+                finally:host.busy=False
+                host.catalog_inspector.refresh()
+                if old_scom!=host.scom_id:host.update_scom_preview()
+                self.refresh();return
+            host.switch('catalog');return
         if collection == 'definitions':
             page = {'PTSET': 'ptset', 'GMSET': 'gmset'}.get(record['kind'], 'structural')
             if host.page == page and host.definition_id == record['id']:

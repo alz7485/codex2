@@ -130,8 +130,24 @@ class CatalogInspector(ttk.Frame):
     def refresh(self):
         self.cancel();self.fields={};self.tree.delete(*self.tree.get_children())
         targets=self.targets();self.title.configure(text='カタログ属性：'+(targets[0][1]['name'] if targets else '左リストでCATEを選択してください'))
-        for collection,record in targets:
-            kind=record.get('type',{'cates':'CATE','scoms':'SCOM','catalog_details':'DETAIL','catalog_props':'PROP'}.get(collection,''))
+        names=bool(targets and targets[0][0]=='cates')
+        self.tree.headings=('アイテム / 種類','名前') if names else None
+        if names:self.title.configure(text='CATE内の名前：'+targets[0][1]['name'])
+        rows=[]
+        if names:
+            owner=targets[0][1]['id']
+            for collection in ('texts','scoms','catalog_details','catalog_props'):
+                for record in self.host.data.get(collection,[]):
+                    parent=record.get('parent_id') if collection=='texts' else record.get('cate_id')
+                    if parent==owner:rows.append((collection,record))
+        else:rows=targets
+        for collection,record in rows:
+            if names:
+                kind=record.get('type',{'scoms':'SCOM','catalog_details':'DETAIL','catalog_props':'PROP'}.get(collection,''))
+                meaning={'SDTE':'詳細テキスト','TEXT':'パラメータ説明テキスト','SCOM':'部品定義','DETAIL':'ディテール','PROP':'部品プロパティ'}.get(kind,'')
+                iid=self.tree.insert('','end',values=(kind,record['name']),meaning=meaning)
+                self.fields[iid]=(collection,record['id'],('name',),None)
+                continue
             for label,path,choices in record_fields(self.host.data,collection,record):
                 value=value_at(record,path)
                 display=next((n for n,v in choices.items() if v==value),str(value)) if choices is not None else value if isinstance(value,str) else json.dumps(value,ensure_ascii=False)
@@ -174,7 +190,9 @@ class CatalogInspector(ttk.Frame):
             edit_value(self.host.data,collection,ident,path,choices[value] if choices is not None else value)
         except (ValueError,KeyError) as exc:self.error.configure(text=str(exc));return False
         self.cancel();self.error.configure(text='');self.host.mark();self.refresh()
-        self.host.fill_scom_table();self.host.update_scom_preview();return True
+        self.host.fill_scom_table()
+        self.host.update_scom_preview()
+        return True
 
     def cancel(self):
         if self.editing:
