@@ -31,10 +31,16 @@ class CatalogGeometryPreview(GeometryCanvas):
         self.dimension_drag=None;self.dimension_items={};self.dimension_measurements=[]
         self.dimension_lines=tk.BooleanVar(master=host,value=True)
         self.connection_dimensions=tk.BooleanVar(master=host,value=True)
+        self.dimension_stext=tk.BooleanVar(master=host,value=False)
         editor=CatalogueEditor(host);editor.view=self
         editor.reference_bar=ttk.Frame(parent)
         super().__init__(editor,parent)
         editor.reference_bar.pack_forget()
+        self.dimension_buttons={}
+        for key,text,var in (('visible','↔ 寸法',self.dimension_lines),('stext','文 STEXT',self.dimension_stext)):
+            button=ttk.Checkbutton(self.mode_overlay,text=text,variable=var,command=self.dimensions_changed,style='Preview.Toolbutton')
+            button.pack(side='left',padx=2)
+            self.dimension_buttons[key]=button
         self.selection_label.master.grid_remove()
         self.note.grid_remove()
         from . import model_settings

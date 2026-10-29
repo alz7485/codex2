@@ -32,6 +32,12 @@ class CatalogDimensionTests(unittest.TestCase):
             values={r['key']:r['value'] for r in view.dimension_measurements}
             self.assertAlmostEqual(values['extent:X'],240)
             self.assertAlmostEqual(values['points:1:2'],240)
+            view.dimension_buttons['stext'].invoke();app.update()
+            self.assertTrue(view.dimension_stext.get())
+            self.assertIn('対応STEXTなし',view.dimension_items['extent:X']['label'])
+            view.dimension_buttons['visible'].invoke();app.update()
+            self.assertFalse(view.dimension_items)
+            view.dimension_buttons['visible'].invoke();view.dimension_buttons['stext'].invoke();app.update()
             before=copy.deepcopy(app.data);yaw=view.camera.yaw
             key='extent:X';item=view.dimension_items[key]['text'];x,y=view.canvas.coords(item)
             view.canvas.event_generate('<Button-1>',x=round(x),y=round(y));app.update()

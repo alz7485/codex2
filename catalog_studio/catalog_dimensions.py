@@ -53,6 +53,36 @@ def offsets(view):
     return result
 
 
+def description(view,dimension):
+    japanese=dimension['label'] if dimension['key'].startswith('extent:') else dimension['label']+' 接続点間距離'
+    if not view.dimension_stext.get():return japanese
+    # Only use explicit PARAM provenance; never guess by coincident numeric values.
+    from . import pairing,presets,expressions,element_schema as schema
+    e=view.editor
+    from . import project
+    scom=project.get(e.data,'scoms',e.preview_scom_id) or {}
+    pt=pairing.resolve(e.data,e.definition())['pointset'] if e.definition() else None
+    ids=set()
+    if pt and dimension['key'].startswith('points:'):
+        numbers={int(n) for n in dimension['key'].split(':')[1:]}
+        for index,node in enumerate(schema.walk(pt['elements'])):
+            try:number=int(node['attrs'].get('NUMB',index+1))
+            except (ValueError,TypeError):continue
+            if number not in numbers:continue
+            try:
+                ids.update(pid for family,pid in expressions.refs(expressions.parse(node['attrs'].get('PDIS','0'),presets.rules(e.data,scom))) if family=='PARAM')
+            except ValueError:pass
+    texts=[]
+    for record in e.data.get('texts',[]):
+        source=record.get('parameter_text_source',{})
+        if record.get('type')!='TEXT' or record.get('parent_id')!=scom.get('cate_id'):continue
+        if source.get('preset_id')!=presets.selected_id(e.data,scom):continue
+        if set(source.get('parameters','').split(', '))!=ids or not ids:continue
+        value=record.get('attrs',{}).get('STEXT','').strip()
+        if value and value not in texts:texts.append(value)
+    return texts[0] if len(texts)==1 else japanese+'（対応STEXTなし）'
+
+
 def draw(view):
     c=view.canvas;c.delete('catalog-dimension');view.dimension_items={};view.dimension_measurements=[]
     if not view.actual or not view.dimension_lines.get():return
@@ -78,8 +108,7 @@ def draw(view):
         tags=('catalog-dimension','dimension:'+key)
         for p,t in ((a,q),(b,r)):c.create_line(*p,*t,fill=COLOR,width=1,dash=(3,2),tags=tags)
         c.create_line(*q,*r,fill=COLOR,width=1.5,arrow='both',arrowshape=(7,9,3),tags=tags)
-        description=dimension['label'] if key.startswith('extent:') else dimension['label']+' 接続点間距離'
-        label=f"{dimension['value']:.6g} mm\n{description}"
+        label=f"{dimension['value']:.6g} mm\n{description(view,dimension)}"
         tx,ty=(q[0]+r[0])/2,(q[1]+r[1])/2
         text=c.create_text(tx,ty,text=label,fill=COLOR,font=(view.editor.host.ui_font,10,'bold'),tags=tags)
         box=c.bbox(text)
