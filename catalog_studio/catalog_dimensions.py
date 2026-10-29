@@ -4,7 +4,7 @@ import math
 import re
 
 KEY='catalog_dimension_layouts'
-PATTERN=re.compile(r'(?:extent:[XYZ]|points:\d+:\d+)\Z')
+PATTERN=re.compile(r'(?:extent:[XYZ]|points:\d+:\d+|gm:[^:\s]{1,100}:[A-Z]+)\Z')
 COLOR='#126c94'
 
 
@@ -12,9 +12,9 @@ def validate(data):
     layouts=data.get(KEY,{})
     if not isinstance(layouts,dict) or len(layouts)>5000:raise ValueError('寸法線配置の形式・件数が不正です。')
     for ident,rows in layouts.items():
-        if not isinstance(ident,str) or not ident or len(ident)>1000 or not isinstance(rows,dict) or len(rows)>32:raise ValueError('SCOMの寸法線配置が不正です。')
+        if not isinstance(ident,str) or not ident or len(ident)>1000 or not isinstance(rows,dict) or len(rows)>5000:raise ValueError('SCOMの寸法線配置が不正です。')
         for key,offset in rows.items():
-            if not isinstance(key,str) or len(key)>80 or not PATTERN.fullmatch(key) or not isinstance(offset,(list,tuple)) or len(offset)!=2 or any(type(v) not in (int,float) or not math.isfinite(v) or abs(v)>2 for v in offset):raise ValueError('寸法線の位置は有限の画面比率2個で指定してください。')
+            if not isinstance(key,str) or len(key)>120 or not PATTERN.fullmatch(key) or not isinstance(offset,(list,tuple)) or len(offset)!=2 or any(type(v) not in (int,float) or not math.isfinite(v) or abs(v)>2 for v in offset):raise ValueError('寸法線の位置は有限の画面比率2個で指定してください。')
 
 
 def measurements(scene,outer=True,connections=True):
@@ -53,55 +53,16 @@ def offsets(view):
     return result
 
 
-def matching_texts(view,dimension):
-    # Only use explicit PARAM provenance; never guess by coincident numeric values.
-    from . import pairing,presets,expressions,element_schema as schema
-    e=view.editor
-    from . import project
-    scom=project.get(e.data,'scoms',e.preview_scom_id) or {}
-    pt=pairing.resolve(e.data,e.definition())['pointset'] if e.definition() else None
-    ids=set()
-    if pt and dimension['key'].startswith('points:'):
-        numbers={int(n) for n in dimension['key'].split(':')[1:]}
-        for index,node in enumerate(schema.walk(pt['elements'])):
-            try:number=int(node['attrs'].get('NUMB',index+1))
-            except (ValueError,TypeError):continue
-            if number not in numbers:continue
-            try:
-                ids.update(pid for family,pid in expressions.refs(expressions.parse(node['attrs'].get('PDIS','0'),presets.rules(e.data,scom))) if family=='PARAM')
-            except ValueError:pass
-    texts=[]
-    for record in e.data.get('texts',[]):
-        source=record.get('parameter_text_source',{})
-        if record.get('type')!='TEXT' or record.get('parent_id')!=scom.get('cate_id'):continue
-        if source.get('preset_id')!=presets.selected_id(e.data,scom):continue
-        if set(source.get('parameters','').split(', '))!=ids or not ids:continue
-        texts.append(record)
-    return texts
-
-
 def description(view,dimension):
-    japanese=dimension['label'] if dimension['key'].startswith('extent:') else dimension['label']+' 接続点間距離'
-    if not view.dimension_stext.get():return japanese
-    values={r.get('attrs',{}).get('STEXT','').strip() for r in matching_texts(view,dimension)}-{''}
-    return next(iter(values)) if len(values)==1 else japanese+'（対応STEXTなし）'
-
-
-def selected_text(view):
-    from . import project
-    host=view.editor.host
-    key=getattr(host,'catalog_member_key','') or ''
-    if getattr(host,'catalog_tab','scom')!='members' or not key.startswith('texts:'):return None
-    record=project.get(view.editor.data,'texts',key.split(':',1)[1])
-    return record if record and record.get('type')=='TEXT' else None
+    from .catalog_param_dimensions import display_expression
+    return display_expression(view,dimension['expression'])
 
 
 def draw(view):
     c=view.canvas;c.delete('catalog-dimension');view.dimension_items={};view.dimension_measurements=[]
     if not view.actual or not view.dimension_lines.get():return
-    dimensions=measurements(view.scene,True,view.connection_dimensions.get())
-    selected=selected_text(view)
-    if selected:dimensions=[d for d in dimensions if any(r['id']==selected['id'] for r in matching_texts(view,d))]
+    from . import catalog_param_dimensions
+    dimensions=catalog_param_dimensions.measurements(view)
     view.dimension_measurements=dimensions
     width,height=c.winfo_width(),c.winfo_height()
     saved=offsets(view)
@@ -124,7 +85,7 @@ def draw(view):
         tags=('catalog-dimension','dimension:'+key)
         for p,t in ((a,q),(b,r)):c.create_line(*p,*t,fill=COLOR,width=1,dash=(3,2),tags=tags)
         c.create_line(*q,*r,fill=COLOR,width=1.5,arrow='both',arrowshape=(7,9,3),tags=tags)
-        label=f"{dimension['value']:.6g} mm\n{description(view,dimension)}"
+        label=f"{'⌀' if dimension.get('diameter') else ''}{dimension['value']:.6g} mm\n{description(view,dimension)}"
         tx,ty=(q[0]+r[0])/2,(q[1]+r[1])/2
         text=c.create_text(tx,ty,text=label,fill=COLOR,font=(view.editor.host.ui_font,10,'bold'),tags=tags)
         box=c.bbox(text)

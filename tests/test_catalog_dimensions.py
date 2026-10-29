@@ -18,6 +18,20 @@ class CatalogDimensionTests(unittest.TestCase):
             data[dims.KEY]=bad
             with self.assertRaises(ValueError):project.validate(data)
 
+    def test_expression_keeps_operators_and_switches_only_param_names(self):
+        from catalog_studio import catalog_param_dimensions as paramdims,presets
+        from catalog_studio.valve_sample import prepare
+        data,_=prepare(project.sample());scom=next(s for s in data['scoms'] if s['name']=='/SAMPLE-VALVE-80')
+        definition=project.get(data,'definitions',scom['gmset_id'])
+        parameter=presets.rules(data,definition)[0]
+        view=SimpleNamespace(editor=SimpleNamespace(data=data,preview_scom_id=scom['id'],definition=lambda:definition),dimension_stext=SimpleNamespace(get=lambda:False))
+        expr='PARAM 1 + 2 * PARAM 1'
+        self.assertEqual(dims.description(view,{'expression':expr}),'P1（'+presets.meaning(parameter)+'） + 2 * P1（'+presets.meaning(parameter)+'）')
+        data['texts'].append({'id':'text-test','type':'TEXT','parent_id':scom['cate_id'],'attrs':{'STEXT':'Nominal bore'},'parameter_text_source':{'preset_id':presets.selected_id(data,scom),'parameters':'P1'}})
+        view.dimension_stext=SimpleNamespace(get=lambda:True)
+        self.assertEqual(dims.description(view,{'expression':expr}),'P1（Nominal bore） + 2 * P1（Nominal bore）')
+        self.assertEqual(paramdims.display_expression(view,'IPARAM 1 + P2'),'IPARAM 1 + P2')
+
     def test_drag_moves_only_annotation_commits_on_release_and_roundtrips(self):
         import tempfile
         from pathlib import Path
@@ -29,31 +43,22 @@ class CatalogDimensionTests(unittest.TestCase):
             s=next(s for s in app.data['scoms'] if s['name']=='/SAMPLE-VALVE-80')
             app.cate_id=s['cate_id'];app.scom_id=s['id'];app.switch('catalog');app.update()
             view=app.preview;self.assertTrue(view.actual);self.assertGreater(len(view.dimension_items),0)
-            values={r['key']:r['value'] for r in view.dimension_measurements}
-            self.assertAlmostEqual(values['extent:X'],240)
-            self.assertAlmostEqual(values['points:1:2'],240)
+            rows=view.dimension_measurements
+            diameter=next(r for r in rows if r['diameter'])
+            key=diameter['key']
+            self.assertTrue(view.dimension_items[key]['label'].startswith('⌀'))
+            self.assertNotIn('対応STEXTなし',view.dimension_items[key]['label'])
             view.dimension_buttons['stext'].invoke();app.update()
-            self.assertTrue(view.dimension_stext.get())
-            self.assertIn('対応STEXTなし',view.dimension_items['extent:X']['label'])
+            self.assertIn(dims.description(view,diameter),view.dimension_items[key]['label'])
+            view.dimension_buttons['stext'].invoke();app.update()
+            self.assertIn('（',view.dimension_items[key]['label'].split('\n')[1])
             view.dimension_buttons['visible'].invoke();app.update()
             self.assertFalse(view.dimension_items)
-            view.dimension_buttons['visible'].invoke();view.dimension_buttons['stext'].invoke();app.update()
-            from unittest.mock import patch
-            text={'id':'dimension-text','type':'TEXT','parent_id':s['cate_id'],'name':'/DIMENSION-TEXT','attrs':{'STEXT':'Face to face'}}
-            app.data['texts'].append(text)
-            app.catalog_tab='members';app.catalog_member_key='texts:'+text['id']
-            with patch.object(dims,'matching_texts',side_effect=lambda v,d:[text] if d['key']=='points:1:2' else []):
-                view.redraw();app.update()
-                self.assertEqual(set(view.dimension_items),{'points:1:2'})
-                view.dimension_lines.set(False);view.redraw()
-                self.assertFalse(view.dimension_items)
-                app.catalog_tab='scom';view.redraw()
-                self.assertFalse(view.dimension_items)
-                view.dimension_lines.set(True);view.redraw()
-                self.assertIn('extent:X',view.dimension_items)
-            app.data['texts'].remove(text)
+            view.dimension_buttons['visible'].invoke();app.update()
+            app.catalog_tab='members';app.catalog_member_key='texts:missing';view.redraw()
+            self.assertIn(key,view.dimension_items)
             before=copy.deepcopy(app.data);yaw=view.camera.yaw
-            key='extent:X';item=view.dimension_items[key]['text'];x,y=view.canvas.coords(item)
+            item=view.dimension_items[key]['text'];x,y=view.canvas.coords(item)
             view.canvas.event_generate('<Button-1>',x=round(x),y=round(y));app.update()
             self.assertIsNotNone(view.dimension_drag)
             view.canvas.event_generate('<B1-Motion>',x=round(x+25),y=round(y-22));app.update()
@@ -74,6 +79,6 @@ class CatalogDimensionTests(unittest.TestCase):
             view.mode.set('SCOM 実寸');view.mode_changed();app.update()
             self.assertIn(key,view.dimension_items)
             view.view_buttons['XY'].invoke();app.update()
-            self.assertAlmostEqual(next(r['value'] for r in view.dimension_measurements if r['key']=='extent:X'),240)
+            self.assertAlmostEqual(next(r['value'] for r in view.dimension_measurements if r['key']==key),diameter['value'])
             self.assertEqual(app.data,stored);self.assertEqual(errors,[])
         finally:app.destroy()

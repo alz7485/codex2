@@ -30,7 +30,6 @@ class CatalogGeometryPreview(GeometryCanvas):
     def __init__(self,host,parent):
         self.dimension_drag=None;self.dimension_items={};self.dimension_measurements=[]
         self.dimension_lines=tk.BooleanVar(master=host,value=True)
-        self.connection_dimensions=tk.BooleanVar(master=host,value=True)
         self.dimension_stext=tk.BooleanVar(master=host,value=False)
         editor=CatalogueEditor(host);editor.view=self
         editor.reference_bar=ttk.Frame(parent)
@@ -46,7 +45,6 @@ class CatalogGeometryPreview(GeometryCanvas):
         from . import model_settings
         ttk.Button(self.settings_content,text='設計値を編集',command=lambda:model_settings.edit(editor),style='AttributeTool.TButton').pack(fill='x',pady=(8,0))
         ttk.Checkbutton(self.settings_content,text='寸法線（登録寸法のみ）',variable=self.dimension_lines,command=self.dimensions_changed).pack(anchor='w',pady=(8,0))
-        ttk.Checkbutton(self.settings_content,text='接続点間の寸法',variable=self.connection_dimensions,command=self.dimensions_changed).pack(anchor='w')
         self.pack(fill='both',expand=True)
         self.focus_override=self.toggle_focus
         # Selection is controlled by the catalogue list; keep its SCOM context.
