@@ -118,7 +118,11 @@ class RegisteredBrowser(ttk.Frame):
             for col,kind in (('scoms','SCOM'),('texts',''),('catalog_details','DETAIL'),('catalog_props','PROP')):
                 for r in data.get(col,[]):
                     owner=r.get('parent_id') if col=='texts' else r.get('cate_id')
-                    if owner not in owners or col=='texts' and r['type'] not in ('SDTE','TEXT'):continue
+                    if col=='texts' and (owner not in owners or r['type'] not in ('SDTE','TEXT')):continue
+                    if owner not in owners:
+                        parent='unassociated-catalog'
+                        if not any(row[0]==parent for row in rows):rows.append((parent,'','CATE未関連の読込データ',None,{}))
+                        append(col,r,parent,kind);continue
                     parent='cates:'+owner
                     if col in ('catalog_details','catalog_props'):
                         parent='related:'+owner

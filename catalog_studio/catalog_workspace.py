@@ -19,6 +19,9 @@ def check_name(data, name, exclude=None):
     for collection in ('cates','scoms','definitions','specs','texts','tables',*COLLECTIONS.values()):
         if any(record is not exclude and record['name'].casefold()==name.casefold() for record in data.get(collection,[])):
             raise ValueError('同じ名前のレコードがあります：'+name)
+    for prop in data.get('catalog_props',[]):
+        if any(child is not exclude and child['name'].casefold()==name.casefold() for child in prop.get('children',[])):
+            raise ValueError('同じ名前のCMPDATAがあります：'+name)
     return name
 
 
@@ -44,6 +47,16 @@ def validate(data):
         for record in data.get(collection,[]):
             if not isinstance(record.get('attrs'),dict): raise ValueError('DETAIL / PROP の属性は辞書です。')
             if not isinstance(record.get('sdte_id',''),str): raise ValueError('DETAIL のSDTE参照は識別子です。')
+    child_ids=set();child_names=set()
+    for prop in data.get('catalog_props',[]):
+        children=prop.get('children',[])
+        if not isinstance(children,list) or len(children)>5000:raise ValueError('CMPDATAの件数・形式が不正です。')
+        for child in children:
+            if not isinstance(child,dict) or any(not isinstance(child.get(k),str) or not child[k] for k in ('id','name')) or child.get('type')!='CMPDATA' or not isinstance(child.get('attrs'),dict):raise ValueError('CMPDATAの形式が不正です。')
+            if child['id'] in child_ids or child['name'].casefold() in child_names:raise ValueError('CMPDATAが重複しています。')
+            check_name(data,child['name'],exclude=child)
+            child_ids.add(child['id']);child_names.add(child['name'].casefold())
+            if 'CWEI' in child['attrs'] and not project._finite(child['attrs']['CWEI']):raise ValueError('CWEIは有限数値です。')
     for spec in data.get('specs',[]):
         for entry in spec.get('entries',[]):
             if any(key in entry and not isinstance(entry[key],str) for key in ENTRY_REFS):

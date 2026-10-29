@@ -1,7 +1,6 @@
 """Conservative CATE / SDTE / TEXT / SCOM creation macros; never execute commands."""
-import copy
 import re
-from . import project,catalogue,catalog_workspace as workspace,macro_destinations
+from . import project,catalogue,macro_destinations
 
 
 def quote(value):
@@ -21,6 +20,10 @@ def creation_text(data,cate_id,destination=''):
     if not cate:raise ValueError('出力するCATEを選択してください。')
     lines=[macro_destinations.normalize(destination)] if destination else []
     lines+=['NEW CATE '+name(cate['name'])]
+    for key,value in cate.get('attrs',{}).items():
+        if key not in ('PURP','GTYP'):raise ValueError('未対応のCATE属性：'+key)
+        if not isinstance(value,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9_.-]*',value):raise ValueError('CATE属性はwordです。')
+        lines.append(key+' '+value)
     # Application description/revision are not assumed to be E3D attributes.
     for r in data['texts']:
         if r['parent_id']!=cate_id:continue
@@ -28,13 +31,17 @@ def creation_text(data,cate_id,destination=''):
         lines+=['NEW '+r['type']+' '+name(r['name'])]
         for key,value in r['attrs'].items():
             if key not in catalogue.TEXT_TYPES[r['type']]:raise ValueError('未対応の属性：'+key)
-            if value:lines.append(key+' '+quote(value))
+            if value:lines.append(('STEX' if r['type']=='TEXT' and key=='STEXT' else key)+' '+quote(value))
         lines.append('END')
     for r in data['scoms']:
         if r['cate_id']!=cate_id:continue
         if r.get('size') or any(r.get(k) for k in ('ngmset_id','gmsset_id','ptsset_id')):raise ValueError('SIZE・構造材参照の出力構文は未確認です。')
-        if r.get('attrs'):raise ValueError('SCOMの追加属性の出力構文は未確認です。')
+        if any(key!='GTYP' for key in r.get('attrs',{})):raise ValueError('SCOMの追加属性の出力構文は未確認です。')
         lines+=['NEW SCOM '+name(r['name'])]
+        if 'GTYP' in r.get('attrs',{}):
+            value=r['attrs']['GTYP']
+            if not isinstance(value,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9_.-]*',value):raise ValueError('GTYPはwordです。')
+            lines.append('GTYP '+value)
         values=r['values']
         if values:
             last=max(int(k[1:]) for k in values)
@@ -49,54 +56,13 @@ def creation_text(data,cate_id,destination=''):
         for key,attr in (('gmset_id','GMRE'),('ptset_id','PTRE'),('ngmset_id','NGMSET'),('gmsset_id','GMSSET'),('ptsset_id','PTSSET')):
             if r.get(key):
                 target=project.get(data,'definitions',r[key])
-                if not target:raise ValueError('参照先が見つかりません：'+attr)
-                lines.append(attr+' '+name(target['name']))
+                if not target and not r[key].startswith('/'):raise ValueError('参照先が見つかりません：'+attr)
+                lines.append(attr+' '+name(target['name'] if target else r[key]))
         lines.append('END')
     lines.append('END')
     return '\n'.join(lines)+'\n'
 
 
-def import_text(data,text):
-    candidate=copy.deepcopy(data);stack=[];created=[]
-    aliases={'CATEGORY':'CATE','SDTEXT':'SDTE','SCOMPONENT':'SCOM'}
-    for number,line in enumerate(text.splitlines(),1):
-        line=line.strip()
-        if not line or line.startswith('$*'):continue
-        try:
-            if line.upper() in ('INPUT BEGIN','INPUT FINISH') or line.upper().startswith('INPUT END '):continue
-            if line=='END':
-                if not stack:raise ValueError('ENDに対応する要素がありません。')
-                stack.pop();continue
-            if line.startswith('/') and not stack:name(line);continue
-            words=line.split(None,2);command=words[0].upper()
-            if command=='NEW':
-                if len(words)!=3:raise ValueError('NEWには種類と名前が必要です。')
-                kind=aliases.get(words[1].upper(),words[1].upper());n=name(words[2]);workspace.check_name(candidate,n)
-                if kind=='CATE' and not stack:r=project.add_cate(candidate,n);created.append(r['id'])
-                elif stack and stack[-1][0]=='CATE' and kind in ('SDTE','TEXT','SCOM'):
-                    owner=stack[-1][1]['id']
-                    r=project.add_scom(candidate,owner,n) if kind=='SCOM' else catalogue.add_record(candidate,'texts',kind,n,owner)
-                    if kind=='SCOM':r.update(gmset_id='',ptset_id='')
-                else:raise ValueError('対応するCATE配下のSDTE・TEXT・SCOMを指定してください。')
-                stack.append((kind,r));continue
-            if not stack:raise ValueError('作成対象が選択されていません。')
-            kind,r=stack[-1];value=line[len(words[0]):].strip()
-            if kind in ('SDTE','TEXT') and command in catalogue.TEXT_TYPES[kind]:
-                if len(value)<2 or value[0]!="'" or value[-1]!="'":raise ValueError('文字列を単引用符で囲んでください。')
-                r['attrs'][command]=value[1:-1];quote(r['attrs'][command])
-            elif kind=='SCOM' and command in ('PARA','PARAM'):
-                tokens=re.findall(r"'[^']*'|[^\s]+",value);r['values']={}
-                for i,token in enumerate(tokens,1):
-                    r['values']['P'+str(i)]=token[1:-1] if token.startswith("'") else float(token)
-            elif kind=='SCOM' and command=='ANGL':r.setdefault('component_attrs',{})['ANGL']=float(value)
-            elif kind=='SCOM' and command in ('GMRE','PTRE','NGMSET','GMSSET','PTSSET'):
-                target=next((d for d in candidate['definitions'] if d['name']==value),None)
-                expected={'GMRE':'GMSET','PTRE':'PTSET'}.get(command,command)
-                if not target or target['kind']!=expected:raise ValueError('参照先を先に読み込んでください：'+value)
-                r[{'GMRE':'gmset_id','PTRE':'ptset_id'}.get(command,command.lower()+'_id')]=target['id']
-            else:raise ValueError('未対応の命令・属性：'+command)
-        except ValueError as exc:raise ValueError(f'{number}行目：{exc}') from exc
-    if stack:raise ValueError('ENDが不足しています。')
-    if not created:raise ValueError('CATEがありません。')
-    project.validate(candidate)
-    return candidate,created
+def import_text(data,text,cate_id=''):
+    from .catalog_macro_reader import import_text as read
+    return read(data,text,cate_id)

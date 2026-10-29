@@ -26,12 +26,21 @@ def record_fields(data,collection,record):
     elif collection in workspace.COLLECTIONS.values():
         result.append(('DESCRIPTION',('description',),None))
         if collection=='catalog_details':result.append(('参照SDTE',('sdte_id',),{'未設定':''}|{r['name']:r['id'] for r in data['texts'] if r['type']=='SDTE'}))
+    if collection=='catalog_props':
+        for i,child in enumerate(record.get('children',[])):
+            result.append(('CMPDATA NAME',('children',i,'name'),None))
+            result.extend((child['name']+' / '+key,('children',i,'attrs',key),None) for key in child.get('attrs',{}))
     if collection!='texts':result += [(key,('attrs',key),None) for key in record.get('attrs',{})]
     return result
 
 
 def value_at(record,path):
-    return record.get(path[0],'') if len(path)==1 else record.get(path[0],{}).get(path[1],'')
+    value=record
+    for part in path:
+        if isinstance(value,dict):value=value.get(part,'')
+        elif isinstance(value,list) and isinstance(part,int) and part<len(value):value=value[part]
+        else:return ''
+    return value
 
 
 def edit_value(data,collection,ident,path,value):
@@ -40,6 +49,12 @@ def edit_value(data,collection,ident,path,value):
     candidate=copy.deepcopy(data);record=project.get(candidate,collection,ident)
     if path not in [p for _,p,_ in record_fields(data,collection,original)]:raise ValueError('編集できない属性です。')
     old=value_at(record,path)
+    if path[0]=='children':
+        target=record
+        for part in path[:-1]:target=target[part]
+        target[path[-1]]=workspace.check_name(candidate,value,exclude=target) if path[-1]=='name' else json.loads(value)
+        project.validate(candidate)
+        original.clear();original.update(record);return
     if path==('name',):value=workspace.check_name(candidate,value,exclude=record)
     if collection=='scoms':
         if path[0]=='values':
@@ -49,6 +64,7 @@ def edit_value(data,collection,ident,path,value):
         elif path[0]=='component_attrs':
             if value=='':record.setdefault('component_attrs',{}).pop(path[1],None)
             else:record.setdefault('component_attrs',{})[path[1]]=project.parse_value({'id':'ANGL','unit':'degrees'},value) if path[1]=='ANGL' else value if isinstance(old,str) else json.loads(value)
+        elif path[0]=='attrs':record.setdefault('attrs',{})[path[1]]=value if isinstance(old,str) else json.loads(value)
         else:record[path[0]]=value
         for key,kind in (('gmset_id','GMSET'),('ptset_id','PTSET'),('ngmset_id','NGMSET'),('gmsset_id','GMSSET'),('ptsset_id','PTSSET')):
             if record.get(key) and path[0] in (key,'parameter_preset_id'):
@@ -73,13 +89,13 @@ class CatalogInspector(ttk.Frame):
 
     def targets(self):
         h=self.host;data=h.data;cate=project.get(data,'cates',h.cate_id)
-        if not cate:return []
         key=getattr(h.registered_browser,'catalog_target','')
         if getattr(h,'catalog_tab','scom')=='members':key=getattr(h,'catalog_member_key',None) or ''
-        if key=='cates:'+cate['id']:
+        if cate and key=='cates:'+cate['id']:
             return [('cates',cate)]+[('texts',r) for r in data['texts'] if r['parent_id']==cate['id']]+[('scoms',r) for r in data['scoms'] if r['cate_id']==cate['id']]
         collection,_,ident=key.partition(':');record=project.get(data,collection,ident) if collection in ('texts','catalog_details','catalog_props') else None
         if record and getattr(h,'catalog_tab','scom')=='members':return [(collection,record)]
+        if not cate:return []
         scom=project.get(data,'scoms',h.scom_id)
         return [('scoms',scom)] if scom else [('cates',cate)]
 

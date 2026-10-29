@@ -396,4 +396,12 @@ GUI は表示環境、PDF 内容の検証は pypdf が必要です。クラウ�
 
 左上はフォルダ追加 → CATE追加 → SDTE追加 → TEXT▼ → SCOM追加 → マクロ▼。通常の追加はクリックで作成し、中央の属性／値セルで名前と値を設定します。TEXTのプリセット一括作成は確認画面を使います。
 
-カタログのマクロ▼から読込・出力・登録先編集を利用できます。CATEと配下のSDTE/TEXT/SCOMの既知属性を簡潔なNEW/END形式・CP932で出力します。DETAIL/PROPは対象外です。SIZE・構造材参照など未対応のSCOM属性は出力を止めて通知します。読込は対応する作成命令のみで、ALPのOLD/LOCK・継続行を含む全構文には未対応です。E3D実機での実行は未確認です。
+カタログのマクロ▼から読込・出力・登録先編集を利用できます。CATEと配下のSDTE/TEXT/SCOMの既知属性を簡潔なNEW/END形式・CP932で出力します。DETAIL/PROPは対象外です。SIZE・構造材参照など未対応のSCOM属性は出力を止めて通知します。読込は提示されたALP形式（INPUT外枠・OLD/LOCK・末尾$継続・後段の参照設定）に対応します。対応範囲は下記を参照してください。E3D実機での実行は未確認です。
+
+### E3D出力のCATE・PROP・DETAILマクロ読込
+
+カタログ画面の「マクロ▼ → 読込」で、CATEGORY配下のSDTEXT/TEXT/SCOMPONENT、単独SDTEXT（DETAIL）、CMPTYPE配下のCMPDATA（PROP）を読み込めます。INPUTの開始・終了、NEW/END、ファイル内で作成した要素へのOLD、LOCK、行末$の継続行、PURP・GTYP・SKEY・TTEX・RTEX・STEX、混在型PARA、後段のPTRE PTSET／GMRE GMSET、括弧付き数値CWEIに対応しています。マクロは実行しません。未知命令・重複名・不正値・階層不整合は読込全体を取り消します。
+
+単独DETAIL/PROPは選択中CATEにアプリ上の関連データとして表示します。CATE未選択時は「CATE未関連の読込データ」に表示します。これはE3D上の所有先やSPECの参照を設定する操作ではありません。PROPのCMPDATA名とCWEIも中央で編集できます。CWEIの単位は推測しません。
+
+未読込のPTSET/GMSET参照は外部名を保持し、既存要素がある場合はそのIDで参照します。未解決参照は中央で後から設定できます。PARAMには読込値から数値／WORDだけを定義した専用プリセットを用い、既存プリセットの意味・単位を自動適用しません。LOCKは読込情報として保存し、通常の簡潔なマクロ出力には自動追加しません。DETAIL/PROPの出力、CWEI式の一般形、任意命令や全ALP構文は未対応です。

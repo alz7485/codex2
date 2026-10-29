@@ -9,11 +9,19 @@ def import_macro(host):
     if not path:return
     try:
         text,_=macro_import.read_text(path)
-        candidate,ids=catalog_macro.import_text(host.data,text)
+        candidate,ids=catalog_macro.import_text(host.data,text,host.cate_id or '')
     except (ValueError,OSError) as exc:messagebox.showerror('読込エラー',str(exc),parent=host);return
-    host.data=candidate;host.cate_id=ids[0];host.scom_id=None;host.catalog_tab='scom'
-    host.registered_browser.catalog_target='cates:'+ids[0]
-    host.render_page();host.mark('CATEを読み込みました。')
+    host.data=candidate
+    ident=ids[0]
+    collection=next(col for col in ('cates','catalog_details','catalog_props') if any(r['id']==ident for r in candidate.get(col,[])))
+    record=next(r for r in candidate[collection] if r['id']==ident)
+    host.cate_id=ident if collection=='cates' else record['cate_id'];host.scom_id=None
+    host.catalog_tab='scom' if collection=='cates' else 'members'
+    key=collection+':'+ident
+    host.registered_browser.catalog_target=key
+    if collection!='cates':host.catalog_member_key=key
+    host.render_page();host.mark('カタログマクロを読み込みました。外部参照は名前を保持します。')
+
 
 
 def export_macro(host):
