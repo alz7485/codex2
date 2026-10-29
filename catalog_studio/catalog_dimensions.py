@@ -78,7 +78,8 @@ def draw(view):
         tags=('catalog-dimension','dimension:'+key)
         for p,t in ((a,q),(b,r)):c.create_line(*p,*t,fill=COLOR,width=1,dash=(3,2),tags=tags)
         c.create_line(*q,*r,fill=COLOR,width=1.5,arrow='both',arrowshape=(7,9,3),tags=tags)
-        label=f"{dimension['label']}  {dimension['value']:.6g} mm"
+        description=dimension['label'] if key.startswith('extent:') else dimension['label']+' 接続点間距離'
+        label=f"{dimension['value']:.6g} mm\n{description}"
         tx,ty=(q[0]+r[0])/2,(q[1]+r[1])/2
         text=c.create_text(tx,ty,text=label,fill=COLOR,font=(view.editor.host.ui_font,10,'bold'),tags=tags)
         box=c.bbox(text)
