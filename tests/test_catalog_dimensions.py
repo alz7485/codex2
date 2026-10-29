@@ -26,11 +26,11 @@ class CatalogDimensionTests(unittest.TestCase):
         parameter=presets.rules(data,definition)[0]
         view=SimpleNamespace(editor=SimpleNamespace(data=data,preview_scom_id=scom['id'],definition=lambda:definition),dimension_stext=SimpleNamespace(get=lambda:False))
         expr='PARAM 1 + 2 * PARAM 1'
-        self.assertEqual(dims.description(view,{'expression':expr}),'P1（'+presets.meaning(parameter)+'） + 2 * P1（'+presets.meaning(parameter)+'）')
+        self.assertEqual(dims.description(view,{'expression':expr}),'PA1（'+presets.meaning(parameter)+'） + 2 * PA1（'+presets.meaning(parameter)+'）')
         data['texts'].append({'id':'text-test','type':'TEXT','parent_id':scom['cate_id'],'attrs':{'STEXT':'Nominal bore'},'parameter_text_source':{'preset_id':presets.selected_id(data,scom),'parameters':'P1'}})
         view.dimension_stext=SimpleNamespace(get=lambda:True)
-        self.assertEqual(dims.description(view,{'expression':expr}),'P1（Nominal bore） + 2 * P1（Nominal bore）')
-        self.assertEqual(paramdims.display_expression(view,'IPARAM 1 + P2'),'IPARAM 1 + P2')
+        self.assertEqual(dims.description(view,{'expression':expr}),'PA1（Nominal bore） + 2 * PA1（Nominal bore）')
+        self.assertEqual(paramdims.display_expression(view,'IPARAM 1 + PA2'),'IPARAM 1 + PA2')
 
     def test_drag_moves_only_annotation_commits_on_release_and_roundtrips(self):
         import tempfile

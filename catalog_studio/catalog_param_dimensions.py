@@ -73,5 +73,6 @@ def display_expression(view,text):
         if family!='PARAM':return match[0]
         pid='P'+(match.group('bracket') or match.group('number') or match.group('short'))
         name=names.get(pid)
-        return pid+'（'+name.replace('\n',' ').replace('\r',' ')+'）' if name else pid
+        display_id='PA'+pid[1:]
+        return display_id+'（'+name.replace('\n',' ').replace('\r',' ')+'）' if name else display_id
     return presets._DISPLAY_REFERENCE.sub(replace,str(text))
