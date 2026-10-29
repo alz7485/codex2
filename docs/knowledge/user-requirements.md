@@ -386,3 +386,8 @@ PTSET・GMSETのアイテム追加・フォルダ追加は名前入力窓を開�
 ## 54. 左リストで改名・選択項目の実機属性だけを中央編集（2026-10-29）
 
 カタログ左の通常追加は即時作成のまま、CATE・SDTE・TEXT・SCOM・DETAIL・PROPの名前変更をF2／ダブルクリック／右クリックから行内入力する。ID・参照を保ち、重複名は拒否。中央は選択した項目のみを編集し、CATE選択で配下全件は表示しない。CATEはPURP、SDTEはSKEY/TTEX/RTEX、TEXTはSTEX（内部STEXT）、SCOMはGTYP・PARA各値・PTRE/GMRE、DETAILはSKEY/RTEX、PROPはCMPDATAのCWEIを表示。未設定でも既知属性欄を表示する。NAME・REVISION・DESCRIPTION・SIZE・ANGL・構造材参照やPARAMプリセット選択は中央の属性欄から除くが、保存済み値を削除しない。過去の編集APIは既存フォーム互換用に維持する。TEXTプリセット一括作成は従来どおり選択確認後に作成。
+
+
+## 55. CATE追加メニューとプリセットによる一式作成（2026-10-29）
+
+左のCATE追加をアイコン＋▼のメニューに変更。「CATE一式作成」「CATE作成」の2択。一式はPARAMプリセット選択窓で確認し、CATE 1件、配下SDTE 1件、プリセットの各PARAMのSTEXT（english_name）を使うTEXT群、SCOM 1件を原子的に作成する。DETAIL/PROPは今回の一式には含めない。SCOMには選択プリセットを割り当て、PTSET/GMSET参照とPARAM値は未設定にする。名前は重複しない仮名とし、左リストで変更する。選択フォルダ内先頭／選択CATEの直後へ配置し、子要素選択中はそのCATEを基準にする。取消・STEXT不足・不正プリセット・データ変更時は一部作成を残さない。「CATE作成」は入力窓なしの即時追加を維持。

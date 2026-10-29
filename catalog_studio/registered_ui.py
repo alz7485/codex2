@@ -27,7 +27,12 @@ class RegisteredBrowser(ttk.Frame):
         self.action_hints=(Hint(self.add_button,'アイテムを追加'),Hint(self.folder_button,'フォルダを追加'))
         self.catalog_buttons={};self.catalog_hints=[]
         for kind in ('CATE','SDTE','TEXT','SCOM'):
-            if kind=='TEXT':
+            if kind=='CATE':
+                button=ttk.Menubutton(organize,text='▾',width=2,image=self.action_icons['cate_add'],compound='left',style='AttributeTool.TButton')
+                self.cate_menu=tk.Menu(button,tearoff=False);button.configure(menu=self.cate_menu)
+                self.cate_menu.add_command(label='CATE一式作成',command=self.add_catalog_bundle)
+                self.cate_menu.add_command(label='CATE作成',command=lambda:self.add_catalog_record('CATE'))
+            elif kind=='TEXT':
                 button=ttk.Menubutton(organize,text='▾',width=2,image=self.action_icons['text_add'],compound='left',style='AttributeTool.TButton')
                 self.text_menu=tk.Menu(button,tearoff=False);button.configure(menu=self.text_menu)
                 self.text_menu.add_command(label='プリセットから作成',command=self.add_text_batch)
@@ -36,7 +41,7 @@ class RegisteredBrowser(ttk.Frame):
                 button=ttk.Button(organize,text=kind+'追加',image=self.action_icons[kind.lower()+'_add'],compound='none',command=lambda k=kind:self.add_catalog_record(k),style='AttributeTool.TButton')
             self.catalog_buttons[kind]=button
             self.catalog_hints.append(Hint(button,kind+'を追加'))
-        self.macro_button=ttk.Menubutton(organize,text='マクロ ▾',image=self.action_icons['macro'],compound='left',style='AttributeTool.TButton')
+        self.macro_button=ttk.Menubutton(organize,text='マクロ ▾',width=6,image=self.action_icons['macro'],compound='left',style='AttributeTool.TButton')
         self.macro_menu=tk.Menu(self.macro_button,tearoff=False)
         self.macro_button.configure(menu=self.macro_menu)
         self.macro_menu.add_command(label='読込',command=self.import_macro)
@@ -364,6 +369,13 @@ class RegisteredBrowser(ttk.Frame):
         if self.host.page!='catalog' or not self.ready():return
         from .catalog_text_batch import open_batch
         return open_batch(self.host)
+
+    def add_catalog_bundle(self):
+        if self.host.page!='catalog' or not self.ready():return
+        selected=self.tree.selection();anchor=selected[0] if selected else ''
+        while anchor and not anchor.startswith(('folder:','cates:')):anchor=self.tree.parent(anchor)
+        from .catalog_bundle_ui import open_bundle
+        return open_bundle(self.host,anchor)
 
     def add_catalog_record(self,kind):
         if self.host.page!='catalog' or not self.ready():return

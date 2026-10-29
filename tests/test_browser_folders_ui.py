@@ -44,7 +44,7 @@ class FolderBrowserGuiTests(unittest.TestCase):
             self.assertTrue(self.app.catalog_inspector.fields)
         self.b.folder_button.invoke();self.app.update()
         folder=self.b.tree.selection()[0]
-        self.b.catalog_buttons['CATE'].invoke();self.app.update()
+        self.b.cate_menu.invoke(1);self.app.update()
         self.assertEqual(self.b.tree.parent(self.b.tree.selection()[0]),folder)
         self.assertIsNone(self.app.grab_current())
         self.assertTrue(self.b.macro_button.winfo_ismapped())
