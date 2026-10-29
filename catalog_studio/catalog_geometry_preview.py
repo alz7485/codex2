@@ -32,10 +32,20 @@ class CatalogGeometryPreview(GeometryCanvas):
         editor.reference_bar=ttk.Frame(parent)
         super().__init__(editor,parent)
         editor.reference_bar.pack_forget()
+        self.selection_label.master.grid_remove()
+        self.note.grid_remove()
+        from . import model_settings
+        ttk.Button(self.settings_content,text='設計値を編集',command=lambda:model_settings.edit(editor),style='AttributeTool.TButton').pack(fill='x',pady=(8,0))
         self.pack(fill='both',expand=True)
         self.focus_override=self.toggle_focus
         # Selection is controlled by the catalogue list; keep its SCOM context.
         self.scom_choice.configure(state='disabled')
+    def redraw(self):
+        super().redraw()
+        if hasattr(self,'issue_label') and self.winfo_exists():
+            if self.issue_label.cget('text'):self.issue_label.grid()
+            else:self.issue_label.grid_remove()
+
     def refresh_options(self):
         super().refresh_options();self.scom_choice.configure(state='disabled')
     def load(self,data,scom,selected=None):

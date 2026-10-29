@@ -250,8 +250,7 @@ class IntegratedStudio(tk.Tk):
         ttk.Label(preview_parent,text='プレビュー',style='Heading.TLabel').pack(anchor='w')
         from .catalog_geometry_preview import CatalogGeometryPreview
         self.preview=CatalogGeometryPreview(self,preview_parent)
-        self.scom_detail=ttk.Label(preview_parent,text='',style='Muted.TLabel',wraplength=600);self.scom_detail.pack(anchor='w',pady=12)
-        ttk.Label(preview_parent,text='寸法は SCOM の値です。定義側には保存しません。',style='Muted.TLabel',wraplength=330).pack(anchor='w')
+        self.scom_detail=ttk.Label(legacy,text='',style='Muted.TLabel')
         self.update_scom_preview()
         from .catalog_inspector import CatalogInspector
         self.catalog_inspector=CatalogInspector(self,visible_middle)
