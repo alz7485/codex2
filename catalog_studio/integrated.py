@@ -211,12 +211,12 @@ class IntegratedStudio(tk.Tk):
     def build_catalog(self):
         from .catalog_members_ui import CatalogMembers, bundle_form
         split=ttk.Panedwindow(self.content,orient='horizontal');split.pack(fill='both',expand=True)
-        middle=ttk.Frame(split,padding=10,width=560);right=ttk.Frame(split,padding=10,width=300)
+        middle=ttk.Frame(split,padding=10,width=700);right=ttk.Frame(split,padding=10,width=390)
         middle.pack_propagate(False);right.pack_propagate(False)
         split.add(middle,weight=4);split.add(right,weight=2)
-        self.catalog_panes=split;self.balance(split,(.70,))
+        self.catalog_panes=split;self.balance(split,(.65,))
         self.catalog_tree=self.registered_browser.tree
-        visible_middle=middle
+        visible_middle=right;preview_parent=middle
         # Keep the existing form controllers off screen; the inspector owns visible editing.
         legacy=ttk.Frame(middle)
         middle=legacy
@@ -247,10 +247,10 @@ class IntegratedStudio(tk.Tk):
         self.reference_label=ttk.Label(references,text='',wraplength=520);self.reference_label.pack(anchor='w')
         ttk.Button(references,text='GMSET を編集',command=lambda:self.goto_definition('gmset_id')).pack(side='left',pady=8,padx=3)
         ttk.Button(references,text='PTSET を編集',command=lambda:self.goto_definition('ptset_id')).pack(side='left',pady=8,padx=3)
-        ttk.Label(right,text='選択 SCOM の概略表示',style='Heading.TLabel').pack(anchor='w')
-        self.preview=Preview(right,self.ui_font)
-        self.scom_detail=ttk.Label(right,text='',style='Muted.TLabel',wraplength=330);self.scom_detail.pack(anchor='w',pady=12)
-        ttk.Label(right,text='寸法は SCOM の値です。定義側には保存しません。',style='Muted.TLabel',wraplength=330).pack(anchor='w')
+        ttk.Label(preview_parent,text='プレビュー',style='Heading.TLabel').pack(anchor='w')
+        self.preview=Preview(preview_parent,self.ui_font)
+        self.scom_detail=ttk.Label(preview_parent,text='',style='Muted.TLabel',wraplength=600);self.scom_detail.pack(anchor='w',pady=12)
+        ttk.Label(preview_parent,text='寸法は SCOM の値です。定義側には保存しません。',style='Muted.TLabel',wraplength=330).pack(anchor='w')
         self.update_scom_preview()
         from .catalog_inspector import CatalogInspector
         self.catalog_inspector=CatalogInspector(self,visible_middle)
@@ -279,7 +279,7 @@ class IntegratedStudio(tk.Tk):
         if not s:self.reference_label.configure(text='SCOM を追加・選択してください。');self.scom_detail.configure(text='');return
         g=project.get(self.data,'definitions',s['gmset_id']);p=project.get(self.data,'definitions',s['ptset_id'])
         self.reference_label.configure(text='GMRE → '+(g['name'] if g else '未設定')+'\nPTRE  → '+(p['name'] if p else '未設定'))
-        self.scom_detail.configure(text=s['name']+' / Rev.'+s['revision']+'\n'+s['size']+'\nPARAM 規則：'+presets.label(self.data,s)+'\n\n'+'\n'.join(p['id']+' '+presets.caption(p)+'：'+str(s['values'].get(p['id'],'未入力'))+' '+p.get('unit','mm') for p in presets.rules(self.data,s)))
+        self.scom_detail.configure(text=s['name']+'  ／  PARAM：'+presets.label(self.data,s))
 
     def add_cate(self):
         def apply(v):

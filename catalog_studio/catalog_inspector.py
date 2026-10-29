@@ -49,6 +49,18 @@ def record_fields(data,collection,record):
     return []
 
 
+def field_caption(data,record,label,path):
+    if path[0]=='values':
+        rule=next((p for p in presets.rules(data,record) if p['id']==path[1]),None)
+        return 'PARA '+path[1][1:],presets.caption(rule) if rule else '部品のパラメータ値'
+    key=path[-1]
+    meanings={'PURP':'カタログの用途','SKEY':'アイソメ図のシンボルキー','TTEX':'詳細用テキスト',
+              'RTEX':'アイソメ図用の説明文','STEXT':'パラメータの意味を表すテキスト',
+              'GTYP':'部品の汎用型','ptset_id':'接続点の定義（PTSET）','gmset_id':'形状の定義（GMSET）',
+              'CWEI':'部品の重量'}
+    return ('CWEI' if key=='CWEI' else label),meanings.get(key,'')
+
+
 def value_at(record,path):
     value=record
     for part in path:
@@ -96,7 +108,8 @@ class CatalogInspector(ttk.Frame):
     def __init__(self,host,parent):
         super().__init__(parent);self.host=host;self.fields={};self.editing=None
         self.title=ttk.Label(self,text='',style='Heading.TLabel');self.title.pack(anchor='w',pady=(0,8))
-        self.tree=host.table(self,[('attribute','属性',240),('value','値',500)],height=18)
+        from .catalog_attribute_table import CatalogAttributeTable
+        self.tree=CatalogAttributeTable(self,host.ui_font);self.tree.pack(fill='both',expand=True);self.tree.before_scroll=self.finish
         self.tree.bind('<ButtonRelease-1>',self.click);self.tree.bind('<Return>',lambda _:self.begin(self.tree.focus()))
         self.tree.bind('<Configure>',lambda _:self.cancel())
         self.error=ttk.Label(self,text='',foreground='#bb6440',wraplength=650);self.error.pack(fill='x',pady=6)
@@ -119,13 +132,12 @@ class CatalogInspector(ttk.Frame):
         targets=self.targets();self.title.configure(text='カタログ属性：'+(targets[0][1]['name'] if targets else '左リストでCATEを選択してください'))
         for collection,record in targets:
             kind=record.get('type',{'cates':'CATE','scoms':'SCOM','catalog_details':'DETAIL','catalog_props':'PROP'}.get(collection,''))
-            group=self.tree.insert('','end',values=(kind,record['name']),tags=('section',))
             for label,path,choices in record_fields(self.host.data,collection,record):
                 value=value_at(record,path)
                 display=next((n for n,v in choices.items() if v==value),str(value)) if choices is not None else value if isinstance(value,str) else json.dumps(value,ensure_ascii=False)
-                iid=self.tree.insert('','end',values=(label,display))
+                label,meaning=field_caption(self.host.data,record,label,path)
+                iid=self.tree.insert('','end',values=(label,display),meaning=meaning)
                 self.fields[iid]=(collection,record['id'],path,choices)
-        self.tree.tag_configure('section',background='#edf3fc',foreground='#2864dc')
 
     def click(self,event):
         if self.tree.identify_column(event.x)=='#2':self.begin(self.tree.identify_row(event.y))
