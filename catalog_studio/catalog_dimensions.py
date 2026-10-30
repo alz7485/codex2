@@ -6,6 +6,7 @@ import re
 KEY='catalog_dimension_layouts'
 PATTERN=re.compile(r'(?:extent:[XYZ]|points:\d+:\d+|gm:[^:\s]{1,100}:[A-Z]+)\Z')
 COLOR='#126c94'
+TEXT_COLOR='#873b42'
 
 
 def validate(data):
@@ -87,12 +88,12 @@ def draw(view):
         c.create_line(*q,*r,fill=COLOR,width=1.5,arrow='both',arrowshape=(7,9,3),tags=tags)
         label=f"{'⌀' if dimension.get('diameter') else ''}{dimension['value']:.6g} mm\n{description(view,dimension)}"
         tx,ty=(q[0]+r[0])/2,(q[1]+r[1])/2
-        text=c.create_text(tx,ty,text=label,fill=COLOR,font=(view.editor.host.ui_font,10,'bold'),tags=tags)
+        text=c.create_text(tx,ty,text=label,fill=TEXT_COLOR,font=(view.editor.host.ui_font,10,'bold'),tags=tags)
         box=c.bbox(text)
         if box:
             shiftx=max(8-box[0],min(width-8-box[2],0));shifty=max(45-box[1],min(height-8-box[3],0))
             if shiftx or shifty:c.move(text,shiftx,shifty);box=c.bbox(text)
-            background=c.create_rectangle(box[0]-4,box[1]-3,box[2]+4,box[3]+3,fill='#ffffff',outline='#b7d4e3',tags=tags)
+            background=c.create_rectangle(box[0]-4,box[1]-3,box[2]+4,box[3]+3,fill='',outline='#b7d4e3',tags=tags)
             c.tag_lower(background,text)
         view.dimension_items[key]=dict(text=text,label=label,offset=extra)
 
