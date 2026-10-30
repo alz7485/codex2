@@ -30,6 +30,19 @@ class GeometrySceneTests(unittest.TestCase):
         self.cylinder['attrs']['PAXI']='P1';scene=self.scene()
         self.assertEqual(self.bounds(scene.meshes[0])[0],(-150,-50))
 
+    def test_concentric_lsno_does_not_require_unused_eccentric_axis(self):
+        self.gm['elements']=[]
+        node=schema.add_element(self.gm,'LSNO')
+        node['attrs'].update(PAAX='X',PBAX='',PBDI='0',PTDI='PARAM 3',PBDM='PARAM 1',PTDM='PARAM 1 / 2',POFF='0')
+        scene=self.scene();self.assertEqual(scene.issues,[])
+        self.assertEqual(self.bounds(scene.meshes[0]),[(0,100),(-20,20),(-20,20)])
+        node['attrs']['PAAX']='-X'
+        self.assertEqual(self.bounds(self.scene().meshes[0])[0],(-100,0))
+        node['attrs']['POFF']='5'
+        scene=self.scene();self.assertFalse(scene.meshes);self.assertTrue(scene.issues)
+        node['attrs'].update(PBAX='Y')
+        self.assertEqual(self.scene().issues,[])
+
     def test_point_chains_cartesian_mixed_position_and_degree_directions(self):
         for kind in ('PTCAR','PTMIX','PTPOS'):
             point=schema.add_element(self.pt,kind)

@@ -239,15 +239,21 @@ def build_mesh(node,resolver):
         rings=[[add(center,(sx*sizes[0]/2,sy*sizes[1]/2,sz*sizes[2]/2)) for sx,sy in ((-1,-1),(1,-1),(1,1),(-1,1))] for sz in (-1,1)]
         rings_mesh(mesh,rings)
     elif kind in ('LSNO','LPYR'):
-        origin,a=axis('PAAX');_,b=axis('PBAX',AXES[1])
-        if abs(dot(a,b))>1e-6:raise ValueError('A軸とB軸を直交させてください。')
+        origin,a=axis('PAAX')
+        offset=value('POFF',0) if kind=='LSNO' else None
+        # A concentric snout has no eccentric direction. Do not require PBAX
+        # when POFF is explicitly zero; its direction cannot affect the mesh.
+        if kind=='LSNO' and offset==0:b=frame(a)[0]
+        else:
+            _,b=axis('PBAX',AXES[1])
+            if abs(dot(a,b))>1e-6:raise ValueError('A軸とB軸を直交させてください。')
         low,high=value('PBDI',0),value('PTDI',1.2)
         if high<=low:raise ValueError('上面位置は底面位置より大きくしてください。')
         if kind=='LSNO':
             def radius(diameter,radius):
                 if str(node['attrs'].get(radius,'')).strip() and not str(node['attrs'].get(diameter,'')).strip():return value(radius,.3,True)
                 return value(diameter,.6,True)/2
-            rings=[circle(at(origin,a,low),a,radius('PBDM','PBRA')),circle(add(at(origin,a,high),mul(b,value('POFF',0))),a,radius('PTDM','PTRA'))]
+            rings=[circle(at(origin,a,low),a,radius('PBDM','PBRA')),circle(add(at(origin,a,high),mul(b,offset)),a,radius('PTDM','PTRA'))]
         else:
             _,c=axis('PCAX',AXES[2])
             if abs(dot(a,c))>1e-6 or abs(dot(b,c))>1e-6:raise ValueError('A・B・C軸を相互に直交させてください。')
