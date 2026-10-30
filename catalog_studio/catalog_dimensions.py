@@ -64,6 +64,8 @@ def draw(view):
     if not view.actual or not view.dimension_lines.get():return
     from . import catalog_param_dimensions
     dimensions=catalog_param_dimensions.measurements(view)
+    selected=view.editor.element_id
+    if selected:dimensions=[d for d in dimensions if d['element_id']==selected]
     view.dimension_measurements=dimensions
     width,height=c.winfo_width(),c.winfo_height()
     saved=offsets(view)

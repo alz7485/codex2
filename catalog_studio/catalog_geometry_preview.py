@@ -29,6 +29,7 @@ class CatalogueEditor:
 class CatalogGeometryPreview(GeometryCanvas):
     def __init__(self,host,parent):
         self.dimension_drag=None;self.dimension_items={};self.dimension_measurements=[]
+        self.geometry_click=None;self.geometry_moved=False
         self.dimension_lines=tk.BooleanVar(master=host,value=True)
         self.dimension_stext=tk.BooleanVar(master=host,value=False)
         editor=CatalogueEditor(host);editor.view=self
@@ -51,6 +52,8 @@ class CatalogGeometryPreview(GeometryCanvas):
         self.scom_choice.configure(state='disabled')
     def redraw(self):
         if getattr(self,'refreshing',False):return
+        from .element_schema import walk
+        if self.editor.element_id and not any(n['id']==self.editor.element_id for n in walk((self.editor.definition() or {}).get('elements',[]))):self.editor.element_id=None
         self.fit_padding=100 if self.actual and self.dimension_lines.get() else 55
         super().redraw()
         catalog_dimensions.draw(self)
@@ -62,7 +65,9 @@ class CatalogGeometryPreview(GeometryCanvas):
         super().refresh_options();self.scom_choice.configure(state='disabled')
     def load(self,data,scom,selected=None):
         ident=(scom or {}).get('id');changed=ident!=self.editor.preview_scom_id
-        self.cancel(redraw=False);self.editor.preview_scom_id=ident
+        self.cancel(redraw=False)
+        if changed or getattr(self,'selection_data',None) is not data:self.editor.element_id=None
+        self.selection_data=data;self.editor.preview_scom_id=ident
         if changed or not getattr(self,'loaded',False):self.mode.set('SCOM 実寸' if scom and scom.get('values') else '仮サイズ')
         self.loaded=True
         self.redraw()
@@ -71,16 +76,36 @@ class CatalogGeometryPreview(GeometryCanvas):
         if not self.editor.commit_inline():return
         key=catalog_dimensions.hit(self,event.x,event.y)
         if key:catalog_dimensions.start(self,key,event)
-        else:self.orbit_start(event)
+        else:
+            self.geometry_click=(event.x,event.y);self.geometry_moved=False
+            self.orbit_start(event)
     def move(self,event):
         if self.dimension_drag:catalog_dimensions.move(self,event)
-        else:super().move(event)
+        else:
+            if self.geometry_click and ((event.x-self.geometry_click[0])**2+(event.y-self.geometry_click[1])**2)>16:self.geometry_moved=True
+            if self.geometry_moved:super().move(event)
     def release(self,event=None):
         if self.dimension_drag:catalog_dimensions.release(self)
-        else:super().release(event)
+        else:
+            click=self.geometry_click;self.geometry_click=None
+            super().release(event)
+            if click and not self.geometry_moved and event is not None:
+                self.editor.element_id=self.pick_element(event.x,event.y)
+                self.redraw()
     def cancel(self,redraw=True):
-        self.dimension_drag=None
+        self.dimension_drag=None;self.geometry_click=None
         return super().cancel(redraw)
+    def pick_element(self,x,y):
+        from .surface_render import inside_polygon
+        # In solid mode the frontmost projected face wins, including transparent surfaces.
+        if self.render_mode.get()!='ワイヤー':
+            for points,ident in reversed(self.pick_faces):
+                if inside_polygon(x,y,points):return ident
+        for item in reversed(self.canvas.find_overlapping(x-3,y-3,x+3,y+3)):
+            ident=next((t[8:] for t in self.canvas.gettags(item) if t.startswith('element:')),None)
+            if ident:return ident
+        return None
+
     def dimensions_changed(self):
         self.dimension_drag=None;self.redraw()
 

@@ -25,7 +25,7 @@ def measurements(view):
         names={p['id']:presets.meaning(p) for p in resolver.parameters}
         label=' / '.join(names.get(pid,pid) for pid in ids)
         result.append(dict(key='gm:'+node['id']+':'+key,label=label,expression=expr,
-            value=abs(value),start=start,end=end,diameter=diameter,attribute=key))
+            value=abs(value),start=start,end=end,diameter=diameter,attribute=key,element_id=node['id']))
     for node in schema.walk(definition['elements']):
         if node['id'] not in visible:continue
         kind=schema.positive(node['type']);attrs=node['attrs']
