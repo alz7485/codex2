@@ -17,7 +17,7 @@ BLUE = theme.ACCENT
 NAVY = theme.CHROME
 BG = theme.WORKSPACE
 MUTED = theme.MUTED
-PAGES = [('ptset', 'PTSET 作成'), ('gmset', 'GMSET 作成'), ('catalog', 'カタログ作成'), ('specs', 'スペック登録'), ('structural', '構造材・NGMSET'), ('texts','説明・材質'), ('tables','共通テーブル'), ('books', 'カタログ本・PDF'), ('rules', 'PARAM プリセット'), ('checks', '確認・マクロ')]
+PAGES = [('ptset', 'PTSET 作成'), ('gmset', 'GMSET 作成'), ('catalog', 'CATE作成'), ('sdte_cmpt','SDTE/CMPT作成'), ('specs', 'スペック登録'), ('structural', '構造材・NGMSET'), ('texts','説明・材質'), ('tables','共通テーブル'), ('books', 'カタログ本・PDF'), ('rules', 'PARAM プリセット'), ('checks', '確認・マクロ')]
 
 
 class Preview:
@@ -104,7 +104,7 @@ class IntegratedStudio(tk.Tk):
         self.more_nav_button=tk.Menubutton(menu_bar,text='その他の管理 ▾',bg=theme.NAV,fg='#bbcadc',activebackground='#2b4160',activeforeground='white',relief='flat',borderwidth=0,font=(self.ui_font,10),cursor='hand2',padx=16,pady=8)
         self.more_nav_menu=tk.Menu(self.more_nav_button,tearoff=False)
         for key,text in PAGES:
-            if key in ('ptset','gmset','catalog','specs','books'):
+            if key in ('ptset','gmset','catalog','sdte_cmpt','specs','books'):
                 button=tk.Button(menu_bar,text=text,command=lambda k=key:self.switch(k),bg=theme.NAV,fg='#bbcadc',activebackground='#2b4160',activeforeground='white',relief='flat',borderwidth=0,highlightthickness=0,font=(self.ui_font,10),cursor='hand2',padx=16,pady=8)
                 button.pack(side='left',padx=(0,5));self.nav[key]=button
             else:self.more_nav_menu.add_command(label=text,command=lambda k=key:self.switch(k))
@@ -507,6 +507,10 @@ class IntegratedStudio(tk.Tk):
     def select_structural(self,kind):
         self.structural_kind=kind;self.commit_definition_name();self.render_page()
 
+    def build_sdte_cmpt(self):
+        from .sdte_cmpt_ui import SdteCmptEditor
+        self.sdte_cmpt_editor=SdteCmptEditor(self)
+
     def build_texts(self):
         from .companion_ui import CompanionEditor
         self.companion_editor=CompanionEditor(self,'texts')
@@ -579,6 +583,7 @@ class IntegratedStudio(tk.Tk):
     def definition(self):return project.get(self.data,'definitions',self.definition_id)
     def element(self):return next((e for e in (self.definition() or {}).get('elements',[]) if e['id']==self.element_id),None)
     def commit_definition_name(self):
+        if self.page=='sdte_cmpt' and hasattr(self,'sdte_cmpt_editor') and self.sdte_cmpt_editor.winfo_exists():return self.sdte_cmpt_editor.finish()
         if self.page=='catalog' and hasattr(self,'catalog_inspector') and self.catalog_inspector.winfo_exists():
             if not self.catalog_inspector.finish():return False
         if self.page=='rules' and hasattr(self,'preset_editor') and self.preset_editor.winfo_exists():return self.preset_editor.finish_cell()

@@ -101,7 +101,7 @@ class RegisteredBrowser(ttk.Frame):
 
     def rows(self):
         host=self.host;data=host.data;page=host.page
-        categories={'ptset':('PTSET','definitions'),'gmset':('GMSET','definitions'),'catalog':('カタログ','cates'),'specs':('スペック','specs'),'structural':('構造材・NGMSET','definitions'),'texts':('説明・材質','texts'),'tables':('共通テーブル','tables'),'books':('カタログ本','books'),'rules':('PARAM プリセット','parameter_presets')}
+        categories={'ptset':('PTSET','definitions'),'gmset':('GMSET','definitions'),'catalog':('CATE','cates'),'specs':('スペック','specs'),'structural':('構造材・NGMSET','definitions'),'texts':('説明・材質','texts'),'tables':('共通テーブル','tables'),'books':('カタログ本','books'),'rules':('PARAM プリセット','parameter_presets')}
         label,collection=categories.get(page,('確認・マクロ',None))
         rows=[];places=data.get('browser_placements',{})
         for f in data.get('browser_folders',[]):
@@ -139,6 +139,8 @@ class RegisteredBrowser(ttk.Frame):
 
     def _refresh(self):
         host=self.host;data=host.data;page=host.page
+        if page=='sdte_cmpt':self.pack_forget();return
+        if not self.winfo_manager():self.pack(side='left',fill='y',before=host.content)
         previous=self.tree.selection();same_page=self.category==page
         if self.category!=page:
             if self.category:self.open_states[self.category]={key:bool(self.tree.item(key,'open')) for key in self.all_keys if self.tree.exists(key)}
@@ -447,6 +449,7 @@ class RegisteredBrowser(ttk.Frame):
         self.host.render_page();self.reveal_created(key)
 
     def select(self, _=None):
+        if self.host.page=='sdte_cmpt':return
         if self.host.busy:
             return
         selected = self.tree.selection()

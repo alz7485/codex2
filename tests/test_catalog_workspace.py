@@ -108,7 +108,7 @@ class CatalogWorkspaceGuiTests(unittest.TestCase):
         self.assertEqual(app.data,before);self.assertEqual(self.errors,[])
 
     def test_menu_tree_and_triple_selection(self):
-        app=self.app;self.assertEqual(app.nav['catalog'].cget('text'),'カタログ作成')
+        app=self.app;self.assertEqual(app.nav['catalog'].cget('text'),'CATE作成')
         self.create_bundle()
         self.assertTrue(app.catalog_inspector.winfo_ismapped())
         self.assertGreater(app.catalog_panes.sashpos(0),100)

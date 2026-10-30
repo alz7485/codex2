@@ -38,7 +38,7 @@ class CreationFlowTests(unittest.TestCase):
         self.app.update();gm=self.app.geometry_editor.definition();schema.add_element(gm,'SCYL')['attrs'].update(PAXI='X',PDIA='PARAM 1',PHEI='PARAM 3',PDIS='0')
         self.app.geometry_editor.refresh();return pt,gm
     def test_order_and_empty_project_all_four_stages(self):
-        self.assertEqual([key for key,label in PAGES[:4]],['ptset','gmset','catalog','specs'])
+        self.assertEqual([key for key,label in PAGES[:5]],['ptset','gmset','catalog','sdte_cmpt','specs'])
         self.empty();self.assertIsNone(self.app.geometry_editor.definition())
         pt,gm=self.make_sets();self.assertEqual(self.app.page,'gmset');self.assertEqual(self.app.data['scoms'],[])
         self.assertEqual(self.app.data['creation_draft'],{'ptset_id':pt['id'],'gmset_id':gm['id']})
