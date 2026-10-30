@@ -251,7 +251,7 @@ def build_mesh(node,resolver):
         if high<=low:raise ValueError('上面位置は底面位置より大きくしてください。')
         if kind=='LSNO':
             def radius(diameter,radius):
-                if str(node['attrs'].get(radius,'')).strip() and not str(node['attrs'].get(diameter,'')).strip():return value(radius,.3,True)
+                if str(node['attrs'].get(radius,'')).strip().lower() not in ('','unset') and str(node['attrs'].get(diameter,'')).strip().lower() in ('','unset'):return value(radius,.3,True)
                 return value(diameter,.6,True)/2
             rings=[circle(at(origin,a,low),a,radius('PBDM','PBRA')),circle(add(at(origin,a,high),mul(b,offset)),a,radius('PTDM','PTRA'))]
         else:
