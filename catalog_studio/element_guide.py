@@ -1,5 +1,6 @@
 """Synthetic explanatory diagrams for the element chooser; no user geometry is edited."""
 import tkinter as tk
+import math
 from . import element_schema as schema,geometry_scene as geo
 
 
@@ -97,6 +98,16 @@ def draw(editor):
     faces=sorted(mesh.faces,key=lambda face:sum(camera.depth(mesh.vertices[i]) for i in face)/len(face))
     for face in faces:
         points=[camera.project(mesh.vertices[i],w,h) for i in face]
-        c.create_polygon(*(v for p in points for v in p),fill='' if mesh.negative else '#d2e2f1',outline=color,width=1.4,dash=(4,2) if mesh.negative else ())
+        if not mesh.negative:
+            vertices=[mesh.vertices[i] for i in face]
+            normal=geo.cross(geo.sub(vertices[1],vertices[0]),geo.sub(vertices[2],vertices[0]))
+            length=math.hypot(*normal)
+            light=abs(geo.dot(geo.mul(normal,1/length),(.3,-.4,.86))) if length else .5
+            shade=min(1,.72+.25*light)
+            fill='#'+''.join(f'{int(v*shade):02x}' for v in (210,226,241))
+            c.create_polygon(*(v for p in points for v in p),fill=fill,outline='',tags='guide-surface')
+    from .surface_render import feature_edges
+    for a,b in feature_edges(mesh,geo.cross(*camera.basis()),visible_only=not mesh.negative):
+        c.create_line(*camera.project(mesh.vertices[a],w,h),*camera.project(mesh.vertices[b],w,h),fill=color,width=1.4,dash=(4,2) if mesh.negative else (),tags='guide-contour')
     annotate_mesh(c,base,camera,w,h,text,color)
     text(w/2,h-20,'負形状：切り欠き用の体積' if mesh.negative else '形状の説明図（寸法・向きは設定できます）')
