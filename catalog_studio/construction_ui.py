@@ -217,6 +217,9 @@ class ConstructionEditor(ttk.Frame):
         self.describe_selected_type()
 
     def describe_selected_type(self,_=None):
+        if hasattr(self,'guide_canvas'):
+            from .element_guide import draw
+            draw(self)
         if self.kind!='PTSET' and not getattr(self,'simple_layout',False):return
         selection=self.library.curselection()
         if not selection:
@@ -388,6 +391,9 @@ class ConstructionEditor(ttk.Frame):
             self.element_preset_menu.entryconfigure(0,state='normal' if d and d['elements'] else 'disabled')
             self.element_preset_menu.entryconfigure(1,state='normal' if d and saved else 'disabled')
             self.element_preset_menu.entryconfigure(2,state='normal' if saved else 'disabled')
+            if hasattr(self,'recall_preset_button'):
+                self.recall_preset_button.configure(state='normal' if d and saved else 'disabled')
+                self.register_preset_button.configure(state='normal' if d and d['elements'] else 'disabled')
             if getattr(self.host,'is_preset_editor',False):
                 for index in range(3):self.element_preset_menu.entryconfigure(index,state='disabled')
                 self.context_menu.entryconfigure(self.settings_menu_index,state='disabled')
