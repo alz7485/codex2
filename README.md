@@ -438,7 +438,7 @@ GUI は表示環境、PDF 内容の検証は pypdf が必要です。クラウ�
 
 ### SDTE/CMPT作成
 
-上部の「CATE作成」の右隣から開きます。関連CATEを選び、SDTE・CMPT（CMPTYPE）・配下のCMPDATAを追加できます。右の属性一覧で名前・SKEY・RTEX・CWEIを編集します。既存のDETAIL/PROPデータとSPEC参照を共用します。
+上部の「CATE作成」の右隣から開きます。関連CATEを選び、SDTE・CMPT（CMPTYPE）・配下のCMPDATAを追加できます。右の属性一覧で名前・SKEY・RTEX・CWEIを編集します。既存のDETAIL/PROPデータとSPEC参照を共用します。「マクロ▼」から単独SDTEXT・CMPTYPE/CMPDATAの読込と出力、種類別の登録先編集ができます。出力は簡潔なNEW/END形式・Shift-JIS（CP932）で、CMPDATA選択時は親CMPTYPE全体を出力します。未対応属性はエラーにし、読込済みLOCKは保持します。
 
 ### 要素の追加とプリセット
 

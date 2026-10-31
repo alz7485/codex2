@@ -5,6 +5,32 @@ from catalog_studio import project
 from catalog_studio.catalog_inspector import edit_value
 
 class SdteCmptUiTests(unittest.TestCase):
+ def test_macro_menu_import_and_export_selected_cmpdata_as_parent(self):
+  import tempfile
+  from pathlib import Path
+  from unittest.mock import patch
+  from catalog_studio import companion_macro_ui as ui
+  from test_companion_macro import PROP
+  from catalog_studio.integrated import IntegratedStudio
+  try:app=IntegratedStudio()
+  except tk.TclError as exc:self.skipTest(str(exc))
+  try:
+   app.update();app.switch('sdte_cmpt');app.update();e=app.sdte_cmpt_editor
+   self.assertEqual(e.macro_button.cget('style'),'AttributeTool.TButton')
+   self.assertTrue(e.macro_button.cget('image'))
+   with tempfile.TemporaryDirectory() as tmp:
+    source=Path(tmp)/'in.mac';source.write_bytes(PROP.encode('cp932'))
+    target=Path(tmp)/'out.mac'
+    with patch.object(ui.filedialog,'askopenfilename',return_value=str(source)):ui.import_macro(e)
+    app.update();prop=next(p for p in app.data['catalog_props'] if p['name']=='/DEMO-PROP')
+    e.tree.selection_set(prop['children'][0]['id']);e.select()
+    win=ui.export_macro(e);app.update()
+    self.assertIn('NEW CMPTYPE /DEMO-PROP',win.source.get('1.0','end'))
+    self.assertIn('NEW CMPDATA /DEMO-PROP-B',win.source.get('1.0','end'))
+    with patch.object(ui.filedialog,'asksaveasfilename',return_value=str(target)):win.save_button.invoke()
+    self.assertTrue(target.exists());self.assertIn('CWEI (9.1)',target.read_bytes().decode('cp932'))
+  finally:app.destroy()
+
  def test_navigation_creation_editing_and_preserved_associations(self):
   from catalog_studio.integrated import IntegratedStudio
   try:app=IntegratedStudio()

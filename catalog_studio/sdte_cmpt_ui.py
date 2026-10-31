@@ -2,7 +2,7 @@
 import tkinter as tk
 from tkinter import ttk
 import uuid
-from . import project,catalog_workspace as workspace
+from . import project,theme,catalog_workspace as workspace
 from .catalog_inspector import record_fields,value_at,edit_value
 
 class SdteCmptEditor(ttk.Frame):
@@ -15,8 +15,22 @@ class SdteCmptEditor(ttk.Frame):
         self.cate=tk.StringVar(value=next((n for n,i in self.cates.items() if i==host.cate_id),next(iter(self.cates),'')))
         choice=ttk.Combobox(bar,textvariable=self.cate,values=list(self.cates),state='readonly',width=30);choice.pack(side='left',padx=8)
         choice.bind('<<ComboboxSelected>>',lambda _:self.refresh())
+        from .project_actions import icon
+        self.action_icons={k:icon(self,k,color=theme.ACCENT) for k in ('sdte_add','scom_add','new','macro')}
+        self.add_buttons={}
         for label,kind in (('＋ SDTE','SDTE'),('＋ CMPT','CMPT'),('＋ CMPDATA','CMPDATA')):
-            ttk.Button(bar,text=label,command=lambda k=kind:self.add(k)).pack(side='left',padx=3)
+            image=self.action_icons[{'SDTE':'sdte_add','CMPT':'scom_add','CMPDATA':'new'}[kind]]
+            button=ttk.Button(bar,text=label,image=image,compound='left',style='AttributeTool.TButton',command=lambda k=kind:self.add(k))
+            button.pack(side='left',padx=3);self.add_buttons[kind]=button
+        from . import companion_macro_ui as macros
+        self.macro_button=ttk.Menubutton(bar,text='マクロ ▾',image=self.action_icons['macro'],compound='left',style='AttributeTool.TButton')
+        self.macro_button.pack(side='left',padx=6)
+        self.macro_menu=tk.Menu(self.macro_button,tearoff=False);self.macro_button.configure(menu=self.macro_menu)
+        self.macro_menu.add_command(label='読込',command=lambda:macros.import_macro(self))
+        self.macro_menu.add_command(label='出力',command=lambda:macros.export_macro(self))
+        destinations=tk.Menu(self.macro_menu,tearoff=False)
+        for kind in ('SDTE','CMPT'):destinations.add_command(label=kind+' 登録先編集',command=lambda k=kind:macros.edit_destinations(self,k))
+        self.macro_menu.add_cascade(label='登録先編集',menu=destinations)
         panes=ttk.Panedwindow(self,orient='horizontal');panes.pack(fill='both',expand=True)
         left=ttk.Frame(panes,padding=8,width=400);right=ttk.Frame(panes,padding=8)
         panes.add(left,weight=2);panes.add(right,weight=3)
