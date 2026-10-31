@@ -30,6 +30,11 @@ class ElementChooserUiTests(unittest.TestCase):
       for i in range(e.library.size()):
        e.library.selection_clear(0,'end');e.library.selection_set(i);e.describe_selected_type();app.update()
        self.assertTrue(e.guide_canvas.find_all())
+       labels=[e.guide_canvas.itemcget(item,'text') for item in e.guide_canvas.find_all() if e.guide_canvas.type(item)=='text']
+       if page=='ptset':
+        self.assertIn('立体図',labels);self.assertIn('平面図（XY）',labels);self.assertEqual(labels.count('P1'),2)
+       elif e.library.get(i).split()[0] in ('LSNO','NLSN'):
+        self.assertIn('P1（下端）',labels);self.assertIn('P2（上端）',labels)
      self.assertEqual(app.data,before)
      e.negative.set(False);e.populate_library();e.library.selection_clear(0,'end');e.library.selection_set(0)
      e.describe_selected_type();old=len(e.definition()['elements']);e.add_element();app.update()

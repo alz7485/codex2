@@ -88,7 +88,7 @@ def build_simple(editor):
 
     e.creation_frame=tk.Toplevel(e)
     e.creation_frame.withdraw();e.creation_frame.title('ポイントを追加' if point else '形状を追加')
-    e.creation_frame.geometry('960x720' if e.kind=='GMSET' else '850x520');e.creation_frame.minsize(920,680) if e.kind=='GMSET' else e.creation_frame.minsize(760,480)
+    e.creation_frame.geometry('960x720' if e.kind=='GMSET' else '980x600');e.creation_frame.minsize(920,680) if e.kind=='GMSET' else e.creation_frame.minsize(940,580)
     e.creation_frame.transient(e.winfo_toplevel())
     e.creation_frame.protocol('WM_DELETE_WINDOW',lambda:e.toggle_create() if e.creating else e.creation_frame.withdraw())
     creation=ttk.Frame(e.creation_frame,padding=16);creation.pack(fill='both',expand=True)
