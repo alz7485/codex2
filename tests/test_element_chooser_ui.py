@@ -23,6 +23,10 @@ class ElementChooserUiTests(unittest.TestCase):
        self.assertEqual(e.shape_tabs.index(e.shape_tabs.select()),int(negative))
        self.assertEqual(e.library.yview(),(0.0,1.0))
        self.assertIsNotNone(e.library.bbox(e.library.size()-1))
+       sizes=[(b.winfo_width(),b.winfo_height()) for b in e.shape_tab_buttons]
+       self.assertEqual(sizes[0],sizes[1])
+       if not negative:tab_sizes=sizes
+       else:self.assertEqual(sizes,tab_sizes)
       for i in range(e.library.size()):
        e.library.selection_clear(0,'end');e.library.selection_set(i);e.describe_selected_type();app.update()
        self.assertTrue(e.guide_canvas.find_all())

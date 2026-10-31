@@ -110,7 +110,17 @@ def build_simple(editor):
         result.bind('<<ListboxSelect>>',e.describe_selected_type)
         return result
     if e.kind=='GMSET':
-        e.shape_tabs=ttk.Notebook(list_side);e.shape_tabs.pack(fill='both',expand=True)
+        # Native notebook tabs can expand on selection. Use a fixed-size tab
+        # strip and keep the notebook only as the page container.
+        style=ttk.Style(e);style.layout('ShapePages.TNotebook.Tab',[])
+        strip=ttk.Frame(list_side);strip.pack(fill='x',pady=(0,4))
+        strip.columnconfigure((0,1),weight=1,uniform='shape-tabs')
+        e.shape_tab_value=tk.IntVar(value=0);e.shape_tab_buttons=[]
+        e.shape_tabs=ttk.Notebook(list_side,style='ShapePages.TNotebook',takefocus=False);e.shape_tabs.pack(fill='both',expand=True)
+        for index,label in enumerate(('通常形状','ネガティヴ形状')):
+            button=ttk.Radiobutton(strip,text=label,variable=e.shape_tab_value,value=index,style='Preview.Toolbutton',command=lambda i=index:e.shape_tabs.select(i))
+            button.grid(row=0,column=index,sticky='nsew',padx=(0,3) if index==0 else (3,0))
+            e.shape_tab_buttons.append(button)
         e.shape_libraries=[]
         for label in ('通常形状','ネガティヴ形状'):
             tab=ttk.Frame(e.shape_tabs,padding=(0,6,0,0));e.shape_tabs.add(tab,text=label)
@@ -118,6 +128,7 @@ def build_simple(editor):
         e.library=e.shape_libraries[0]
         def change_shape_tab(_=None):
             index=e.shape_tabs.index(e.shape_tabs.select())
+            e.shape_tab_value.set(index)
             e.negative.set(index==1);e.library=e.shape_libraries[index];e.populate_library()
         e.shape_tabs.bind('<<NotebookTabChanged>>',change_shape_tab)
     else:
