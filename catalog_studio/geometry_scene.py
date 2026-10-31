@@ -316,7 +316,7 @@ def build_mesh(node,resolver):
             rings.append(ring)
         rings_mesh(mesh,rings,top,bottom)
     elif kind in ('TUBE','BOXI'):
-        if r.actual:raise ValueError('暗黙チューブの長さには設計側の前後部品の配置情報が必要です。')
+        if r.actual:raise ValueError('長さ自動のチューブを表示するには設計側の前後部品の配置情報が必要です。')
         origin,direction=axis();radius=value('PDIAM' if kind=='TUBE' else 'PDIA',.65,True)/2
         if kind=='BOXI':
             u,v=frame(direction);width,height=value('PXLE',.7,True),value('PZLE',.5,True)

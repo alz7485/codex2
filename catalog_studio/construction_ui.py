@@ -232,6 +232,8 @@ class ConstructionEditor(ttk.Frame):
         else:
             text=schema.LABELS.get(kind,'負 '+schema.LABELS.get(schema.positive(kind),'未確認'))
             text+='\n'+('ネガティブ形状。NAPP で適用先を指定します。' if kind in schema.NEGATIVE_BASE else '形状を作成してから、寸法・位置の式を入力します。')
+        if schema.positive(kind) in ('BOXI','TUBE'):
+            text+='\n長さは設計側の前後の接続位置から決まります。SCYLのような高さ入力はありません。'
         self.type_help.configure(text=text)
         self.create_element_button.configure(text=kind+' を作成',state='normal' if self.definition() else 'disabled')
 
