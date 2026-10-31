@@ -209,6 +209,10 @@ class ConstructionEditor(ttk.Frame):
     def populate_library(self):
         items = schema.TYPES_BY_SET[self.kind]
         if self.kind == 'GMSET' and self.negative.get(): items = schema.NEGATIVE_BASE
+        if hasattr(self,'shape_tabs'):
+            index=1 if self.negative.get() else 0
+            self.library=self.shape_libraries[index]
+            if self.shape_tabs.index(self.shape_tabs.select())!=index:self.shape_tabs.select(index)
         self.library.delete(0, 'end')
         for kind in items:
             label=schema.LABELS.get(kind,'負 '+schema.LABELS.get(schema.positive(kind),'未確認'))

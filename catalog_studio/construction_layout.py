@@ -88,27 +88,42 @@ def build_simple(editor):
 
     e.creation_frame=tk.Toplevel(e)
     e.creation_frame.withdraw();e.creation_frame.title('ポイントを追加' if point else '形状を追加')
-    e.creation_frame.geometry('850x520');e.creation_frame.minsize(760,480)
+    e.creation_frame.geometry('960x720' if e.kind=='GMSET' else '850x520');e.creation_frame.minsize(920,680) if e.kind=='GMSET' else e.creation_frame.minsize(760,480)
     e.creation_frame.transient(e.winfo_toplevel())
     e.creation_frame.protocol('WM_DELETE_WINDOW',lambda:e.toggle_create() if e.creating else e.creation_frame.withdraw())
     creation=ttk.Frame(e.creation_frame,padding=16);creation.pack(fill='both',expand=True)
     ttk.Label(creation,text='種類を選んで作成',style='Heading.TLabel').pack(anchor='w',pady=(0,12))
     e.negative = tk.BooleanVar(value=False)
-    if not point:
+    if not point and e.kind!='GMSET':
         ttk.Checkbutton(creation, text='ネガティブ形状', variable=e.negative, command=e.populate_library).pack(anchor='w', pady=(0, 6))
     holder = ttk.Frame(creation)
     holder.pack(fill='both',expand=True)
-    list_side=ttk.Frame(holder,width=250);list_side.pack(side='left',fill='both',padx=(0,16));list_side.pack_propagate(False)
+    list_side=ttk.Frame(holder,width=310 if e.kind=='GMSET' else 250);list_side.pack(side='left',fill='both',padx=(0,16));list_side.pack_propagate(False)
     diagram_side=ttk.Frame(holder);diagram_side.pack(side='left',fill='both',expand=True)
     e.guide_canvas=tk.Canvas(diagram_side,height=270,background='#f5f8fc',highlightthickness=1,highlightbackground='#d7e1ed')
     e.guide_canvas.pack(fill='both',expand=True)
     from . import element_guide
     e.guide_canvas.bind('<Configure>',lambda _:element_guide.draw(e))
-    e.library = tk.Listbox(list_side, height=4 if point else 8, exportselection=False, font=(e.host.ui_font, 10), relief='flat',borderwidth=0,activestyle='none',selectbackground=theme.SELECT,selectforeground=theme.ACCENT)
-    e.library.pack(side='left', fill='both', expand=True)
-    scroll = ttk.Scrollbar(list_side, command=e.library.yview)
-    scroll.pack(side='right', fill='y')
-    e.library.configure(yscrollcommand=scroll.set)
+    def make_library(parent):
+        result=tk.Listbox(parent,height=20 if e.kind=='GMSET' else 4,exportselection=False,font=(e.host.ui_font,10),relief='flat',borderwidth=0,activestyle='none',selectbackground=theme.SELECT,selectforeground=theme.ACCENT)
+        result.pack(side='left',fill='both',expand=True)
+        result.bind('<<ListboxSelect>>',e.describe_selected_type)
+        return result
+    if e.kind=='GMSET':
+        e.shape_tabs=ttk.Notebook(list_side);e.shape_tabs.pack(fill='both',expand=True)
+        e.shape_libraries=[]
+        for label in ('通常形状','ネガティヴ形状'):
+            tab=ttk.Frame(e.shape_tabs,padding=(0,6,0,0));e.shape_tabs.add(tab,text=label)
+            e.shape_libraries.append(make_library(tab))
+        e.library=e.shape_libraries[0]
+        def change_shape_tab(_=None):
+            index=e.shape_tabs.index(e.shape_tabs.select())
+            e.negative.set(index==1);e.library=e.shape_libraries[index];e.populate_library()
+        e.shape_tabs.bind('<<NotebookTabChanged>>',change_shape_tab)
+    else:
+        e.library=make_library(list_side)
+        scroll=ttk.Scrollbar(list_side,command=e.library.yview);scroll.pack(side='right',fill='y')
+        e.library.configure(yscrollcommand=scroll.set)
     e.type_help = ttk.Label(diagram_side, text='', wraplength=440, justify='left', style='Muted.TLabel')
     e.type_help.pack(fill='x', pady=10)
     e.creation_frame.bind('<Configure>', lambda event: e.type_help.configure(wraplength=max(140,event.width-320)) if event.widget is e.creation_frame else None)
