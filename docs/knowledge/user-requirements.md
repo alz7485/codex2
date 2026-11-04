@@ -475,3 +475,5 @@ TEXT選択時はそのTEXTに対応する寸法のみ表示する。対応なし
 2026-11-04追記：SCOM表のPARAM列は幅120pxを基本とし、見出しを1行目PA番号／2行目STEXTの2行表示にする。長いSTEXTは省略記号を付け、見出しホバーのツールチップで全文を表示する。名前列は180px。保存されるSTEXTやExcelの見出し対応付けは省略しない全文を使う。
 
 2026-11-05：SCOM表の本文にも縦横の罫線を追加し、スクロール時にセルと同期させる。窓は画面に収まる範囲で最大1440×820に拡大。PARAM列は120→108px、名前列は180→170pxに少し縮める。PA番号/STEXTの2行見出しと全文ツールチップは維持する。
+
+2026-11-05：提示されたPARAM一覧写真から「弁用PARAM参考表（29項目）」を初期サンプルへ追加。PA1〜3 NOM BORE、4〜6 CONN TYPE、7〜9 LAY LENGTH、10〜11 FLAN THICKNESS、12〜13 FLAN DIA、14 CENTER TO TOP、15 PIPE OD、16 BODY DIA、17 INSERTION DEPTH、18 INSERTION DIA、19 BONNET DIA、20 BONNET HIGHT、21 BONNET THICKNESS、22 OP LENGTH、23 OP WIDTH、24 OP HEIGHT、25 SPACE、26 MAINT SP XLEN、27 MAINT SP YLEN、28 MAINT SP DOWN、29 MAINT SP HEIGHT。英語は写真の綴りを保持。重複英語名は日本語側に連番を付けて区別。接続形式のみword、他はnumber。寸法mmはツールの仮初期設定で出典に単位指定なし。OPの仮訳とSPACEの用途は要確認。30番は追加パラメータの案内で固定項目ではない。写真自体は保存・配布しない。既存のSCOM・定義へのプリセット割当は変更しない。

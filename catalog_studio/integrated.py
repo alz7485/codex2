@@ -112,6 +112,7 @@ class IntegratedStudio(tk.Tk):
         self.more_nav_menu.add_separator()
         self.more_nav_menu.add_command(label='PTSET・GMSET の作成マクロを読み込む',command=self.import_creation_macro)
         self.more_nav_menu.add_command(label='手動弁サンプルを追加',command=self.add_valve_sample)
+        self.more_nav_menu.add_command(label='弁用PARAM参考表サンプルを追加',command=self.add_reference_parameters)
         self.more_nav_button.pack(side='left')
         footer=ttk.Frame(self,padding=(18,7),style='Status.TFrame');footer.pack(side='bottom',fill='x')
         ttk.Label(footer,text='Ctrl+S 保存    Ctrl+O 開く',style='Status.TLabel').pack(side='right')
@@ -945,6 +946,14 @@ class IntegratedStudio(tk.Tk):
         for collection,attr in [('cates','cate_id'),('scoms','scom_id'),('definitions','definition_id'),('specs','spec_id')]:setattr(self,attr,next((x['id'] for x in self.data[collection]),None))
         self.element_id=None;self.field=None;self.selected_book=None
         self.catalog_tab='scom';self.catalog_member_key=None;self.catalog_detail_id=None;self.catalog_prop_id=None;self.catalog_seed_scom_id=None
+    def add_reference_parameters(self):
+        if self.commit_definition_name() is False:return
+        from .sample_parameter_presets import add_reference_preset
+        try:record,added=add_reference_preset(self.data)
+        except ValueError as exc:self.status.configure(text=str(exc));return
+        if added:self.mark('弁用PARAM参考表（29項目）を追加しました。PARAMプリセットから選択できます。')
+        else:self.status.configure(text='弁用PARAM参考表サンプルは既に登録されています。')
+
     def add_valve_sample(self):
         if self.grab_current():
             self.grab_current().lift();return

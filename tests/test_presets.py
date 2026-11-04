@@ -55,7 +55,7 @@ class PresetTests(unittest.TestCase):
         profile=self.profile();presets.bind(self.data,self.data['scoms'][0],profile['id'])
         problems='\n'.join(project.issues(self.data));self.assertIn('プリセットが異なります',problems)
         with self.assertRaises(ValueError):presets.remove(self.data,profile['id'])
-        del self.data['parameter_presets'][0]
+        self.data['parameter_presets']=[p for p in self.data['parameter_presets'] if p['id']!=profile['id']]
         self.assertEqual(presets.rules(self.data,self.data['scoms'][0]),[])
         self.assertIn('プリセットが見つかりません','\n'.join(project.issues(self.data)))
         with self.assertRaises(ValueError):booklet.snapshot(self.data)
