@@ -17,6 +17,13 @@ class CateWorkflowTests(unittest.TestCase):
    win=open_sheet(app);app.update()
    with patch('catalog_studio.scom_sheet_ui.messagebox.askyesno',return_value=True):win.choose_preset()
    self.assertEqual(win.labels['P3'],'Dimension P3')
+   original_label=win.labels['P3'];long_label='Very long STEXT description for the face to face dimension'
+   win.labels['P3']=long_label;win.configure_headers();app.update()
+   heading=win.tree.heading('P3','text');self.assertEqual(heading.split('\n')[0],'PA3');self.assertTrue(heading.endswith('…'))
+   self.assertEqual(win.tree.column('P3','width'),120)
+   win.header_hint.key='P3';win.header_hint.position=(20,20);win.header_hint.show();app.update()
+   self.assertEqual(win.header_hint.window.winfo_children()[0].cget('text'),'PA3\n'+long_label)
+   win.header_hint.hide();win.labels['P3']=original_label;win.configure_headers()
    self.assertEqual(win.columns,['NAME']+[p['id'] for p in presets.rules(app.data,s)])
    self.assertFalse(any(t.get('parameter_text_source',{}).get('preset_id')==s.get('parameter_preset_id') for t in app.data['texts']))
    import tempfile

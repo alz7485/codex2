@@ -1,7 +1,7 @@
 """Editable SCOM table with staged row additions and Excel imports."""
 import copy
 import tkinter as tk
-from tkinter import ttk,filedialog,messagebox
+from tkinter import ttk,filedialog,messagebox,font
 from . import project,presets,scom_sheet as model
 
 class ScomSheet(tk.Toplevel):
@@ -22,12 +22,16 @@ class ScomSheet(tk.Toplevel):
         self.excel_button=ttk.Button(bar,text='▦ Excel読込',style='AttributeTool.TButton',command=self.load_excel);self.excel_button.pack(side='left',padx=3)
         ttk.Label(self,text='セルをダブルクリックして編集。新しい行は選択中SCOMの参照・PARAMを引き継ぎます。列見出しはTEXTのSTEXTです。Excelには名前とSTEXT、またはP1等のPARAM番号を指定できます。',padding=(12,0),wraplength=1040).pack(anchor='w')
         area=ttk.Frame(self,padding=12);area.pack(fill='both',expand=True)
-        self.tree=ttk.Treeview(area,columns=self.columns,show='headings',selectmode='browse')
-        for col in self.columns:self.tree.heading(col,text=self.labels[col]);self.tree.column(col,width=210,minwidth=90)
-        self.tree.grid(row=0,column=0,sticky='nsew')
-        v=ttk.Scrollbar(area,command=lambda *args:(self.finish(),self.tree.yview(*args)));v.grid(row=0,column=1,sticky='ns')
-        h=ttk.Scrollbar(area,orient='horizontal',command=lambda *args:(self.finish(),self.tree.xview(*args)));h.grid(row=1,column=0,sticky='ew')
-        self.tree.configure(yscrollcommand=v.set,xscrollcommand=h.set);area.rowconfigure(0,weight=1);area.columnconfigure(0,weight=1)
+        self.header=tk.Canvas(area,height=48,highlightthickness=0,background='#f5f8fc')
+        self.header.grid(row=0,column=0,sticky='ew');self.header.bind('<Configure>',lambda _:self.draw_headers())
+        self.tree=ttk.Treeview(area,columns=self.columns,show='',selectmode='browse')
+        self.configure_headers()
+        self.header_hint=HeaderHint(self)
+        self.tree.grid(row=1,column=0,sticky='nsew')
+        v=ttk.Scrollbar(area,command=lambda *args:(self.finish(),self.tree.yview(*args)));v.grid(row=1,column=1,sticky='ns')
+        h=ttk.Scrollbar(area,orient='horizontal',command=lambda *args:(self.finish(),self.tree.xview(*args),self.draw_headers()));h.grid(row=2,column=0,sticky='ew')
+        self.horizontal=h
+        self.tree.configure(yscrollcommand=v.set,xscrollcommand=self.sync_header);area.rowconfigure(1,weight=1);area.columnconfigure(0,weight=1)
         self.tree.bind('<Double-1>',self.edit)
         self.tree.bind('<Configure>',lambda _:self.finish())
         for event in ('<MouseWheel>','<Button-4>','<Button-5>'):self.tree.bind(event,lambda _:self.finish(),add='+')
@@ -36,6 +40,37 @@ class ScomSheet(tk.Toplevel):
         self.save_button=ttk.Button(footer,text='表を登録',style='Primary.TButton',command=self.save);self.save_button.pack(side='right')
         ttk.Button(footer,text='取消',command=self.destroy).pack(side='right',padx=8)
         self.refresh()
+    def configure_headers(self):
+        self.header_font=font.Font(self,family=self.host.ui_font,size=9,weight='bold')
+        for col in self.columns:
+            if col=='NAME':title='名前';width=180
+            else:
+                label=' '.join(self.labels[col].split());width=120;short=label
+                while short and self.header_font.measure(short+('…' if short!=label else ''))>width-18:short=short[:-1]
+                title='PA'+col[1:]+'\n'+short+('…' if short!=label else '')
+            self.tree.heading(col,text=title);self.tree.column(col,width=width,minwidth=90,stretch=False)
+        if hasattr(self,'header_hint'):self.header_hint.hide()
+        self.draw_headers()
+
+    def sync_header(self,first,last):
+        self.horizontal.set(first,last);self.draw_headers()
+
+    def header_cells(self):
+        widths=[int(self.tree.column(c,'width')) for c in self.columns]
+        x=-self.tree.xview()[0]*sum(widths)
+        for col,width in zip(self.columns,widths):
+            yield col,x,width
+            x+=width
+
+    def draw_headers(self):
+        if not hasattr(self,'header') or not hasattr(self,'tree'):return
+        self.header.delete('all')
+        for col,x,width in self.header_cells():
+            title=self.tree.heading(col,'text');lines=title.split('\n',1)
+            self.header.create_rectangle(x,0,x+width,48,fill='#f5f8fc',outline='#d3ddec')
+            self.header.create_text(x+width/2,13 if len(lines)>1 else 24,text=lines[0],font=(self.host.ui_font,9,'bold'),fill='#40556d')
+            if len(lines)>1:self.header.create_text(x+width/2,34,text=lines[1],font=(self.host.ui_font,9),fill='#637993')
+
     def choose_preset(self,_=None):
         self.finish();ident=self.preset_options.get(self.preset_choice.get(),self.preset_id)
         create=messagebox.askyesno('TEXT作成確認','選択したPARAMプリセットに対応するTEXTをCATE内に作成しますか？\n既存の対応TEXTはそのまま使用します。\n表の登録時にまとめて確定します。',parent=self)
@@ -44,7 +79,7 @@ class ScomSheet(tk.Toplevel):
             self.error.configure(text=str(exc));self.preset_choice.set(next(n for n,i in self.preset_options.items() if i==self.preset_id));return
         self.working=working;self.labels=labels;self.preset_id=ident;self.columns=list(labels)
         self.tree.configure(columns=self.columns)
-        for col in self.columns:self.tree.heading(col,text=labels[col]);self.tree.column(col,width=210,minwidth=90)
+        self.configure_headers()
         self.error.configure(text='TEXTとSCOMの変更は「表を登録」で確定します。');self.refresh()
 
     def refresh(self):
@@ -113,3 +148,35 @@ def open_sheet(host):
     if host.commit_definition_name() is False:return
     if not project.get(host.data,'cates',host.cate_id):host.status.configure(text='CATEを選択してください。');return
     return ScomSheet(host)
+
+
+class HeaderHint:
+    def __init__(self,editor):
+        self.editor=editor;self.tree=editor.tree;self.key=None;self.pending=None;self.window=None
+        self.editor.header.bind('<Motion>',self.motion,add='+')
+        for event in ('<Leave>','<ButtonPress>','<Destroy>','<MouseWheel>'):
+            self.tree.bind(event,lambda _:self.hide(),add='+')
+            self.editor.header.bind(event,lambda _:self.hide(),add='+')
+    def motion(self,event):
+        key=next((col for col,x,width in self.editor.header_cells() if x<=event.x<x+width),None)
+        if key is None:self.hide();return
+        if key==self.key:return
+        self.hide();self.key=key;self.position=(event.x_root+12,event.y_root+20)
+        self.pending=self.tree.after(450,self.show)
+    def show(self):
+        self.pending=None
+        if not self.key or not self.tree.winfo_exists():return
+        label=self.editor.labels[self.key]
+        self.window=tk.Toplevel(self.tree);self.window.overrideredirect(True)
+        text=label if self.key=='NAME' else 'PA'+self.key[1:]+'\n'+label
+        ttk.Label(self.window,text=text,wraplength=480,justify='left',padding=8,relief='solid',borderwidth=1).pack()
+        self.window.update_idletasks();x,y=self.position
+        x=max(0,min(x,self.tree.winfo_screenwidth()-self.window.winfo_reqwidth()-8))
+        y=max(0,min(y,self.tree.winfo_screenheight()-self.window.winfo_reqheight()-8))
+        self.window.geometry('+'+str(x)+'+'+str(y))
+    def hide(self):
+        if self.pending is not None:
+            self.tree.after_cancel(self.pending);self.pending=None
+        if self.window is not None:
+            self.window.destroy();self.window=None
+        self.key=None
