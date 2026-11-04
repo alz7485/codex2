@@ -9,7 +9,7 @@ class ScomSheet(tk.Toplevel):
         super().__init__(host);self.host=host;self.data=host.data;self.snapshot=copy.deepcopy(host.data);self.cate_id=host.cate_id;self.seed_id=host.scom_id
         self.seed=project.get(host.data,'scoms',self.seed_id);self.editing=None
         self.preset_id=presets.selected_id(host.data,self.seed);self.working,self.labels=model.text_columns(host.data,self.cate_id,self.preset_id)
-        self.title('SCOM表登録');self.geometry('1100x650');self.transient(host);self.grab_set()
+        self.title('SCOM表登録');self.geometry(str(min(1440,self.winfo_screenwidth()-80))+'x'+str(min(820,self.winfo_screenheight()-100)));self.minsize(1000,600);self.transient(host);self.grab_set()
         self.columns=list(self.labels)
         self.rows=[model.row(host.data,s) for s in host.data['scoms'] if s['cate_id']==self.cate_id]
         bar=ttk.Frame(self,padding=12);bar.pack(fill='x')
@@ -31,7 +31,7 @@ class ScomSheet(tk.Toplevel):
         v=ttk.Scrollbar(area,command=lambda *args:(self.finish(),self.tree.yview(*args)));v.grid(row=1,column=1,sticky='ns')
         h=ttk.Scrollbar(area,orient='horizontal',command=lambda *args:(self.finish(),self.tree.xview(*args),self.draw_headers()));h.grid(row=2,column=0,sticky='ew')
         self.horizontal=h
-        self.tree.configure(yscrollcommand=v.set,xscrollcommand=self.sync_header);area.rowconfigure(1,weight=1);area.columnconfigure(0,weight=1)
+        self.tree.configure(yscrollcommand=lambda a,b:(v.set(a,b),self.schedule_rules()),xscrollcommand=self.sync_header);area.rowconfigure(1,weight=1);area.columnconfigure(0,weight=1)
         self.tree.bind('<Double-1>',self.edit)
         self.tree.bind('<Configure>',lambda _:self.finish())
         for event in ('<MouseWheel>','<Button-4>','<Button-5>'):self.tree.bind(event,lambda _:self.finish(),add='+')
@@ -39,13 +39,17 @@ class ScomSheet(tk.Toplevel):
         footer=ttk.Frame(self,padding=12);footer.pack(fill='x')
         self.save_button=ttk.Button(footer,text='表を登録',style='Primary.TButton',command=self.save);self.save_button.pack(side='right')
         ttk.Button(footer,text='取消',command=self.destroy).pack(side='right',padx=8)
+        self.rules=SheetRules(self)
         self.refresh()
+    def schedule_rules(self):
+        if hasattr(self,'rules'):self.rules.schedule()
+
     def configure_headers(self):
         self.header_font=font.Font(self,family=self.host.ui_font,size=9,weight='bold')
         for col in self.columns:
-            if col=='NAME':title='名前';width=180
+            if col=='NAME':title='名前';width=170
             else:
-                label=' '.join(self.labels[col].split());width=120;short=label
+                label=' '.join(self.labels[col].split());width=108;short=label
                 while short and self.header_font.measure(short+('…' if short!=label else ''))>width-18:short=short[:-1]
                 title='PA'+col[1:]+'\n'+short+('…' if short!=label else '')
             self.tree.heading(col,text=title);self.tree.column(col,width=width,minwidth=90,stretch=False)
@@ -53,7 +57,7 @@ class ScomSheet(tk.Toplevel):
         self.draw_headers()
 
     def sync_header(self,first,last):
-        self.horizontal.set(first,last);self.draw_headers()
+        self.horizontal.set(first,last);self.draw_headers();self.schedule_rules()
 
     def header_cells(self):
         widths=[int(self.tree.column(c,'width')) for c in self.columns]
@@ -85,6 +89,7 @@ class ScomSheet(tk.Toplevel):
     def refresh(self):
         self.tree.delete(*self.tree.get_children())
         for i,row in enumerate(self.rows):self.tree.insert('','end',iid=str(i),values=[row.get(c,'') for c in self.columns])
+        self.schedule_rules()
     def template(self):
         row=model.row(self.data,self.seed) if self.seed else {c:'' for c in self.columns}
         row.pop('id',None);return row
@@ -180,3 +185,37 @@ class HeaderHint:
         if self.window is not None:
             self.window.destroy();self.window=None
         self.key=None
+
+
+class SheetRules:
+    """One-pixel grid overlays, aligned with native cell geometry and scrolling."""
+    def __init__(self,editor):
+        self.editor=editor;self.tree=editor.tree;self.lines=[];self.pending=None
+        self.tree.bind('<Configure>',lambda _:self.schedule(),add='+')
+        self.tree.bind('<Destroy>',self.close,add='+')
+    def schedule(self):
+        if self.pending is None:self.pending=self.tree.after_idle(self.draw)
+    def close(self,event):
+        if event.widget is self.tree and self.pending is not None:
+            self.tree.after_cancel(self.pending);self.pending=None
+    def draw(self):
+        self.pending=None
+        if not self.tree.winfo_exists():return
+        for line in self.lines:line.destroy()
+        self.lines=[];w=self.tree.winfo_width();h=self.tree.winfo_height()
+        def line(x,y,width,height):
+            item=tk.Frame(self.tree,background='#c7d4e5',borderwidth=0,takefocus=False)
+            item.place(x=x,y=y,width=width,height=height);self.lines.append(item)
+            item.bind('<Button-1>',lambda e:self.tree.event_generate('<Button-1>',x=e.x+e.widget.winfo_x(),y=e.y+e.widget.winfo_y()))
+            from types import SimpleNamespace
+            item.bind('<Double-1>',lambda e:self.editor.edit(SimpleNamespace(x=e.x+e.widget.winfo_x(),y=e.y+e.widget.winfo_y())))
+            item.bind('<MouseWheel>',lambda e:self.tree.event_generate('<MouseWheel>',delta=e.delta))
+            for sequence in ('<Button-4>','<Button-5>'):item.bind(sequence,lambda e,s=sequence:self.tree.event_generate(s))
+        for col,x,width in self.editor.header_cells():
+            for edge in (round(x),round(x+width)):
+                if 0<=edge<w:line(edge,0,1,h)
+        first=self.tree.identify_row(1);box=self.tree.bbox(first) if first else ()
+        height=box[3] if box else int(ttk.Style(self.tree).lookup('Treeview','rowheight') or 30)
+        offset=box[1]%height if box else 0
+        for y in range(offset,h,max(1,height)):line(0,y,w,1)
+        if self.editor.editing:self.editor.editing[0].lift()
