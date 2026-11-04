@@ -6,7 +6,7 @@ import re
 KEY='catalog_dimension_layouts'
 PATTERN=re.compile(r'(?:extent:[XYZ]|points:\d+:\d+|gm:[^:\s]{1,100}:[A-Z]+)\Z')
 COLOR='#126c94'
-TEXT_COLOR='#873b42'
+TEXT_COLOR='#ff0000'
 
 
 def validate(data):
@@ -79,7 +79,7 @@ def draw(view):
         if length<8:continue
         nx,ny=-vy/length,vx/length;mx,my=(a[0]+b[0])/2,(a[1]+b[1])/2
         if nx*(mx-cx)+ny*(my-cy)<0:nx,ny=-nx,-ny
-        base=34+i*11;extra=saved.get(key,(0,0))
+        base=64+i*16;extra=saved.get(key,(0,0))
         dx,dy=nx*base+extra[0]*width,ny*base+extra[1]*height
         # Keep extension arrows and labels inside the canvas while dragging.
         dx=max(18-min(a[0],b[0]),min(width-18-max(a[0],b[0]),dx))

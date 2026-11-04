@@ -32,6 +32,23 @@ class CatalogDimensionTests(unittest.TestCase):
         self.assertEqual(dims.description(view,{'expression':expr}),'PA1（Nominal bore） + 2 * PA1（Nominal bore）')
         self.assertEqual(paramdims.display_expression(view,'IPARAM 1 + PA2'),'IPARAM 1 + PA2')
 
+    def test_point_axis_reference_is_not_mistaken_for_param_number(self):
+        from catalog_studio.integrated import IntegratedStudio
+        try:app=IntegratedStudio()
+        except tk.TclError as exc:self.skipTest(str(exc))
+        try:
+            s=next(s for s in app.data['scoms'] if s['name']=='/SAMPLE-VALVE-80')
+            app.cate_id=s['cate_id'];app.scom_id=s['id'];app.switch('catalog');app.update()
+            view=app.preview;node=view.editor.definition()['elements'][0]
+            node['type']='SCYL';node['attrs']={'PAXI':'P1','PDIS':'0','PDIA':'PARAM 4','PHEI':'PARAM 3'}
+            from catalog_studio import pairing
+            pt=pairing.resolve(app.data,view.editor.definition())['pointset']
+            pt['elements'][0]['attrs'].update(PDIS='PARAM 3 / 2',PAXI='X')
+            view.editor.element_id=node['id'];view.redraw();app.update()
+            highlighted={app.catalog_inspector.fields[i][2][1] for i in app.catalog_inspector.tree.highlighted}
+            self.assertEqual(highlighted,{'P3','P4'})
+        finally:app.destroy()
+
     def test_geometry_click_filters_dimensions_without_changing_project_or_rotation(self):
         from catalog_studio.integrated import IntegratedStudio
         try:app=IntegratedStudio()
@@ -50,6 +67,11 @@ class CatalogDimensionTests(unittest.TestCase):
             x,y,ident=candidate;event=SimpleNamespace(x=x,y=y)
             view.press(event);view.release(event);app.update()
             self.assertEqual(view.editor.element_id,ident)
+            self.assertTrue(app.catalog_inspector.tree.highlighted)
+            for iid in app.catalog_inspector.tree.highlighted:
+                self.assertEqual(app.catalog_inspector.tree.canvas.itemcget('value:'+iid,'fill'),'#ff0000')
+            for item in view.dimension_items.values():
+                self.assertEqual(view.canvas.itemcget(item['text'],'fill'),'#ff0000')
             self.assertTrue(all(r['element_id']==ident for r in view.dimension_measurements))
             self.assertEqual(app.data,before)
             view.press(event);view.move(SimpleNamespace(x=x+30,y=y+20));view.release(SimpleNamespace(x=x+30,y=y+20))
@@ -57,6 +79,7 @@ class CatalogDimensionTests(unittest.TestCase):
             view.dimension_lines.set(False);view.redraw();self.assertFalse(view.dimension_items)
             view.press(SimpleNamespace(x=5,y=90));view.release(SimpleNamespace(x=5,y=90))
             self.assertIsNone(view.editor.element_id);self.assertFalse(view.dimension_items)
+            app.update();self.assertFalse(app.catalog_inspector.tree.highlighted)
             view.dimension_lines.set(True);view.redraw();self.assertGreater(len(view.dimension_measurements),1)
             self.assertEqual(app.data,before)
         finally:app.destroy()

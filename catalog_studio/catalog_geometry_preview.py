@@ -54,9 +54,11 @@ class CatalogGeometryPreview(GeometryCanvas):
         if getattr(self,'refreshing',False):return
         from .element_schema import walk
         if self.editor.element_id and not any(n['id']==self.editor.element_id for n in walk((self.editor.definition() or {}).get('elements',[]))):self.editor.element_id=None
-        self.fit_padding=100 if self.actual and self.dimension_lines.get() else 55
+        self.fit_padding=130 if self.actual and self.dimension_lines.get() else 55
         super().redraw()
         catalog_dimensions.draw(self)
+        inspector=getattr(self.editor.host,'catalog_inspector',None)
+        if inspector and inspector.winfo_exists():inspector.highlight_geometry()
         if hasattr(self,'issue_label') and self.winfo_exists():
             if self.issue_label.cget('text'):self.issue_label.grid()
             else:self.issue_label.grid_remove()

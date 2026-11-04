@@ -154,6 +154,38 @@ class CatalogInspector(ttk.Frame):
                 label,meaning=field_caption(self.host.data,record,label,path)
                 iid=self.tree.insert('','end',values=(label,display),meaning=meaning)
                 self.fields[iid]=(collection,record['id'],path,choices)
+        self.highlight_geometry()
+
+    def highlight_geometry(self):
+        from . import expressions,element_schema as schema
+        view=getattr(self.host,'preview',None);ids=set();scom_id=None
+        if view and hasattr(view,'editor') and getattr(view.editor,'element_id',None):
+            definition=view.editor.definition() or {};scom_id=view.editor.preview_scom_id
+            node=next((n for n in schema.walk(definition.get('elements',[])) if n['id']==view.editor.element_id),None)
+            if node:
+                import re
+                from . import pairing
+                pointset=pairing.resolve(self.host.data,definition)['pointset']
+                points={}
+                for i,p in enumerate((pointset or {}).get('elements',[])):
+                    try:points[int(p['attrs'].get('NUMB',i+1))]=p
+                    except (ValueError,TypeError):pass
+                seen=set();parameters=presets.rules(self.host.data,definition)
+                def collect(item):
+                    if item['id'] in seen:return
+                    seen.add(item['id'])
+                    allowed=schema.GM_TYPES.get(schema.positive(item['type']),schema.PT_TYPES.get(item['type'],()))
+                    for key,raw in item.get('attrs',{}).items():
+                        if key not in allowed:continue
+                        if key in ('PAXI','PAAX','PBAX','PCAX','PTCDIR','PTCD'):
+                            for match in re.finditer(r'(?<!\w)P(\d+)\b',str(raw),re.I):
+                                point=points.get(int(match[1]))
+                                if point:collect(point)
+                            continue
+                        try:ids.update(pid for family,pid in expressions.refs(expressions.parse(str(raw),parameters)) if family=='PARAM')
+                        except ValueError:pass
+                collect(node)
+        self.tree.set_highlights(iid for iid,(col,ident,path,_) in self.fields.items() if col=='scoms' and ident==scom_id and len(path)==2 and path[0]=='values' and path[1] in ids)
 
     def click(self,event):
         if self.tree.identify_column(event.x)=='#2':self.begin(self.tree.identify_row(event.y))

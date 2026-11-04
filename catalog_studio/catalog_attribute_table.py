@@ -5,7 +5,7 @@ from .attribute_table import AttributeTable
 
 class CatalogAttributeTable(AttributeTable):
     def __init__(self,parent,family):
-        super().__init__(parent,family);self.serial=0
+        super().__init__(parent,family);self.serial=0;self.highlighted=set()
 
     def bind(self,sequence=None,func=None,add=None):
         if sequence=='<ButtonRelease-1>' and func:
@@ -39,8 +39,18 @@ class CatalogAttributeTable(AttributeTable):
         top,bottom=self.bounds[iid];width=max(220,self.canvas.winfo_width());divider=max(105,int(width*.39))
         return (self.canvas.winfo_x()+divider+4,int(top-self.canvas.canvasy(0))+self.canvas.winfo_y()+3,max(80,width-divider-10),min(30,int(bottom-top-6)))
 
+    def set_highlights(self,rows):
+        rows=set(rows)
+        if rows!=self.highlighted:self.highlighted=rows;self.schedule()
+
     def redraw(self):
         super().redraw()
+        for iid in self.highlighted:
+            if iid not in self.bounds:continue
+            for prefix in ('name:','value:','meaning:','caption:'):
+                self.canvas.itemconfigure(prefix+iid,fill='#ff0000')
+            a,b=self.bounds[iid]
+            self.canvas.create_rectangle(1,a,4,b,fill='#ff0000',outline='',tags='geometry-related')
         headings=getattr(self,'headings',None)
         if headings:
             texts=[item for item in self.header.find_all() if self.header.type(item)=='text']
