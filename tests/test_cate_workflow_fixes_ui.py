@@ -12,12 +12,18 @@ class CateWorkflowTests(unittest.TestCase):
   except tk.TclError as exc:self.skipTest(str(exc))
   try:
    app.update();s=next(s for s in app.data['scoms'] if s['name']=='/SAMPLE-VALVE-80');app.cate_id=s['cate_id'];app.scom_id=s['id'];app.switch('catalog');app.update()
+   from catalog_studio import presets
+   for parameter in presets.rules(app.data,s):parameter['english_name']='Dimension '+parameter['id']
    win=open_sheet(app);app.update()
+   with patch('catalog_studio.scom_sheet_ui.messagebox.askyesno',return_value=True):win.choose_preset()
+   self.assertEqual(win.labels['P3'],'Dimension P3')
+   self.assertEqual(win.columns,['NAME']+[p['id'] for p in presets.rules(app.data,s)])
+   self.assertFalse(any(t.get('parameter_text_source',{}).get('preset_id')==s.get('parameter_preset_id') for t in app.data['texts']))
    import tempfile
    from pathlib import Path
    from openpyxl import Workbook
    with tempfile.TemporaryDirectory() as tmp:
-    path=Path(tmp)/'parts.xlsx';book=Workbook();ws=book.active;ws.append(['NAME','P3']);ws.append(['/EXCEL-NEW',280]);book.save(path);book.close()
+    path=Path(tmp)/'parts.xlsx';book=Workbook();ws=book.active;ws.append(['名前','Dimension P3']);ws.append(['/EXCEL-NEW',280]);book.save(path);book.close()
     with patch('catalog_studio.scom_sheet_ui.filedialog.askopenfilename',return_value=str(path)):win.load_excel()
    self.assertFalse(any(s['name']=='/EXCEL-NEW' for s in app.data['scoms']))
    self.assertTrue(any(r['NAME']=='/EXCEL-NEW' for r in win.rows))

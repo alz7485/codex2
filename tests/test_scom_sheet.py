@@ -19,6 +19,19 @@ class ScomSheetTests(unittest.TestCase):
   two['P3']='invalid'
   with self.assertRaises(ValueError):sheet.apply(self.data,self.cate,[one,two],self.seed['id'])
   self.assertEqual(self.data,before)
+ def test_stext_columns_and_text_creation_are_staged_without_overwrite(self):
+  from catalog_studio import presets
+  profile=presets.selected_id(self.data,self.seed)
+  for p in presets.rules(self.data,self.seed):p['english_name']='Dimension '+p['id']
+  before=copy.deepcopy(self.data)
+  working,labels=sheet.text_columns(self.data,self.cate,profile,True)
+  self.assertEqual(self.data,before);self.assertEqual(labels['NAME'],'名前');self.assertEqual(labels['P3'],'Dimension P3')
+  count=len(working['texts']);again,labels2=sheet.text_columns(working,self.cate,profile,True)
+  self.assertEqual(len(again['texts']),count);self.assertEqual(labels,labels2)
+  existing=next(t for t in again['texts'] if t.get('parameter_text_source',{}).get('parameters')=='P3')
+  existing['attrs']['STEXT']='Face to face'
+  _,labels3=sheet.text_columns(again,self.cate,profile,False);self.assertEqual(labels3['P3'],'Face to face')
+
  def test_excel_values_headers_and_formula_rejection(self):
   from openpyxl import Workbook
   with tempfile.TemporaryDirectory() as tmp:

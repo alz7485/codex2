@@ -446,4 +446,4 @@ PTSET/GMSETの要素一覧から「プリセット呼出」「現在を登録」
 
 ### SCOM表とExcel読込
 
-CATE作成のプレビュー上部「SCOM表・Excel読込」から、セルをダブルクリックして編集し、行追加と一括登録ができます。Excelは.xlsx/.xlsmに対応し、見出しはNAME（SCOM名）、GTYP、PTRE、GMRE、SIZE、P1…です。PARAM番号にはPA1・PARAM1も使用できます。数式はExcel側で値に変換してください。読込内容は表に仮反映し「表を登録」で確定します。新しい行の参照定義とPARAMプリセットは選択中のSCOMを引き継ぎます。
+CATE作成のプレビュー上部「SCOM表・Excel読込」から、セルをダブルクリックして編集し、行追加と一括登録ができます。Excelは.xlsx/.xlsmに対応し、表には名前と各PARAMのTEXTのSTEXTを列名として表示します。PARAMプリセット選択時にTEXT作成を確認し、表と一緒に確定します。Excelの見出しは名前とSTEXT、またはNAME・P1…を使用できます。PARAM番号にはPA1・PARAM1も使用できます。数式はExcel側で値に変換してください。読込内容は表に仮反映し「表を登録」で確定します。新しい行の参照定義とPARAMプリセットは選択中のSCOMを引き継ぎます。
