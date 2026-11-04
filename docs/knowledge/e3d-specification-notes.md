@@ -528,3 +528,8 @@ REPRESENTATION DEFAULTで復元する説明。
 ユーザーがE3D出力と明示して3種類を再提示。元の固有名・数値配列・写真は収録しない。CATEのPURP COMP、配下SDTEXTのSKEY/TTEX、TEXTのSTEX、SCOMPONENTのGTYPとPARA（数値とword混在、末尾$で複数行）、OLD後のPTRE PTSET/GMRE GMSETを確認。PROPのCMPTYPE→CMPDATA→括弧付きCWEI、DETAILの単独SDTEXT→SKEY/RTEXとOLD/LOCKを確認。マクロ末尾のINPUT ENDにはルートの型と名前がある。
 
 この具体的な宣言形式をツールのカタログ読込へ反映し、自作の別名・別数値フィクスチャで検証した。読込は命令を実行せず、ファイル内の作成対象への後段設定を適用する。実機での再実行、SPECのDETAIL/PROP参照属性、所有先、CWEI単位・一般式の全構文の確定とは区別する。過去§14–15の「未実装」は当時の状態であり、今回の読込対応を優先する。
+
+
+## SPEC・PROPCON資料の追加整理（2026-11-04）
+
+第12–14・17–20章の資料確認事項は[SPEC・PROPCON資料整理](spec-propcon-notes.md)に保存。SPEC表・特殊記号・入出力順序、参照、Properties階層・属性・式・単位を参照する。過去の未確定記録の更新点と残る矛盾は同文書§11に整理。資料確認でありE3D実機確認・新機能実装ではない。

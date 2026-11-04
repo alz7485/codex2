@@ -7,7 +7,8 @@ E3D カタログツールの仕様調査・設計・実装・レビューの前�
 1. [知識メモの入口](docs/knowledge/README.md)
 2. [ユーザー要件・決定事項](docs/knowledge/user-requirements.md)
 3. [PDMS 資料から整理した E3D 開発用仕様メモ](docs/knowledge/e3d-specification-notes.md)の関連節
-4. [矛盾・未確認事項](docs/knowledge/open-questions.md)の関連項目
+4. SPEC・物性・マクロの設計では [SPEC・PROPCON資料整理](docs/knowledge/spec-propcon-notes.md)も参照してください。
+5. [矛盾・未確認事項](docs/knowledge/open-questions.md)の関連項目
 
 これは会話の内容を次回以降も参照するための永続的な作業記録です。モデルの会話記憶だけに依存しないでください。既存実装の説明は README.md と実コードで照合してください。
 

@@ -144,3 +144,8 @@ SPECの参照先が親CMPTYPEか子CMPDATAか、その正式な参照属性、CM
 ## 18. CATE・PROP・DETAILの読込対応範囲更新（2026-10-29）
 
 ユーザーの新たなE3D出力写真に基づき、§14・§16で未実装としていたCATEGORY/SDTEXT/CMPTYPEとCMPDATAのカタログMAC読込を実装。観測されたINPUT外枠・OLD/LOCK・継続行・後段のPTRE/GMRE設定に対応する。内部の関連CATEは整理用で、実機所有先やSPEC参照先の確定ではない。CWEIの単位・任意式、全ALP命令、既存外部要素を変更するOLD、DETAIL/PROPの生成マクロ出力と再実行は依然未確認または未対応。写真がE3D出力であるというユーザー説明と、こちらでの実機実行検証を区別する。
+
+
+## SPEC・PROPCONの追加証拠と未解決事項（2026-11-04）
+
+[追加整理§11](spec-propcon-notes.md#11-未解決事項と既存記録の読み替え)を必ず併読する。CMPTYPE/CMPDATAとCMPT/CMPDの対応は資料で裏付けられた。一方、CMPREF/CMPRの参照粒度、SPECとSPCOMの材質参照、DTEXT/SDTEXT、DEFAULTS省略に見える例、PWAS、柔性行列・単位、E3Dへの適用は未確認。
