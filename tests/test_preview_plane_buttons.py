@@ -20,7 +20,7 @@ class PlaneButtonTests(unittest.TestCase):
             self.assertEqual(self.v.camera.basis(),basis)
             self.assertTrue(self.v.plane_buttons[plane].instate(['selected']))
         self.v.plane_buttons['YZ'].invoke();self.app.update();self.assertEqual(self.v.plane.get(),'YZ')
-        self.v.view_buttons['XZ'].invoke();self.app.update();self.assertEqual(self.v.view.get(),'XZ');self.assertEqual(self.v.plane.get(),'YZ')
+        self.v.view_buttons['XZ'].invoke();self.app.update();self.assertEqual(self.v.view.get(),'XZ');self.assertEqual(self.v.plane.get(),'XZ')
         for buttons in (self.v.plane_buttons,self.v.view_buttons):
             for button in buttons.values():self.assertTrue(button['image']);self.assertEqual(str(button['compound']),'left')
         self.assertEqual(self.app.data,before);self.assertEqual(self.errors,[])

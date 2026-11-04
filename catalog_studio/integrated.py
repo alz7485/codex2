@@ -247,7 +247,11 @@ class IntegratedStudio(tk.Tk):
         self.reference_label=ttk.Label(references,text='',wraplength=520);self.reference_label.pack(anchor='w')
         ttk.Button(references,text='GMSET を編集',command=lambda:self.goto_definition('gmset_id')).pack(side='left',pady=8,padx=3)
         ttk.Button(references,text='PTSET を編集',command=lambda:self.goto_definition('ptset_id')).pack(side='left',pady=8,padx=3)
-        ttk.Label(preview_parent,text='プレビュー',style='Heading.TLabel').pack(anchor='w')
+        preview_header=ttk.Frame(preview_parent);preview_header.pack(fill='x')
+        ttk.Label(preview_header,text='プレビュー',style='Heading.TLabel').pack(side='left')
+        from .scom_sheet_ui import open_sheet
+        self.scom_sheet_button=ttk.Button(preview_header,text='▦ SCOM表・Excel読込',style='AttributeTool.TButton',command=lambda:open_sheet(self))
+        self.scom_sheet_button.pack(side='right')
         from .catalog_geometry_preview import CatalogGeometryPreview
         self.preview=CatalogGeometryPreview(self,preview_parent)
         self.scom_detail=ttk.Label(legacy,text='',style='Muted.TLabel')

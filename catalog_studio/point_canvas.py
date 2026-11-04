@@ -151,6 +151,8 @@ class PointCanvas(ttk.Frame):
         self.cancel()
     def view_changed(self):
         self.cancel();self.camera=Camera()
+        if self.view.get() in PLANES:self.plane.set(self.view.get())
+        elif self.view.get()=='立体':self.plane.set('XY')
         if self.view.get()!='立体':self.camera.face(self.plane.get() if self.view.get()=='正面' else self.view.get())
         self.redraw()
     def face(self):self.view.set('正面');self.view_changed()

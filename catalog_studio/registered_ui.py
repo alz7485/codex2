@@ -78,6 +78,7 @@ class RegisteredBrowser(ttk.Frame):
         holder.rowconfigure(0, weight=1)
         holder.columnconfigure(0, weight=1)
         self.tree.bind('<<TreeviewSelect>>', self.select)
+        self.tree.bind('<Delete>',lambda _:self.delete_item())
         self.tree.bind('<F2>',lambda _:self.rename_item())
         self.tree.bind('<Double-1>',self.rename_at)
         self.context_menu=tk.Menu(self.tree,tearoff=False)
@@ -223,7 +224,7 @@ class RegisteredBrowser(ttk.Frame):
         self.tree.focus_set()
         folder=key in self.folder_nodes
         movable=folder or key in self.items and folders.movable(self.host.page,key)
-        for i,enabled in enumerate((movable,movable and self.host.page in ('ptset','gmset'),bool(self.clipboard and self.clipboard.data is self.host.data and self.clipboard.page==self.host.page),movable,folder or key in self.items and self.host.page in ('ptset','gmset','catalog'),folder or key in self.items and self.host.page in ('ptset','gmset'))):
+        for i,enabled in enumerate((movable,movable and self.host.page in ('ptset','gmset'),bool(self.clipboard and self.clipboard.data is self.host.data and self.clipboard.page==self.host.page),movable,folder or key in self.items and self.host.page in ('ptset','gmset','catalog'),folder or key in self.items and self.host.page in ('ptset','gmset','catalog'))):
             self.context_menu.entryconfigure(i,state='normal' if enabled else 'disabled')
         try:self.context_menu.tk_popup(event.x_root,event.y_root)
         finally:self.context_menu.grab_release()
@@ -307,7 +308,14 @@ class RegisteredBrowser(ttk.Frame):
     def delete_item(self):
         selected=self.tree.selection();key=selected[0] if selected else ''
         if key in self.folder_nodes:self.delete_folder();return
-        if self.host.page in ('ptset','gmset') and key in self.items and self.ready():self.host.delete_definition()
+        if not self.ready():return
+        if self.host.page in ('ptset','gmset') and key in self.items:self.host.delete_definition()
+        elif self.host.page=='catalog' and key in self.items:
+            col,record=self.items[key]
+            if col=='cates':self.host.cate_id=record['id'];self.host.delete_cate()
+            elif col=='scoms':self.host.scom_id=record['id'];self.host.delete_scom()
+            elif col in ('texts','catalog_details','catalog_props'):
+                self.host.catalog_members.selected=key;self.host.catalog_members.delete()
 
     def folder_form(self,mode):
         if not self.ready():return
