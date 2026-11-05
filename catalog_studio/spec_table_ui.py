@@ -7,13 +7,13 @@ from . import project
 
 # A single registry controls table headings, editing and legacy defaults.
 COLUMNS = (
-    ('name', '名前 / NAME', 140), ('type', '部品種別 / TYPE', 120),
-    ('bore1', '呼び径1 / PBOR1', 125), ('bore2', '呼び径2 / PBOR2', 125),
-    ('angle', '角度 / ANGLE', 110), ('height', '高さ / HEIGHT', 110),
-    ('text', 'TEXT', 180), ('styp', '種別 / STYP', 110), ('shop', '工場製作 / SHOP', 110), ('scom_id', 'カタログ部品 / CATREF', 190),
-    ('detail_id', '説明 / DETAIL', 160), ('prop_id', '物性 / 参照', 160),
-    ('description', '説明文', 170), ('sdte_id', 'SDTE（従来参照）', 150),
-    ('smte_id', '材質 / SMTE', 150),
+    ('name', '名前 / NAME', 105), ('type', '部品種別 / TYPE', 85),
+    ('bore1', '呼び径1 / PBOR1', 85), ('bore2', '呼び径2 / PBOR2', 85),
+    ('angle', '角度 / ANGLE', 78), ('height', '高さ / HEIGHT', 78),
+    ('text', 'TEXT', 110), ('styp', '種別 / STYP', 78), ('shop', '工場製作 / SHOP', 82), ('scom_id', 'カタログ部品 / CATREF', 150),
+    ('detail_id', '説明 / DETAIL', 115), ('prop_id', '物性 / 参照', 115),
+    ('description', '説明文', 120), ('sdte_id', 'SDTE（従来参照）', 110),
+    ('smte_id', '材質 / SMTE', 100),
 )
 REFERENCES = dict(scom_id='scoms', detail_id='catalog_details', prop_id='catalog_props',
                   sdte_id='texts', smte_id='texts')
@@ -26,6 +26,7 @@ def value(data, entry, key):
 
 
 def build(host):
+    finish_edit(host)
     area = ttk.Frame(host.content, padding=10)
     area.pack(fill='both', expand=True)
     bar = ttk.Frame(area); bar.pack(fill='x', pady=(0,8))
@@ -46,7 +47,15 @@ def build(host):
     combo = ttk.Combobox(filters, textvariable=host.spec_type_filter, state='readonly',
                          values=['すべて']+sorted({e['type'] for e in spec['entries']}), width=16)
     combo.pack(side='left', padx=6)
+    style=ttk.Style(host)
+    style.configure('Spec.Treeview',font=(host.ui_font,9),rowheight=26)
+    style.configure('Spec.Treeview.Heading',font=(host.ui_font,8,'bold'),padding=(3,3))
+    style.configure('Spec.TEntry',font=(host.ui_font,9),padding=(2,0))
+    style.configure('Spec.TCombobox',font=(host.ui_font,9),padding=(2,0))
     host.spec_table = host.table(area, COLUMNS, height=18)
+    host.spec_table.configure(style='Spec.Treeview')
+    host.spec_cell_hint=CellHint(host.spec_table)
+
     for key,_,_ in COLUMNS:
         host.spec_table.heading(key,command=lambda k=key:sort_column(host,k))
     from .table_rules import TableRules
@@ -54,8 +63,11 @@ def build(host):
     holder=host.spec_table.master
     for widget in holder.winfo_children():
         if isinstance(widget,ttk.Scrollbar):
+            widget.bind('<ButtonPress-1>',lambda e:finish_edit(host),add='+')
             axis='x' if str(widget.cget('orient'))=='horizontal' else 'y'
             host.spec_table.configure(**{axis+'scrollcommand':lambda a,b,w=widget:(w.set(a,b),host.spec_table_rules.schedule())})
+    for event in ('<MouseWheel>','<Button-4>','<Button-5>','<Configure>'):
+        host.spec_table.bind(event,lambda e:finish_edit(host),add='+')
     combo.bind('<<ComboboxSelected>>', lambda e:populate(host))
     host.spec_table.bind('<<TreeviewSelect>>', host.spec_entry_select)
     host.spec_table.bind('<ButtonRelease-1>', lambda e:edit_cell(host,e))
@@ -65,6 +77,7 @@ def build(host):
     settings = host.data.get('spec_table_settings', {})
     for key, width in settings.get('widths', {}).items():
         if key in host.spec_table['columns'] and isinstance(width,int) and 65<=width<=1200:
+            if settings.get('density_version')!=2:width=min(width,dict((k,w) for k,_,w in COLUMNS)[key])
             host.spec_table.column(key, width=width)
     visible = settings.get('visible', [c[0] for c in COLUMNS])
     visible = [c[0] for c in COLUMNS if c[0] in visible]
@@ -73,6 +86,7 @@ def build(host):
 
 
 def populate(host):
+    finish_edit(host)
     tree=host.spec_table
     selected=tree.selection()
     tree.delete(*tree.get_children())
@@ -110,7 +124,7 @@ def apply_sort(host):
     tree=host.spec_table
     for key,label,_ in COLUMNS:
         suffix=(' ▼' if state[1] else ' ▲') if state and state[0]==key else ''
-        tree.heading(key,text=label+suffix)
+        tree.heading(key,text=label.split(' / ')[0]+suffix)
     if not state:return
     key,descending=state
     rows={e['id']:e for e in host.spec()['entries']}
@@ -126,7 +140,7 @@ def remember_widths(host):
     widths={key:max(65,min(1200,host.spec_table.column(key,'width'))) for key,_,_ in COLUMNS}
     settings=host.data.setdefault('spec_table_settings',{})
     if settings.get('widths')!=widths:
-        settings['widths']=widths;host.mark()
+        settings['widths']=widths;settings['density_version']=2;host.mark()
 
 
 def column_dialog(host):
@@ -146,6 +160,25 @@ def column_dialog(host):
     ttk.Button(win,text='適用',command=apply).grid(row=8,column=1,padx=12,pady=10)
 
 
+def finish_edit(host,commit=True):
+    editing=getattr(host,'spec_cell_edit',None)
+    if editing is None:return True
+    host.spec_cell_edit=None
+    widget,var,entry,key,mapping=editing
+    text=var.get()
+    if commit:
+        new=mapping.get(text,entry.get(key,'')) if mapping is not None else text
+        if new!=entry.get(key,''):
+            entry[key]=new;host.mark()
+    if widget.winfo_exists():widget.destroy()
+    tree=getattr(host,'spec_table',None)
+    if tree is not None and tree.winfo_exists() and tree.exists(entry['id']):
+        tree.item(entry['id'],values=[value(host.data,entry,c[0]) for c in COLUMNS])
+        apply_sort(host);host.spec_table_rules.schedule()
+        host.update_spec_preview()
+    return True
+
+
 def edit_cell(host,event):
     tree=host.spec_table
     if tree.identify_region(event.x,event.y)!='cell':return
@@ -153,22 +186,51 @@ def edit_cell(host,event):
     if not row or not column:return
     index=int(column[1:])-1
     display=tree['displaycolumns'];key=display[index]
+    finish_edit(host)
     entry=next(e for e in host.spec()['entries'] if e['id']==row)
+    tree.selection_set(row)
     box=tree.bbox(row,column)
     if not box:return
-    # The compact existing form handles reference selection without losing IDs.
+    mapping=None
+    var=tk.StringVar(tree,value=entry.get(key,''))
     if key in REFERENCES:
-        tree.selection_set(row);host.entry_form(entry);return
-    editor=tk.Toplevel(host);editor.title(next(c[1] for c in COLUMNS if c[0]==key));editor.transient(host)
-    editor.geometry('360x110');editor.resizable(True,False)
-    text=tk.StringVar(editor,value=entry.get(key,''))
-    field=ttk.Entry(editor,textvariable=text);field.pack(fill='x',padx=12,pady=12)
-    def save(event=None):
-        entry[key]=text.get();host.mark();editor.destroy();populate(host)
-    ttk.Button(editor,text='確定',command=save).pack(side='right',padx=12)
-    ttk.Button(editor,text='取消',command=editor.destroy).pack(side='right')
-    field.bind('<Return>',save);field.bind('<Escape>',lambda e:editor.destroy())
-    field.focus_set();field.selection_range(0,'end')
+        mapping={'未設定':''}
+        for record in host.data.get(REFERENCES[key],[]):
+            if key in ('sdte_id','smte_id') and record.get('type')!=key[:4].upper():continue
+            label=record['name']
+            if label in mapping:label+=' ['+record['id']+']'
+            mapping[label]=record['id']
+        current=entry.get(key,'')
+        if current and current not in mapping.values():mapping['参照先不明：'+current]=current
+        var.set(next((name for name,ident in mapping.items() if ident==current),'未設定'))
+        widget=ttk.Combobox(tree,textvariable=var,values=list(mapping),state='readonly',style='Spec.TCombobox',font=(host.ui_font,9))
+        widget.bind('<<ComboboxSelected>>',lambda e:finish_edit(host))
+    else:
+        widget=ttk.Entry(tree,textvariable=var,style='Spec.TEntry',font=(host.ui_font,9))
+    host.spec_cell_edit=(widget,var,entry,key,mapping)
+    widget.place(x=box[0],y=box[1],width=box[2],height=box[3])
+    widget.lift();widget.focus_set()
+    if mapping is None:widget.selection_range(0,'end')
+    widget.bind('<Return>',lambda e:finish_edit(host))
+    widget.bind('<Escape>',lambda e:finish_edit(host,False))
+    def focus_out(event):
+        def commit_if_outside():
+            if getattr(host,'spec_cell_edit',None) is None or host.spec_cell_edit[0] is not widget:return
+            focus=str(widget.tk.call('focus'))
+            if focus==str(widget) or focus.startswith(str(widget)+'.'):return
+            finish_edit(host)
+        host.after_idle(commit_if_outside)
+    widget.bind('<FocusOut>',focus_out)
+    def next_cell(event):
+        finish_edit(host)
+        keys=list(tree['displaycolumns']);next_index=(keys.index(key)+(-1 if event.state & 1 else 1))%len(keys)
+        bounds=tree.bbox(row,'#'+str(next_index+1))
+        if bounds:
+            from types import SimpleNamespace
+            edit_cell(host,SimpleNamespace(x=bounds[0]+5,y=bounds[1]+5))
+        return 'break'
+    widget.bind('<Tab>',next_cell)
+    widget.bind('<ISO_Left_Tab>',next_cell)
 
 
 def open_preview(host):
@@ -210,3 +272,43 @@ def add_scoms(host):
             record['type']=scom.get('attrs',{}).get('GTYP','')
         host.mark();win.destroy();host.render_page()
     ttk.Button(win,text='選択したSCOMを追加',command=apply).pack(anchor='e',padx=10,pady=10)
+
+
+class CellHint:
+    """Full cell text on hover for compact columns; never edits data."""
+    def __init__(self,tree):
+        self.tree=tree;self.root=tree._root();self.cell=None;self.pending=None;self.window=None
+        tree.bind('<Motion>',self.motion,add='+')
+        for event in ('<Leave>','<ButtonPress>','<MouseWheel>','<Destroy>'):
+            tree.bind(event,lambda e:self.hide(),add='+')
+    def motion(self,event):
+        region=self.tree.identify_region(event.x,event.y)
+        if region not in ('cell','heading'):self.hide();return
+        row=self.tree.identify_row(event.y) if region=='cell' else '@heading'
+        col=self.tree.identify_column(event.x)
+        if not col or col=='#0':self.hide();return
+        cell=(row,col)
+        if cell==self.cell:return
+        self.hide();self.cell=cell;self.position=(event.x_root+12,event.y_root+18)
+        self.pending=self.root.after(500,self.show)
+    def show(self):
+        self.pending=None
+        if not self.tree.winfo_exists() or not self.cell:return
+        row,col=self.cell
+        key=self.tree['displaycolumns'][int(col[1:])-1]
+        if row=='@heading':text=next(label for k,label,_ in COLUMNS if k==key)
+        else:
+            if not self.tree.exists(row):return
+            text=self.tree.set(row,key)
+        if not text:return
+        self.window=tk.Toplevel(self.tree);self.window.overrideredirect(True)
+        ttk.Label(self.window,text=text,wraplength=480,padding=6,relief='solid',borderwidth=1).pack()
+        self.window.update_idletasks()
+        x,y=self.position
+        x=max(0,min(x,self.tree.winfo_screenwidth()-self.window.winfo_reqwidth()-8))
+        y=max(0,min(y,self.tree.winfo_screenheight()-self.window.winfo_reqheight()-8))
+        self.window.geometry(f'+{x}+{y}')
+    def hide(self):
+        if self.pending is not None:self.root.after_cancel(self.pending);self.pending=None
+        if self.window is not None:self.window.destroy();self.window=None
+        self.cell=None

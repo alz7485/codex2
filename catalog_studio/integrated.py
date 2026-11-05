@@ -135,6 +135,8 @@ class IntegratedStudio(tk.Tk):
         self.page=page;self.render_page()
 
     def render_page(self):
+        from .spec_table_ui import finish_edit
+        finish_edit(self)
         self.busy=True;self.preview=None
         for child in self.content.winfo_children():child.destroy()
         for key,button in self.nav.items():button.configure(bg=BLUE if key==self.page else theme.NAV,fg='white' if key==self.page else '#bbcadc')
@@ -588,6 +590,9 @@ class IntegratedStudio(tk.Tk):
     def definition(self):return project.get(self.data,'definitions',self.definition_id)
     def element(self):return next((e for e in (self.definition() or {}).get('elements',[]) if e['id']==self.element_id),None)
     def commit_definition_name(self):
+        if self.page=='specs':
+            from .spec_table_ui import finish_edit
+            return finish_edit(self)
         if self.page=='sdte_cmpt' and hasattr(self,'sdte_cmpt_editor') and self.sdte_cmpt_editor.winfo_exists():return self.sdte_cmpt_editor.finish()
         if self.page=='catalog' and hasattr(self,'catalog_inspector') and self.catalog_inspector.winfo_exists():
             if not self.catalog_inspector.finish():return False

@@ -57,3 +57,6 @@ class TableRules:
             x+=size
         if 0<=round(x)<width:line(round(x),top,1,max(0,height-top))
         for y in range(top,height,max(1,rowheight)):line(0,y,width,1)
+
+        for item in tree.winfo_children():
+            if isinstance(item,(ttk.Entry,ttk.Combobox)):item.lift()
