@@ -17,7 +17,7 @@ BLUE = theme.ACCENT
 NAVY = theme.CHROME
 BG = theme.WORKSPACE
 MUTED = theme.MUTED
-PAGES = [('ptset', 'PTSET 作成'), ('gmset', 'GMSET 作成'), ('catalog', 'CATE作成'), ('sdte_cmpt','SDTE/CMPT作成'), ('specs', 'スペック登録'), ('structural', '構造材・NGMSET'), ('texts','説明・材質'), ('tables','共通テーブル'), ('books', 'カタログ本・PDF'), ('rules', 'PARAM プリセット'), ('checks', '確認・マクロ')]
+PAGES = [('ptset', 'PTSET 作成'), ('gmset', 'GMSET 作成'), ('catalog', 'CATE作成'), ('sdte_cmpt','SDTE/CMPT作成'), ('specs', 'SPEC登録'), ('structural', '構造材・NGMSET'), ('texts','説明・材質'), ('tables','共通テーブル'), ('books', 'カタログ本・PDF'), ('rules', 'PARAM プリセット'), ('checks', '確認・マクロ')]
 
 
 class Preview:
@@ -718,34 +718,8 @@ class IntegratedStudio(tk.Tk):
         if e and messagebox.askyesno('削除','要素を削除しますか？ 共通定義の使用先に影響します。',parent=self):d['elements'].remove(e);self.element_id=None;self.mark();self.render_page()
 
     def build_specs(self):
-        self.heading('スペック登録','SCOM・DETAIL・PROP の組み合わせと口径条件を登録します。',[('SPEC を追加',self.add_spec)])
-        split=ttk.Panedwindow(self.content,orient='horizontal');split.pack(fill='both',expand=True)
-        middle=ttk.Frame(split,padding=12,width=620);right=ttk.Frame(split,padding=12,width=300)
-        middle.pack_propagate(False);right.pack_propagate(False)
-        split.add(middle,weight=4);split.add(right,weight=2);self.balance(split,(.72,))
-        self.spec_tree=self.registered_browser.tree
-        spec_tools=ttk.Frame(middle);spec_tools.pack(fill='x',pady=(0,8))
-        for text,command in (('SPEC 情報を編集',self.edit_spec),('SPEC を複製',self.duplicate_spec),('SPEC を削除',self.delete_spec)):
-            ttk.Button(spec_tools,text=text,command=command).pack(side='left',padx=3)
-        spec=project.get(self.data,'specs',self.spec_id)
-        if not spec:ttk.Label(middle,text='SPEC を追加してください。').pack();return
-        ttk.Label(middle,text=spec['name']+' / Rev.'+spec['revision'],style='Heading.TLabel').pack(anchor='w')
-        ttk.Label(middle,text=spec['description'],style='Muted.TLabel',wraplength=600).pack(anchor='w',pady=6)
-        toolbar=ttk.Frame(middle);toolbar.pack(fill='x',pady=10)
-        for label,cmd in [('登録行を追加',self.add_spec_entry),('編集',self.edit_spec_entry),('複製',self.duplicate_spec_entry),('削除',self.delete_spec_entry)]:ttk.Button(toolbar,text=label,command=cmd).pack(side='left',padx=3)
-        self.spec_table=self.table(middle,[('scom','SCOM',170),('detail','DETAIL',160),('prop','PROP',160),('type','部品種別',90),('bore1','口径 1',80),('bore2','口径 2',80),('desc','説明',160),('sdte','SDTE（従来参照）',160),('smte','SMTE',160)],height=14)
-        for entry in spec['entries']:
-            scom=project.get(self.data,'scoms',entry['scom_id'])
-            related=[(project.get(self.data,collection,entry.get(key,'')) or {}).get('name','未設定') for key,collection in (('detail_id','catalog_details'),('prop_id','catalog_props'))]
-            self.spec_table.insert('','end',iid=entry['id'],values=(scom['name'] if scom else '[未設定]',*related,entry['type'],entry['bore1'],entry['bore2'],entry['description'],*( (project.get(self.data,'texts',entry.get(k,'')) or {}).get('name','未設定') for k in ('sdte_id','smte_id'))))
-        self.spec_table.bind('<<TreeviewSelect>>',self.spec_entry_select);self.spec_table.bind('<Double-1>',lambda _:self.edit_spec_entry())
-        ttk.Label(middle,text='この表は選択条件のたたき台です。実機で必要な属性や分岐条件は作成例から追加します。',style='Muted.TLabel',wraplength=580).pack(anchor='w',pady=12)
-        ttk.Label(right,text='参照部品を確認',style='Heading.TLabel').pack(anchor='w')
-        self.preview=Preview(right,self.ui_font)
-        self.spec_detail=ttk.Label(right,text='登録行を選択してください。',style='Muted.TLabel',wraplength=320);self.spec_detail.pack(anchor='w',pady=12)
-        ttk.Button(right,text='参照 SCOM を開く',command=self.goto_spec_scom).pack(fill='x',pady=8)
-        ttk.Button(right,text='SPEC をカタログ本に掲載',command=lambda:self.switch('books')).pack(fill='x')
-        if spec['entries']:self.spec_table.selection_set(spec['entries'][0]['id']);self.update_spec_preview()
+        from . import spec_table_ui
+        spec_table_ui.build(self)
     def spec(self):return project.get(self.data,'specs',self.spec_id)
     def spec_entry(self):
         if not hasattr(self,'spec_table') or not self.spec_table.winfo_exists() or not self.spec():return None
@@ -754,11 +728,8 @@ class IntegratedStudio(tk.Tk):
     def spec_entry_select(self,_=None):
         if not self.busy:self.update_spec_preview()
     def update_spec_preview(self):
-        entry=self.spec_entry();scom=project.get(self.data,'scoms',entry['scom_id']) if entry else None
-        self.preview.load(self.data,scom)
-        self.spec_detail.configure(text=('種別：'+entry['type']+'\n口径条件：'+entry['bore1']+' × '+entry['bore2']+'\n参照：'+(scom['name'] if scom else '未設定')+'\n\nSCOM の値や共通定義は参照先で編集します。') if entry else '登録行を選択してください。')
-        if entry:
-            self.spec_detail.configure(text=self.spec_detail.cget('text')+'\n\n'+'\n'.join(label+'：'+(project.get(self.data,collection,entry.get(key,'')) or {}).get('name','未設定') for key,collection,label in (('detail_id','catalog_details','DETAIL'),('prop_id','catalog_props','PROP'))))
+        from . import spec_table_ui
+        spec_table_ui.update_preview(self)
     def goto_spec_scom(self):
         entry=self.spec_entry();s=project.get(self.data,'scoms',entry['scom_id']) if entry else None
         if s:self.scom_id=s['id'];self.cate_id=s['cate_id'];self.catalog_tab='scom';self.switch('catalog')
@@ -791,6 +762,7 @@ class IntegratedStudio(tk.Tk):
         if entry and entry['scom_id'] and entry['scom_id'] not in scoms.values():scoms['参照先不明：'+entry['scom_id']]=entry['scom_id']
         selected=next((name for name,ident in scoms.items() if ident==(entry['scom_id'] if entry else (scom_id or self.scom_id))),next(iter(scoms)))
         fields=[('type','部品種別（仮の選択項目）',entry['type'] if entry else ('' if scom_id else 'REDU'),None),('bore1','口径条件 1',entry['bore1'] if entry else '',None),('bore2','口径条件 2',entry['bore2'] if entry else '',None),('scom','参照 SCOM',selected,list(scoms)),('description','説明',entry['description'] if entry else '',None)]
+        fields.extend((key,label,(entry or {}).get(key,''),None) for key,label in (('name','登録名'),('angle','ANGLE'),('height','HEIGHT'),('text','TEXT')))
         mappings={}
         for key,collection,label in (('detail_id','catalog_details','DETAIL'),('prop_id','catalog_props','PROP')):
             mapping={r['name']:r['id'] for r in self.data.get(collection,[])};mapping['未設定']=''
@@ -810,6 +782,7 @@ class IntegratedStudio(tk.Tk):
             combination_keys=('detail_id','prop_id')
             use_combination=entry is None or any(key in entry for key in combination_keys) or any(mappings[key][v[key]] for key in combination_keys)
             record=entry or project.add_spec_entry(self.data,spec,scoms[v['scom']])
+            record.update({key:v[key] for key in ('name','angle','height','text')})
             record.update(type=v['type'],bore1=v['bore1'],bore2=v['bore2'],scom_id=scoms[v['scom']],description=v['description'])
             for key,mapping in mappings.items():
                 if key in combination_keys and not use_combination:continue

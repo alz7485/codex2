@@ -213,11 +213,17 @@ def validate(data):
             if family not in expressions.FAMILIES or family == 'PARAM' or not isinstance(values,dict) or any(not isinstance(k,str) or not re.fullmatch(r'P[1-9]\d*',k) or not (_finite(v) or isinstance(v,str)) for k,v in values.items()): raise ValueError('参照コンテキストの種類・値が不正です。')
         attributes=scom.get('component_attrs',{})
         if not isinstance(attributes,dict) or ('ANGL' in attributes and not _finite(attributes['ANGL'])): raise ValueError('ANGL は度の有限数値です。')
+    settings=data.get('spec_table_settings',{})
+    if not isinstance(settings,dict):raise ValueError('SPEC列設定は辞書です。')
+    visible=settings.get('visible',[])
+    widths=settings.get('widths',{})
+    if not isinstance(visible,list) or any(not isinstance(k,str) for k in visible):raise ValueError('SPEC表示列を確認してください。')
+    if not isinstance(widths,dict) or any(not isinstance(k,str) or not isinstance(v,int) or not 65<=v<=1200 for k,v in widths.items()):raise ValueError('SPEC列幅を確認してください。')
     _records(data.get('specs'), 'SPEC', ('name', 'description', 'revision'), LIMITS['specs'])
     for spec in data['specs']:
         _records(spec.get('entries'), 'SPEC 選択行', ('type','bore1','bore2','scom_id','description'),5000)
         for entry in spec['entries']:
-            for key in ('sdte_id','smte_id'):
+            for key in ('sdte_id','smte_id','name','angle','height','text','styp','shop'):
                 if key in entry and not isinstance(entry[key],str): raise ValueError('SPEC のテキスト参照は識別子です。')
         _records(spec.get('entries'), 'SPEC 選択行',
                  ('type', 'bore1', 'bore2', 'scom_id', 'description'), 5000)
@@ -385,7 +391,8 @@ def add_spec_entry(data, spec, scom_id=None):
     bore1 = bore_value(('大径側呼び径', '呼び径', '接続口径'))
     bore2 = bore_value(('小径側呼び径',))
     entry = {'id': _id(), 'type': 'REDU', 'bore1': bore1, 'bore2': bore2,
-             'scom_id': scom['id'] if scom else (scom_id or ''), 'description': '', 'sdte_id':'', 'smte_id':''}
+             'scom_id': scom['id'] if scom else (scom_id or ''), 'description': '', 'sdte_id':'', 'smte_id':'',
+             'name':'', 'angle':'', 'height':'', 'text':''}
     spec['entries'].append(entry)
     return entry
 
