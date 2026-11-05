@@ -28,12 +28,12 @@ class RegisteredBrowser(ttk.Frame):
         self.catalog_buttons={};self.catalog_hints=[]
         for kind in ('CATE','SDTE','TEXT','SCOM'):
             if kind=='CATE':
-                button=ttk.Menubutton(organize,text='▾',width=2,image=self.action_icons['cate_add'],compound='left',style='AttributeTool.TButton')
+                button=ttk.Menubutton(organize,text='▼',width=2,image=self.action_icons['cate_add'],compound='left',style='AttributeTool.TButton')
                 self.cate_menu=tk.Menu(button,tearoff=False);button.configure(menu=self.cate_menu)
                 self.cate_menu.add_command(label='CATE一式作成',command=self.add_catalog_bundle)
                 self.cate_menu.add_command(label='CATE作成',command=lambda:self.add_catalog_record('CATE'))
             elif kind=='TEXT':
-                button=ttk.Menubutton(organize,text='▾',width=2,image=self.action_icons['text_add'],compound='left',style='AttributeTool.TButton')
+                button=ttk.Menubutton(organize,text='▼',width=2,image=self.action_icons['text_add'],compound='left',style='AttributeTool.TButton')
                 self.text_menu=tk.Menu(button,tearoff=False);button.configure(menu=self.text_menu)
                 self.text_menu.add_command(label='プリセットから作成',command=self.add_text_batch)
                 self.text_menu.add_command(label='TEXT作成',command=lambda:self.add_catalog_record('TEXT'))
@@ -41,7 +41,7 @@ class RegisteredBrowser(ttk.Frame):
                 button=ttk.Button(organize,text=kind+'追加',image=self.action_icons[kind.lower()+'_add'],compound='none',command=lambda k=kind:self.add_catalog_record(k),style='AttributeTool.TButton')
             self.catalog_buttons[kind]=button
             self.catalog_hints.append(Hint(button,kind+'を追加'))
-        self.macro_button=ttk.Menubutton(organize,text='マクロ ▾',width=6,image=self.action_icons['macro'],compound='left',style='AttributeTool.TButton')
+        self.macro_button=ttk.Menubutton(organize,text='マクロ ▼',width=6,image=self.action_icons['macro'],compound='left',style='AttributeTool.TButton')
         self.macro_menu=tk.Menu(self.macro_button,tearoff=False)
         self.macro_button.configure(menu=self.macro_menu)
         self.macro_menu.add_command(label='読込',command=self.import_macro)
@@ -102,7 +102,7 @@ class RegisteredBrowser(ttk.Frame):
 
     def rows(self):
         host=self.host;data=host.data;page=host.page
-        categories={'ptset':('PTSET','definitions'),'gmset':('GMSET','definitions'),'catalog':('CATE','cates'),'specs':('スペック','specs'),'structural':('構造材・NGMSET','definitions'),'texts':('説明・材質','texts'),'tables':('共通テーブル','tables'),'books':('カタログ本','books'),'rules':('PARAM プリセット','parameter_presets')}
+        categories={'ptset':('PTSET','definitions'),'gmset':('GMSET','definitions'),'catalog':('CATE','cates'),'specs':('SPEC','specs'),'structural':('構造材・NGMSET','definitions'),'texts':('説明・材質','texts'),'tables':('共通テーブル','tables'),'books':('カタログ本','books'),'rules':('PARAM プリセット','parameter_presets')}
         label,collection=categories.get(page,('確認・マクロ',None))
         rows=[];places=data.get('browser_placements',{})
         for f in data.get('browser_folders',[]):

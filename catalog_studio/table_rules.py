@@ -42,9 +42,9 @@ class TableRules:
         def line(x,y,w,h):
             item=tk.Frame(tree,background='#c7d4e5',borderwidth=0,takefocus=False)
             item.place(x=x,y=y,width=w,height=h);self.lines.append(item)
-            for sequence in ('<Button-1>','<ButtonRelease-1>','<Double-1>'):
+            for sequence in ('<Button-1>','<ButtonRelease-1>','<Double-1>','<Button-3>'):
                 item.bind(sequence,lambda e,s=sequence:tree.event_generate(s,
-                    x=e.x+e.widget.winfo_x(),y=e.y+e.widget.winfo_y()))
+                    x=e.x+e.widget.winfo_x(),y=e.y+e.widget.winfo_y(),state=e.state))
             item.bind('<MouseWheel>',lambda e:tree.event_generate('<MouseWheel>',delta=e.delta))
             for sequence in ('<Button-4>','<Button-5>'):
                 item.bind(sequence,lambda e,s=sequence:tree.event_generate(s))

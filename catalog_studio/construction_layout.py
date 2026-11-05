@@ -81,9 +81,11 @@ def build_simple(editor):
     if not getattr(e.host,'is_preset_editor',False):
         from . import element_presets_ui
         preset_actions=ttk.Frame(left);preset_actions.pack(fill='x',pady=(0,6))
-        e.recall_preset_button=ttk.Button(preset_actions,text='↙ プリセット呼出',style='AttributeTool.TButton',command=lambda:element_presets_ui.choose(e,'recall'))
+        from .project_actions import icon
+        e.recall_icon=icon(e,'recall',color='#2864dc')
+        e.recall_preset_button=ttk.Button(preset_actions,text='プリセット呼出',image=e.recall_icon,compound='left',style='AttributeTool.TButton',command=lambda:element_presets_ui.choose(e,'recall'))
         e.recall_preset_button.pack(side='left',fill='x',expand=True,padx=(0,4))
-        e.register_preset_button=ttk.Button(preset_actions,text='＋ 現在を登録',style='AttributeTool.TButton',command=lambda:element_presets_ui.register_current(e))
+        e.register_preset_button=ttk.Button(preset_actions,text='＋ 現在を登録',padding=(6,6,6,7),style='AttributeTool.TButton',command=lambda:element_presets_ui.register_current(e))
         e.register_preset_button.pack(side='left',fill='x',expand=True)
 
     e.creation_frame=tk.Toplevel(e)
@@ -160,7 +162,7 @@ def build_simple(editor):
     row.pack(side='bottom', fill='x', pady=(8, 0), before=e.tree_holder)
     from .construction_actions import context_menu,enable_drag
     context_menu(e);enable_drag(e)
-    e.child_button = ttk.Button(row, text='子要素を追加', command=e.add_child)
+    e.child_button = ttk.Button(row, text='子要素を追加', command=e.add_child,style='AttributeTool.TButton')
     if point:
         ttk.Label(row, text='P0：自動生成', style='Muted.TLabel').pack(side='right')
 

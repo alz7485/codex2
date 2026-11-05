@@ -49,10 +49,12 @@ class ConstructionEditor(ttk.Frame):
             from .construction_layout import build_simple
             build_simple(self)
             return
-        top = ttk.Frame(self); top.pack(fill='x', pady=(0, 10))
+        top = ttk.Frame(self); top.pack(fill='x', pady=(0, 6))
         block = ttk.Frame(top); block.pack(side='left', fill='x', expand=True)
-        ttk.Label(block, text=({'PTSET':'1. PTSET','GMSET':'2. GMSET'}.get(self.kind,self.kind)) + ' を作成・編集', style='Heading.TLabel').pack(anchor='w')
-        ttk.Label(block, text='1. 名前を付けて PTSET を作成 → 2. 種類を選んで要素を作成 → 3. 属性を入力' if self.kind=='PTSET' else '要素・属性・式を編集します。プレビューは構成模式図です。', style='Muted.TLabel', wraplength=690).pack(anchor='w', pady=4)
+        ttk.Label(block, text=({'PTSET':'1. PTSET','GMSET':'2. GMSET'}.get(self.kind,self.kind)) + ' を作成・編集', style='PaneTitle.TLabel').pack(side='left')
+        from .project_actions import Hint
+        note=ttk.Label(block,text='ⓘ 構成模式図',style='Muted.TLabel');note.pack(side='left',padx=8)
+        note.hint=Hint(note,'要素・属性・式を編集します。プレビューは寸法や式を反映しない構成模式図です。')
         for text, command in [('保存', self.host.save_project), ('出力を確認', self.review), ('新しい '+self.kind+' を作る', self.add_definition)]:
             button=ttk.Button(top,text=text,command=command);button.pack(side='right',padx=3)
             if command==self.add_definition:self.new_set_button=button
@@ -79,7 +81,7 @@ class ConstructionEditor(ttk.Frame):
             self.create_part_button.pack(side='right')
         split = ttk.Panedwindow(self, orient='horizontal'); split.pack(fill='both', expand=True)
         left = ttk.Frame(split, padding=8); center = ttk.Frame(split, padding=10); right = ttk.Frame(split, padding=10)
-        for frame, weight in ((left, 2), (center, 5), (right, 3)): split.add(frame, weight=weight)
+        for frame, weight in ((left, 2), (right, 5), (center, 3)): split.add(frame, weight=weight)
         self.host.balance(split,(.24,.70) if self.kind=='PTSET' else (.23,.71))
         ttk.Label(left, text='定義を選択', style='Heading.TLabel').pack(anchor='w', pady=4)
         self.def_choice = ttk.Combobox(left, state='readonly'); self.def_choice.pack(fill='x', pady=5)
@@ -130,8 +132,8 @@ class ConstructionEditor(ttk.Frame):
         self.tabs = ttk.Notebook(center); self.tabs.pack(fill='both', expand=True, pady=(3, 8))
         self.tables = {}
         sections = [('main', '基本・位置' if self.kind == 'PTSET' else '形状・位置')]
-        sections += [('detail', '詳細属性')] if self.kind == 'PTSET' else [('common', '共通属性'), ('negative', 'ネガティブ属性')]
-        sections += [('extra', '保持した追加属性')]
+        sections += [('detail', '詳細属性')] if self.kind == 'PTSET' else [('common', '共通'), ('negative', '負形状')]
+        sections += [('extra', '追加属性')]
         for key, label in sections:
             frame = ttk.Frame(self.tabs, padding=3); self.tabs.add(frame, text=label)
             table = self.host.table(frame, [('attr', '属性', 90), ('meaning', '説明', 180), ('value', '設定値・式', 260)], height=4)

@@ -32,7 +32,7 @@ class ValueEditor(tk.Toplevel):
         self.caption.grid(row=3,column=0,sticky='w',pady=(4,8))
         if self.uses_parameters:
             inserts=ttk.Frame(body);inserts.grid(row=4,column=0,sticky='ew')
-            self.insert_button=ttk.Button(inserts,text='PARAM を挿入 ▾',command=self.open_references,style='AttributeTool.TButton')
+            self.insert_button=ttk.Button(inserts,text='PARAM を挿入 ▼',command=self.open_references,style='AttributeTool.TButton')
             self.insert_button.pack(side='left')
             if self.points is not None:
                 self.point_variable=tk.StringVar(value='ポイントを選択')

@@ -25,8 +25,8 @@ class PresetEditor(ttk.Frame):
         ttk.Label(toolbar,text='プリセット名').pack(side='left',padx=(0,8))
         self.name_var=tk.StringVar();self.name_entry=ttk.Entry(toolbar,textvariable=self.name_var,width=24);self.name_entry.pack(side='left')
         self.state_label=ttk.Label(toolbar,text='',style='Muted.TLabel');self.state_label.pack(side='left',padx=8)
-        ttk.Button(toolbar,text='適用範囲',command=self.toggle_details,style='Compact.TButton').pack(side='left')
-        ttk.Button(toolbar,text='複製',command=self.duplicate,style='Compact.TButton').pack(side='left',padx=6)
+        ttk.Button(toolbar,text='適用範囲',command=self.toggle_details,style='AttributeTool.TButton').pack(side='left')
+        ttk.Button(toolbar,text='複製',command=self.duplicate,style='AttributeTool.TButton').pack(side='left',padx=6)
         self.save_button=ttk.Button(toolbar,text='プリセットを保存',command=self.save,style='Primary.TButton');self.save_button.pack(side='left')
         self.details=ttk.Frame(self);self.metadata={'name':self.name_var};self.metadata_widgets={'name':self.name_entry}
         for key,label in (('period','登録時期'),('component','コンポーネント'),('description','補足')):
@@ -35,7 +35,7 @@ class PresetEditor(ttk.Frame):
         self.body=ttk.Frame(self);self.body.pack(fill='both',expand=True)
         tools=ttk.Frame(self.body);tools.pack(fill='x',pady=(0,5))
         ttk.Label(tools,text='PARAM 一覧',style='Heading.TLabel').pack(side='left')
-        self.add_row_button=ttk.Button(tools,text='＋ 行追加',command=self.add_row,style='Compact.Primary.TButton');self.add_row_button.pack(side='left',padx=(12,0))
+        self.add_row_button=ttk.Button(tools,text='＋ 行追加',command=self.add_row,style='AttributeTool.TButton');self.add_row_button.pack(side='left',padx=(12,0))
         self.message=ttk.Label(self.body,text='',foreground='#a15b38',wraplength=650)
         self.message.pack(side='bottom',fill='x',pady=(7,0))
         self.message.bind('<Configure>',lambda e:self.message.configure(wraplength=max(120,e.width-8)))

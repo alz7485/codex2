@@ -9,21 +9,30 @@ class SdteCmptEditor(ttk.Frame):
     def __init__(self,host):
         super().__init__(host.content);self.host=host;self.rows={};self.fields={};self.editing=None
         self.pack(fill='both',expand=True)
-        bar=ttk.Frame(self);bar.pack(fill='x',pady=(0,10))
-        ttk.Label(bar,text='関連CATE').pack(side='left')
+        panes=ttk.Panedwindow(self,orient='horizontal');panes.pack(fill='both',expand=True)
+        left=ttk.Frame(panes,padding=(12,10),width=370,style='Sidebar.TFrame')
+        right=ttk.Frame(panes,padding=(10,10))
+        panes.add(left,weight=1);panes.add(right,weight=3)
+        host.balance(panes,(.25,))
+        ttk.Label(left,text='SDTE / CMPT',style='SidebarTitle.TLabel').pack(anchor='w',pady=(0,8))
+        bar=ttk.Frame(left,style='Sidebar.TFrame');bar.pack(fill='x',pady=(0,6))
+        cate_bar=ttk.Frame(right);cate_bar.pack(fill='x',pady=(0,8))
+        ttk.Label(cate_bar,text='関連CATE',style='Muted.TLabel').pack(side='left')
         self.cates={r['name']:r['id'] for r in host.data['cates']}
         self.cate=tk.StringVar(value=next((n for n,i in self.cates.items() if i==host.cate_id),next(iter(self.cates),'')))
-        choice=ttk.Combobox(bar,textvariable=self.cate,values=list(self.cates),state='readonly',width=30);choice.pack(side='left',padx=8)
+        choice=ttk.Combobox(cate_bar,textvariable=self.cate,values=list(self.cates),state='readonly',width=30);choice.pack(side='left',padx=8)
         choice.bind('<<ComboboxSelected>>',lambda _:self.refresh())
         from .project_actions import icon
         self.action_icons={k:icon(self,k,color=theme.ACCENT) for k in ('sdte_add','scom_add','new','macro')}
         self.add_buttons={}
         for label,kind in (('＋ SDTE','SDTE'),('＋ CMPT','CMPT'),('＋ CMPDATA','CMPDATA')):
             image=self.action_icons[{'SDTE':'sdte_add','CMPT':'scom_add','CMPDATA':'new'}[kind]]
-            button=ttk.Button(bar,text=label,image=image,compound='left',style='AttributeTool.TButton',command=lambda k=kind:self.add(k))
-            button.pack(side='left',padx=3);self.add_buttons[kind]=button
+            button=ttk.Button(bar,text=label,image=image,compound='none',style='AttributeTool.TButton',command=lambda k=kind:self.add(k))
+            button.pack(side='left',padx=(0,4));self.add_buttons[kind]=button
+            from .project_actions import Hint
+            button.hint=Hint(button,kind+'を追加')
         from . import companion_macro_ui as macros
-        self.macro_button=ttk.Menubutton(bar,text='マクロ ▾',image=self.action_icons['macro'],compound='left',style='AttributeTool.TButton')
+        self.macro_button=ttk.Menubutton(bar,text='マクロ ▼',image=self.action_icons['macro'],compound='left',style='AttributeTool.TButton')
         self.macro_button.pack(side='left',padx=6)
         self.macro_menu=tk.Menu(self.macro_button,tearoff=False);self.macro_button.configure(menu=self.macro_menu)
         self.macro_menu.add_command(label='読込',command=lambda:macros.import_macro(self))
@@ -31,11 +40,14 @@ class SdteCmptEditor(ttk.Frame):
         destinations=tk.Menu(self.macro_menu,tearoff=False)
         for kind in ('SDTE','CMPT'):destinations.add_command(label=kind+' 登録先編集',command=lambda k=kind:macros.edit_destinations(self,k))
         self.macro_menu.add_cascade(label='登録先編集',menu=destinations)
-        panes=ttk.Panedwindow(self,orient='horizontal');panes.pack(fill='both',expand=True)
-        left=ttk.Frame(panes,padding=8,width=400);right=ttk.Frame(panes,padding=8)
-        panes.add(left,weight=2);panes.add(right,weight=3)
-        ttk.Label(left,text='SDTE / CMPT',style='Heading.TLabel').pack(anchor='w',pady=(0,8))
+        search_bar=ttk.Frame(left,style='Sidebar.TFrame');search_bar.pack(fill='x',pady=(0,6))
+        self.search_icon=icon(self,'search',color=theme.ACCENT)
+        ttk.Label(search_bar,image=self.search_icon,style='Sidebar.TLabel').pack(side='left',padx=(0,4))
+        self.search=tk.StringVar(self)
+        self.search_entry=ttk.Entry(search_bar,textvariable=self.search)
+        self.search_entry.pack(side='left',fill='x',expand=True)
         self.tree=ttk.Treeview(left,show='tree',selectmode='browse');self.tree.pack(fill='both',expand=True)
+        self.search.trace_add('write',lambda *_:self.filter_records())
         self.tree.bind('<<TreeviewSelect>>',lambda _:self.select())
         ttk.Label(right,text='属性・値',style='Heading.TLabel').pack(anchor='w',pady=(0,8))
         from .catalog_attribute_table import CatalogAttributeTable
@@ -43,7 +55,10 @@ class SdteCmptEditor(ttk.Frame):
         self.attrs.bind('<ButtonRelease-1>',self.click)
         self.refresh()
     def refresh(self,selected=None):
-        self.cancel();previous=selected or next(iter(self.tree.selection()),'');self.rows={};self.tree.delete(*self.tree.get_children())
+        self.cancel();previous=selected or next(iter(self.tree.selection()),'');
+        for ident in list(self.rows):
+            if self.tree.exists(ident):self.tree.delete(ident)
+        self.rows={};self.tree.delete(*self.tree.get_children())
         cate=self.cates.get(self.cate.get())
         for collection,label in (('catalog_details','SDTE'),('catalog_props','CMPT')):
             self.tree.insert('','end',iid=collection,text=label,open=True)
@@ -53,7 +68,17 @@ class SdteCmptEditor(ttk.Frame):
                 for i,child in enumerate(r.get('children',[])):
                     self.tree.insert(r['id'],'end',iid=child['id'],text=child['name']);self.rows[child['id']]=(collection,r,i)
         if previous in self.rows:self.tree.selection_set(previous)
+        self.filter_records()
         self.select()
+    def filter_records(self):
+        query=self.search.get().strip().casefold()
+        # Detached rows retain their IDs, children and selection context.
+        for ident,(collection,record,index) in self.rows.items():
+            if index is not None:continue
+            names=[record['name']]+[c['name'] for c in record.get('children',[])]
+            if not query or any(query in n.casefold() for n in names):
+                self.tree.move(ident,collection,'end')
+            else:self.tree.detach(ident)
     def select(self):
         if self.editing and not self.finish():return
         self.cancel();self.fields={};self.attrs.delete(*self.attrs.get_children())

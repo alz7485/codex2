@@ -101,7 +101,7 @@ class IntegratedStudio(tk.Tk):
         from .project_actions import build as build_project_actions
         build_project_actions(self,menu_bar)
         self.nav={}
-        self.more_nav_button=tk.Menubutton(menu_bar,text='その他の管理 ▾',bg=theme.NAV,fg='#bbcadc',activebackground='#2b4160',activeforeground='white',relief='flat',borderwidth=0,font=(self.ui_font,10),cursor='hand2',padx=16,pady=8)
+        self.more_nav_button=tk.Menubutton(menu_bar,text='その他の管理 ▼',bg=theme.NAV,fg='#bbcadc',activebackground='#2b4160',activeforeground='white',relief='flat',borderwidth=0,font=(self.ui_font,10),cursor='hand2',padx=16,pady=8)
         self.more_nav_menu=tk.Menu(self.more_nav_button,tearoff=False)
         for key,text in PAGES:
             if key in ('ptset','gmset','catalog','sdte_cmpt','specs','books'):
@@ -141,17 +141,19 @@ class IntegratedStudio(tk.Tk):
         for child in self.content.winfo_children():child.destroy()
         for key,button in self.nav.items():button.configure(bg=BLUE if key==self.page else theme.NAV,fg='white' if key==self.page else '#bbcadc')
         additional=self.page not in self.nav
-        self.more_nav_button.configure(text=(dict(PAGES).get(self.page,'その他の管理') if additional else 'その他の管理')+' ▾',bg=BLUE if additional else theme.NAV,fg='white' if additional else '#bbcadc')
+        self.more_nav_button.configure(text=(dict(PAGES).get(self.page,'その他の管理') if additional else 'その他の管理')+' ▼',bg=BLUE if additional else theme.NAV,fg='white' if additional else '#bbcadc')
         getattr(self,'build_'+self.page)()
         self.busy=False
         self.registered_browser.refresh()
 
     def heading(self,title,subtitle='',actions=()):
-        bar=ttk.Frame(self.content);bar.pack(fill='x',pady=(0,12))
-        block=ttk.Frame(bar);block.pack(side='left',fill='x',expand=True)
-        ttk.Label(block,text=title,style='Heading.TLabel').pack(anchor='w')
-        if subtitle:ttk.Label(block,text=subtitle,style='Muted.TLabel',wraplength=760).pack(anchor='w',pady=3)
-        for text,command in actions:ttk.Button(bar,text=text,command=command).pack(side='right',padx=3)
+        bar=ttk.Frame(self.content);bar.pack(fill='x',pady=(0,6))
+        label=ttk.Label(bar,text=title,style='PaneTitle.TLabel');label.pack(side='left',padx=(0,8))
+        if subtitle:
+            from .project_actions import Hint
+            info=ttk.Label(bar,text='ⓘ',style='Muted.TLabel');info.pack(side='left')
+            info.hint=Hint(info,subtitle)
+        for text,command in actions:ttk.Button(bar,text=text,command=command,style='AttributeTool.TButton').pack(side='right',padx=3)
         return bar
 
     def table(self,parent,columns,height=10):
@@ -161,7 +163,11 @@ class IntegratedStudio(tk.Tk):
         tree.grid(row=0,column=0,sticky='nsew')
         v=ttk.Scrollbar(holder,orient='vertical',command=tree.yview);v.grid(row=0,column=1,sticky='ns')
         h=ttk.Scrollbar(holder,orient='horizontal',command=tree.xview);h.grid(row=1,column=0,sticky='ew')
-        tree.configure(yscrollcommand=v.set,xscrollcommand=h.set);holder.rowconfigure(0,weight=1);holder.columnconfigure(0,weight=1)
+        from .table_rules import TableRules
+        tree.rules=TableRules(tree)
+        tree.configure(yscrollcommand=lambda a,b:(v.set(a,b),tree.rules.schedule()),
+                       xscrollcommand=lambda a,b:(h.set(a,b),tree.rules.schedule()))
+        holder.rowconfigure(0,weight=1);holder.columnconfigure(0,weight=1)
         return tree
 
     def balance(self,panes,fractions):
@@ -253,7 +259,9 @@ class IntegratedStudio(tk.Tk):
         preview_header=ttk.Frame(preview_parent);preview_header.pack(fill='x')
         ttk.Label(preview_header,text='プレビュー',style='Heading.TLabel').pack(side='left')
         from .scom_sheet_ui import open_sheet
-        self.scom_sheet_button=ttk.Button(preview_header,text='▦ SCOM表・Excel読込',style='AttributeTool.TButton',command=lambda:open_sheet(self))
+        from .project_actions import icon
+        self.scom_sheet_icon=icon(self,'table',color=theme.ACCENT)
+        self.scom_sheet_button=ttk.Button(preview_header,text='SCOM表・Excel読込',image=self.scom_sheet_icon,compound='left',style='AttributeTool.TButton',command=lambda:open_sheet(self))
         self.scom_sheet_button.pack(side='right')
         from .catalog_geometry_preview import CatalogGeometryPreview
         self.preview=CatalogGeometryPreview(self,preview_parent)
@@ -824,7 +832,7 @@ class IntegratedStudio(tk.Tk):
         self.book_specs=self.table(specframe,[('name','SPEC',240),('rev','改訂',80)],height=9);self.book_specs.configure(selectmode='extended')
         for spec in self.data['specs']:self.book_specs.insert('','end',iid=spec['id'],values=(spec['name'],spec['revision']))
         self.book_specs.selection_set(self.book_specs.get_children())
-        ttk.Button(left,text='掲載内容と改訂を固定して冊子を作成',command=self.create_book,style='Primary.TButton').pack(fill='x',pady=8)
+        ttk.Button(left,text='掲載内容と改訂を固定して冊子を作成',command=self.create_book,style='Primary.TButton').pack(anchor='e',pady=8)
         ttk.Label(right,text='保存した冊子',style='Heading.TLabel').pack(anchor='w',pady=6)
         self.books_table=self.table(right,[('title','タイトル',220),('edition','版',90),('date','保存日',100)],height=6)
         for book in self.data['books']:
@@ -832,9 +840,9 @@ class IntegratedStudio(tk.Tk):
         if self.books_table.exists(str(self.selected_book)):self.books_table.selection_set(self.selected_book)
         self.books_table.bind('<<TreeviewSelect>>',self.book_select)
         self.book_info=tk.Text(right,height=12,wrap='word',font=(self.ui_font,10),relief='flat',bg='#f3f7fc');self.book_info.pack(fill='both',expand=True,pady=10)
-        ttk.Button(right,text='選択した冊子を PDF に保存',command=self.export_pdf,style='Primary.TButton').pack(fill='x',pady=6)
-        ttk.Button(right,text='冊子の固定データを JSON で保存',command=self.export_book_json).pack(fill='x')
-        ttk.Button(right,text='選択した冊子を削除',command=self.delete_book).pack(fill='x',pady=6)
+        ttk.Button(right,text='選択した冊子を PDF に保存',command=self.export_pdf,style='Primary.TButton').pack(anchor='e',pady=6)
+        ttk.Button(right,text='冊子の固定データを JSON で保存',command=self.export_book_json).pack(anchor='e')
+        ttk.Button(right,text='選択した冊子を削除',command=self.delete_book).pack(anchor='e',pady=6)
         self.update_book_info()
     def book(self):return next((b for b in self.data['books'] if isinstance(b,dict) and b.get('id')==self.selected_book),None)
     def book_select(self,_=None):

@@ -57,11 +57,11 @@ class GeometryCanvas(ttk.Frame):
             ttk.Checkbutton(details,text=label,variable=var,command=self.redraw,style='Preview.Toolbutton').pack(anchor='w',pady=2)
         self.representation_choice=ttk.Combobox(details,state='readonly',width=12,textvariable=self.representation_mode,values=('全形状','属性確認'))
         self.representation_choice.pack(fill='x',pady=6);self.representation_choice.bind('<<ComboboxSelected>>',lambda _:self.representation_changed())
-        ttk.Button(details,text='詳細な表示条件',command=lambda:representation.edit(self),style='Compact.TButton').pack(fill='x')
+        ttk.Button(details,text='詳細な表示条件',command=lambda:representation.edit(self),style='AttributeTool.TButton').pack(fill='x')
         # Design data edits remain outside appearance settings.
         tools=ttk.Frame(self);tools.grid(row=4,column=0,sticky='ew',pady=(6,0))
         self.selection_label=ttk.Label(tools,text='選択：なし',style='Muted.TLabel');self.selection_label.pack(side='left')
-        ttk.Button(tools,text='設計値を編集',command=lambda:model_settings.edit(editor),style='Compact.TButton').pack(side='right')
+        ttk.Button(tools,text='設計値を編集',command=lambda:model_settings.edit(editor),style='AttributeTool.TButton').pack(side='right')
         self.zoom_factor=1.0
         self.transparency.trace_add('write',self.display_changed)
         self.canvas=tk.Canvas(self.body,bg=theme.SUBTLE,highlightthickness=1,highlightbackground=theme.BORDER,width=1,height=1)

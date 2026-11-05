@@ -33,9 +33,11 @@ def build(host):
     for label, callback in (('SPEC情報', host.edit_spec), ('SPEC複製', host.duplicate_spec),
                             ('SPEC削除', host.delete_spec), ('＋ SCOMから追加', lambda:add_scoms(host)),
                             ('行複製', host.duplicate_spec_entry), ('行削除', host.delete_spec_entry)):
-        ttk.Button(bar, text=label, command=callback).pack(side='left', padx=2)
-    ttk.Button(bar, text='▣ プレビューを別窓で表示', command=lambda:open_preview(host)).pack(side='right', padx=2)
-    ttk.Button(bar, text='列設定', command=lambda:column_dialog(host)).pack(side='right', padx=2)
+        ttk.Button(bar, text=label, command=callback,padding=(8,6,8,7)).pack(side='left', padx=2)
+    from .project_actions import icon
+    host.spec_preview_icon=icon(host,'preview',color='#2864dc')
+    ttk.Button(bar, text='プレビューを別窓で表示',image=host.spec_preview_icon,compound='left', command=lambda:open_preview(host)).pack(side='right', padx=2)
+    ttk.Button(bar, text='列設定', command=lambda:column_dialog(host),padding=(8,6,8,7)).pack(side='right', padx=2)
     spec = host.spec()
     if not spec:
         ttk.Button(area, text='＋ SPECを追加', command=host.add_spec).pack(pady=20)
@@ -58,8 +60,7 @@ def build(host):
 
     for key,_,_ in COLUMNS:
         host.spec_table.heading(key,command=lambda k=key:sort_column(host,k))
-    from .table_rules import TableRules
-    host.spec_table_rules=TableRules(host.spec_table)
+    host.spec_table_rules=host.spec_table.rules
     holder=host.spec_table.master
     for widget in holder.winfo_children():
         if isinstance(widget,ttk.Scrollbar):

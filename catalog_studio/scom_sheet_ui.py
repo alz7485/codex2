@@ -19,7 +19,9 @@ class ScomSheet(tk.Toplevel):
         self.preset_choice.set(next((n for n,i in self.preset_options.items() if i==self.preset_id),''));self.preset_choice.pack(side='left',padx=8)
         self.preset_choice.bind('<<ComboboxSelected>>',self.choose_preset)
         self.add_button=ttk.Button(bar,text='＋ 行追加',style='AttributeTool.TButton',command=self.add);self.add_button.pack(side='left',padx=3)
-        self.excel_button=ttk.Button(bar,text='▦ Excel読込',style='AttributeTool.TButton',command=self.load_excel);self.excel_button.pack(side='left',padx=3)
+        from .project_actions import icon
+        self.excel_icon=icon(self,'table',color='#2864dc')
+        self.excel_button=ttk.Button(bar,text='Excel読込',image=self.excel_icon,compound='left',style='AttributeTool.TButton',command=self.load_excel);self.excel_button.pack(side='left',padx=3)
         ttk.Label(self,text='セルをダブルクリックして編集。新しい行は選択中SCOMの参照・PARAMを引き継ぎます。列見出しはTEXTのSTEXTです。Excelには名前とSTEXT、またはP1等のPARAM番号を指定できます。',padding=(12,0),wraplength=1040).pack(anchor='w')
         area=ttk.Frame(self,padding=12);area.pack(fill='both',expand=True)
         self.header=tk.Canvas(area,height=48,highlightthickness=0,background='#f5f8fc')
