@@ -22,6 +22,10 @@ class SpecTableTests(unittest.TestCase):
             app.switch('specs');app.update()
             self.assertTrue({'angle','height','text'}<=set(app.spec_table['columns']))
             self.assertEqual(len(app.spec_table.get_children()),len(app.spec()['entries']))
+            self.assertTrue(app.spec_table_rules.lines)
+            app.spec_table.xview_moveto(1);app.update()
+            self.assertTrue(app.spec_table_rules.lines)
+            app.spec_table.xview_moveto(0);app.update()
             spec_table_ui.open_preview(app);app.update()
             window=app.spec_preview_window
             spec_table_ui.open_preview(app)

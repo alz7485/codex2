@@ -45,6 +45,13 @@ def build(host):
                          values=['すべて']+sorted({e['type'] for e in spec['entries']}), width=16)
     combo.pack(side='left', padx=6)
     host.spec_table = host.table(area, COLUMNS, height=18)
+    from .table_rules import TableRules
+    host.spec_table_rules=TableRules(host.spec_table)
+    holder=host.spec_table.master
+    for widget in holder.winfo_children():
+        if isinstance(widget,ttk.Scrollbar):
+            axis='x' if str(widget.cget('orient'))=='horizontal' else 'y'
+            host.spec_table.configure(**{axis+'scrollcommand':lambda a,b,w=widget:(w.set(a,b),host.spec_table_rules.schedule())})
     combo.bind('<<ComboboxSelected>>', lambda e:populate(host))
     host.spec_table.bind('<<TreeviewSelect>>', host.spec_entry_select)
     host.spec_table.bind('<ButtonRelease-1>', lambda e:edit_cell(host,e))
@@ -70,6 +77,7 @@ def populate(host):
         tree.insert('', 'end', iid=entry['id'], values=[value(host.data,entry,c[0]) for c in COLUMNS])
     ids=tree.get_children()
     if ids:tree.selection_set(selected[0] if selected and selected[0] in ids else ids[0])
+    host.spec_table_rules.schedule()
     host.update_spec_preview()
 
 
@@ -92,6 +100,7 @@ def column_dialog(host):
         if not visible:return
         host.spec_table.configure(displaycolumns=visible)
         host.data.setdefault('spec_table_settings',{})['visible']=visible
+        host.spec_table_rules.schedule()
         host.mark();win.destroy()
     ttk.Button(win,text='適用',command=apply).grid(row=8,column=1,padx=12,pady=10)
 
