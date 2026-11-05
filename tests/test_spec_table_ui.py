@@ -26,6 +26,20 @@ class SpecTableTests(unittest.TestCase):
             app.spec_table.xview_moveto(1);app.update()
             self.assertTrue(app.spec_table_rules.lines)
             app.spec_table.xview_moveto(0);app.update()
+            original=[e['id'] for e in app.spec()['entries']]
+            entries=app.spec()['entries']
+            for entry,number in zip(entries,('100','20','3')):entry['angle']=number
+            selected=entries[1]['id'];app.spec_table.selection_set(selected)
+            # Invoke the real heading callback, rather than the sort helper.
+            app.tk.call(app.spec_table.heading('angle','command'));app.update()
+            self.assertEqual(app.spec_table.get_children(),tuple(e['id'] for e in reversed(entries)))
+            self.assertEqual(app.spec_table.selection(),(selected,))
+            app.tk.call(app.spec_table.heading('angle','command'));app.update()
+            self.assertEqual(app.spec_table.get_children(),tuple(original))
+            self.assertEqual([e['id'] for e in app.spec()['entries']],original)
+            entries[1]['angle']='';spec_table_ui.populate(app)
+            self.assertEqual(app.spec_table.get_children()[-1],selected)
+            self.assertTrue(app.spec_table.heading('angle','text').endswith('▼'))
             spec_table_ui.open_preview(app);app.update()
             window=app.spec_preview_window
             spec_table_ui.open_preview(app)

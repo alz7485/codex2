@@ -1,4 +1,6 @@
 """Extensible SPEC registration table; additional columns preserve literal input."""
+import re
+from decimal import Decimal, InvalidOperation
 import tkinter as tk
 from tkinter import ttk
 from . import project
@@ -45,6 +47,8 @@ def build(host):
                          values=['すべて']+sorted({e['type'] for e in spec['entries']}), width=16)
     combo.pack(side='left', padx=6)
     host.spec_table = host.table(area, COLUMNS, height=18)
+    for key,_,_ in COLUMNS:
+        host.spec_table.heading(key,command=lambda k=key:sort_column(host,k))
     from .table_rules import TableRules
     host.spec_table_rules=TableRules(host.spec_table)
     holder=host.spec_table.master
@@ -75,10 +79,47 @@ def populate(host):
     for entry in host.spec()['entries']:
         if host.spec_type_filter.get() not in ('すべて',entry['type']):continue
         tree.insert('', 'end', iid=entry['id'], values=[value(host.data,entry,c[0]) for c in COLUMNS])
+    apply_sort(host)
     ids=tree.get_children()
     if ids:tree.selection_set(selected[0] if selected and selected[0] in ids else ids[0])
     host.spec_table_rules.schedule()
     host.update_spec_preview()
+
+
+
+def sort_value(raw):
+    """Numbers compare numerically; ranges/units remain literal natural text."""
+    text=str(raw).strip()
+    try:
+        number=Decimal(text)
+        if number.is_finite():return (0,number)
+    except InvalidOperation:pass
+    return (1,tuple((0,int(part)) if part.isdecimal() else (1,part.casefold())
+                    for part in re.split(r'(\d+)',text) if part))
+
+
+def sort_column(host,key):
+    previous=getattr(host,'spec_sort',None)
+    host.spec_sort=(key,not previous[1] if previous and previous[0]==key else False)
+    populate(host)
+
+
+def apply_sort(host):
+    """Sort visible rows only: SPEC list order can affect default selection."""
+    state=getattr(host,'spec_sort',None)
+    tree=host.spec_table
+    for key,label,_ in COLUMNS:
+        suffix=(' ▼' if state[1] else ' ▲') if state and state[0]==key else ''
+        tree.heading(key,text=label+suffix)
+    if not state:return
+    key,descending=state
+    rows={e['id']:e for e in host.spec()['entries']}
+    ids=list(tree.get_children())
+    empty=lambda ident:not str(value(host.data,rows[ident],key)).strip() or (key in REFERENCES and not rows[ident].get(key))
+    populated=[ident for ident in ids if not empty(ident)]
+    blanks=[ident for ident in ids if empty(ident)]
+    populated.sort(key=lambda ident:sort_value(value(host.data,rows[ident],key)),reverse=descending)
+    for index,ident in enumerate(populated+blanks):tree.move(ident,'',index)
 
 
 def remember_widths(host):
