@@ -17,7 +17,7 @@ BLUE = theme.ACCENT
 NAVY = theme.CHROME
 BG = theme.WORKSPACE
 MUTED = theme.MUTED
-PAGES = [('ptset', 'PTSET 作成'), ('gmset', 'GMSET 作成'), ('catalog', 'CATE作成'), ('sdte_cmpt','SDTE/CMPT作成'), ('specs', 'SPEC登録'), ('structural', '構造材・NGMSET'), ('texts','説明・材質'), ('tables','共通テーブル'), ('books', 'カタログ本・PDF'), ('rules', 'PARAM プリセット'), ('checks', '確認・マクロ')]
+PAGES = [('ptset', 'PTSET 作成'), ('gmset', 'GMSET 作成'), ('catalog', 'CATE作成'), ('sdte_cmpt','SDTE/CMPT作成'), ('specs', 'SPEC登録'), ('texts','説明・材質'), ('tables','共通テーブル'), ('books', 'カタログ本・PDF'), ('rules', 'PARAM プリセット'), ('checks', '確認・マクロ')]
 
 
 class Preview:
