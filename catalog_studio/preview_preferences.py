@@ -7,8 +7,9 @@ from pathlib import Path
 import tempfile
 import weakref
 from tkinter import ttk
+from . import preview_colors
 
-FACTORY=dict(version=1,shared=dict(show_grid=True,show_axes=True,show_labels=True),
+FACTORY=dict(version=1,colors=dict(preview_colors.DEFAULTS),shared=dict(show_grid=True,show_axes=True,show_labels=True),
              point=dict(show_relations=True),geometry=dict(render_mode='ソリッド',transparency=0,
              show_points=True,show_negative=True,representation_mode='全形状',
              rep_options=dict(tube=True,cl=False,obst=False,level=0,obst_bypass=False)))
@@ -29,6 +30,7 @@ def normalize(value):
         result[section].update({k:copy.deepcopy(part[k]) for k in result[section] if k in part})
     for part,keys in ((result['shared'],('show_grid','show_axes','show_labels')),(result['point'],('show_relations',)),(result['geometry'],('show_points','show_negative'))):
         if any(type(part[k]) is not bool for k in keys):raise ValueError('表示初期値のON/OFFが不正です。')
+    result['colors']=preview_colors.normalize(value.get('colors',{}))
     g=result['geometry'];v=g['transparency'];rep=g['rep_options']
     if g['render_mode'] not in ('ソリッド','ワイヤー','面＋線') or g['representation_mode'] not in ('全形状','属性確認'):raise ValueError('描画方式が不正です。')
     if type(v) not in (int,float) or not math.isfinite(v) or not 0<=v<=100:raise ValueError('透過率が不正です。')
@@ -66,6 +68,7 @@ def root_for(view):
 def apply(view,values):
     if hasattr(view,'actual'):view.cancel(redraw=False)
     else:view.cancel()
+    preview_colors.apply(view,values.get('colors',preview_colors.DEFAULTS))
     for key,value in values['shared'].items():
         if hasattr(view,key):getattr(view,key).set(value)
     if hasattr(view,'actual'):
@@ -88,6 +91,7 @@ def attach(view):
         rep=getattr(host,'gmset_representation',{})
         values['geometry']['rep_options'].update({k:v for k,v in rep.items() if k!='mode'})
         if 'mode' in rep:values['geometry']['representation_mode']=rep['mode']
+    values['colors']=preview_colors.normalize(getattr(view.editor.host,'preview_color_settings',values['colors']))
     apply(view,values)
     footer=ttk.Frame(view.details);footer.pack(side='bottom',fill='x',pady=(8,0))
     view.defaults_button=ttk.Button(footer,text='現在の設定を初期値にする',command=lambda:save_current(view),style='AttributeTool.TButton')
@@ -98,6 +102,7 @@ def attach(view):
 
 def save_current(view):
     root=root_for(view);values=copy.deepcopy(root._preview_defaults)
+    values['colors']={key:var.get() for key,var in view.colors.items()}
     values['shared']={key:getattr(view,key).get() for key in FACTORY['shared']}
     if hasattr(view,'actual'):
         values['geometry']={key:getattr(view,key).get() for key in FACTORY['geometry'] if key!='rep_options'}

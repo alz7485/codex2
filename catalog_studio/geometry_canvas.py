@@ -6,7 +6,7 @@ from tkinter import ttk
 from PIL import ImageTk
 from . import geometry_scene as geometry, project, theme
 from .surface_render import alpha_surface, inside_polygon, feature_edges
-from . import preview_controls, geometry_preview, representation, model_settings, element_schema as schema
+from . import preview_colors, preview_controls, geometry_preview, representation, model_settings, element_schema as schema
 
 
 class GeometryCanvas(ttk.Frame):
@@ -155,7 +155,7 @@ class GeometryCanvas(ttk.Frame):
         finally:self.refreshing=False
 
     def _redraw(self):
-        e=self.editor;c=self.canvas;c.delete('all');self.handles={};self.screen_points={};self.refresh_options();self.sync_display_controls()
+        e=self.editor;c=self.canvas;c.configure(background=preview_colors.get(self,'background'));c.delete('all');self.handles={};self.screen_points={};self.refresh_options();self.sync_display_controls()
         self.surface_image=None;self.surface_bitmap=None;self.pick_faces=[]
         scom=project.get(e.data,'scoms',e.preview_scom_id)
         definition=e.definition()
@@ -181,10 +181,10 @@ class GeometryCanvas(ttk.Frame):
                 for i in range(-8,9):
                     offset=extent*i/8
                     for a,b in (((offset,-extent,0),(offset,extent,0)),((-extent,offset,0),(extent,offset,0))):
-                        c.create_line(*xy(a),*xy(b),fill='#e9eef6',tags='grid')
+                        c.create_line(*xy(a),*xy(b),fill=preview_colors.get(self,'grid'),tags='grid')
             else:
-                for x in range(20,width,32):c.create_line(x,0,x,height,fill='#e9eef6',tags='grid')
-                for y in range(20,height,32):c.create_line(0,y,width,y,fill='#e9eef6',tags='grid')
+                for x in range(20,width,32):c.create_line(x,0,x,height,fill=preview_colors.get(self,'grid'),tags='grid')
+                for y in range(20,height,32):c.create_line(0,y,width,y,fill=preview_colors.get(self,'grid'),tags='grid')
         right,up=self.camera.basis()
         if self.show_axes.get():
             for i,color in enumerate(('#d85d59','#34986a','#387bd4')):
@@ -194,7 +194,7 @@ class GeometryCanvas(ttk.Frame):
         faces=[];negative=[]
         for mesh in meshes:
             selected=mesh.ident==e.element_id or self.parent_selected(mesh.ident)
-            outline=theme.ACCENT if selected else '#58799b';fill='#a9caef' if selected else '#cfdeed'
+            outline=preview_colors.get(self,'selected' if selected else 'outline');fill=preview_colors.get(self,'selected' if selected else 'model')
             for face in mesh.faces:
                 if len(face)<3:continue
                 points=[mesh.vertices[i] for i in face]
@@ -223,7 +223,7 @@ class GeometryCanvas(ttk.Frame):
             for mesh in meshes:
                 if mesh.negative:continue
                 if mode not in ('ワイヤー','面＋線') and mesh.ident not in self.scene.soft:continue
-                color=theme.ACCENT if mesh.ident==e.element_id or self.parent_selected(mesh.ident) else '#58799b'
+                color=preview_colors.get(self,'selected' if mesh.ident==e.element_id or self.parent_selected(mesh.ident) else 'outline')
                 edges=feature_edges(mesh,geometry.cross(*self.camera.basis()),visible_only=(mode=='面＋線' and opacity==1))
                 for a,b in edges:c.create_line(*xy(mesh.vertices[a]),*xy(mesh.vertices[b]),fill=color,width=1,dash=(4,3) if mesh.ident in self.scene.soft else (),tags=('mesh','wireframe','element:'+mesh.ident))
         for mesh in meshes:
@@ -232,15 +232,15 @@ class GeometryCanvas(ttk.Frame):
         # Negative volumes stay visible as orange wireframes; no Boolean cut is claimed.
         for mesh in negative:
             edges=feature_edges(mesh,geometry.cross(*self.camera.basis()))
-            for a,b in edges:c.create_line(*xy(mesh.vertices[a]),*xy(mesh.vertices[b]),fill='#c7812e',dash=(4,3),tags=('negative','element:'+mesh.ident))
+            for a,b in edges:c.create_line(*xy(mesh.vertices[a]),*xy(mesh.vertices[b]),fill=preview_colors.get(self,'negative'),dash=(4,3),tags=('negative','element:'+mesh.ident))
         if self.show_points.get():
             for number,(point,direction,name) in self.scene.points.items():
                 x,y=xy(point);self.screen_points[number]=(x,y)
                 end=xy(geometry.add(point,geometry.mul(direction,self.camera.span*.08)))
                 # Keep arrow glyphs and labels within the viewport at fitted extremities.
-                c.create_line(x,y,max(12,min(width-12,end[0])),max(12,min(height-12,end[1])),fill='#237c74',arrow='last',width=2,tags='point-direction')
-                c.create_oval(x-4,y-4,x+4,y+4,fill='#167b73',outline='white',tags=('point','point:'+str(number)))
-                if self.show_labels.get():c.create_text(x+8,y-10,text='P'+str(number),anchor='w',fill='#176e68',font=(e.host.ui_font,9),tags='point-label')
+                c.create_line(x,y,max(12,min(width-12,end[0])),max(12,min(height-12,end[1])),fill=preview_colors.get(self,'points'),arrow='last',width=2,tags='point-direction')
+                c.create_oval(x-4,y-4,x+4,y+4,fill=preview_colors.get(self,'points'),outline='white',tags=('point','point:'+str(number)))
+                if self.show_labels.get():c.create_text(x+8,y-10,text='P'+str(number),anchor='w',fill=preview_colors.get(self,'points'),font=(e.host.ui_font,9),tags='point-label')
         chosen=next((m for m in meshes if m.ident==e.element_id),None)
         if chosen and chosen.vertices and not self.actual:self.draw_handles(chosen,xy)
         if not meshes:

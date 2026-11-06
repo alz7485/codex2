@@ -2,6 +2,7 @@
 import copy
 import math
 import re
+from . import preview_colors
 
 KEY='catalog_dimension_layouts'
 PATTERN=re.compile(r'(?:extent:[XYZ]|points:\d+:\d+|gm:[^:\s]{1,100}:[A-Z]+)\Z')
@@ -90,7 +91,7 @@ def draw(view):
         c.create_line(*q,*r,fill=COLOR,width=1.5,arrow='both',arrowshape=(7,9,3),tags=tags)
         label=f"{'⌀' if dimension.get('diameter') else ''}{dimension['value']:.6g} mm\n{description(view,dimension)}"
         tx,ty=(q[0]+r[0])/2,(q[1]+r[1])/2
-        text=c.create_text(tx,ty,text=label,fill=TEXT_COLOR,font=(view.editor.host.ui_font,10,'bold'),tags=tags)
+        text=c.create_text(tx,ty,text=label,fill=preview_colors.get(view,'dimension'),font=(view.editor.host.ui_font,10,'bold'),tags=tags)
         box=c.bbox(text)
         if box:
             shiftx=max(8-box[0],min(width-8-box[2],0));shifty=max(45-box[1],min(height-8-box[3],0))

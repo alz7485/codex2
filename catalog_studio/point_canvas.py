@@ -5,7 +5,7 @@ from tkinter import ttk
 from . import element_schema as schema, presets, expressions
 from .point_geometry import Camera, PLANES, LAYOUT_KEY, DIMENSIONS_KEY, schematic_position, schematic_placement
 from .point_preview import PointPreview, empty, remember
-from . import theme, preview_controls
+from . import theme, preview_controls, preview_colors
 
 
 class PointCanvas(ttk.Frame):
@@ -85,14 +85,14 @@ class PointCanvas(ttk.Frame):
 
     def redraw(self):
         if not self.winfo_exists():return
-        c=self.canvas;c.delete('all');w,h=c.winfo_width(),c.winfo_height();self.hits={};self.positions={}
+        c=self.canvas;c.configure(background=preview_colors.get(self,'background'));c.delete('all');w,h=c.winfo_width(),c.winfo_height();self.hits={};self.positions={}
         def xy(point):return self.camera.project(point,w,h)
         a,b=PLANES[self.plane.get()]
         if self.show_grid.get():
             for i in range(-8,9):
                 for first,second in ((a,b),(b,a)):
                     p=[0,0,0];p[first]=i*.25;p[second]=-2;q=p.copy();q[second]=2
-                    c.create_line(*xy(p),*xy(q),fill='#dee7f0',tags=('grid',))
+                    c.create_line(*xy(p),*xy(q),fill=preview_colors.get(self,'grid'),tags=('grid',))
         origin=xy((0,0,0));c.create_oval(origin[0]-4,origin[1]-4,origin[0]+4,origin[1]+4,fill='#34495e',outline='')
         c.create_text(origin[0]+8,origin[1]+10,text='P0 · 原点',anchor='w',fill='#56677a')
         if self.show_axes.get():
@@ -112,9 +112,9 @@ class PointCanvas(ttk.Frame):
             try:point,vector=model.point(model.number_for(element['id']))
             except ValueError:point,vector=schematic_position(element,index),(0,0,0)
             self.positions[element['id']]=point;x,y=xy(point);self.hits[element['id']]=(x,y)
-            selected=element['id']==self.editor.element_id;color=theme.ACCENT if selected else '#657c94';r=11 if selected else 8
+            selected=element['id']==self.editor.element_id;color=preview_colors.get(self,'selected' if selected else 'points');r=11 if selected else 8
             if self.show_relations.get():c.create_line(*origin,x,y,fill='#b3c4d8',dash=(3,4),tags=('relations',))
-            if selected:c.create_oval(x-r-5,y-r-5,x+r+5,y+r+5,outline=theme.ACCENT,width=2,tags=('selected-point-halo',))
+            if selected:c.create_oval(x-r-5,y-r-5,x+r+5,y+r+5,outline=preview_colors.get(self,'selected'),width=2,tags=('selected-point-halo',))
             c.create_oval(x-r,y-r,x+r,y+r,fill=color,outline='white',width=2,tags=('point','selected-point' if selected else 'other-point'))
             if self.show_labels.get():c.create_text(x+r+6,y-r-4,text='P'+str(element['attrs'].get('NUMB','?')),anchor='w',fill=color,font=(self.editor.host.ui_font,11 if selected else 10,'bold' if selected else 'normal'),tags=('labels',))
             if any(vector):

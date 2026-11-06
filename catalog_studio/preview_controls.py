@@ -44,6 +44,8 @@ def build(view, row):
     win=view.settings_viewport.create_window(0,0,anchor='nw',window=view.settings_content)
     view.settings_content.bind('<Configure>',lambda _:view.settings_viewport.configure(scrollregion=view.settings_viewport.bbox('all')))
     view.settings_viewport.bind('<Configure>',lambda e:view.settings_viewport.itemconfigure(win,width=e.width))
+    from .preview_colors import build as build_colors
+    build_colors(view)
 
 
 
