@@ -171,7 +171,7 @@ class SimpleAuthoringTests(unittest.TestCase):
 
     def test_keyboard_scroll_reaches_last_attribute_and_keeps_value_editable(self):
         self.app.switch('gmset');self.app.update();e=self.app.geometry_editor
-        point=schema.add_element(e.definition(),'LPYR');e.element_id=point['id'];e.refresh()
+        point=schema.add_element(e.definition(),'LPYR');e.element_id=point['id'];e.refresh();e.optional_attrs_button.invoke()
         self.app.geometry('1120x780');self.app.update();table=e.tables['main'];canvas=table.canvas
         canvas.focus_force();canvas.event_generate('<End>');self.app.update()
         self.assertEqual(e.field,'PURP');top,bottom=table.bounds['PURP']

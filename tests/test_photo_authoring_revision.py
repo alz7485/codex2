@@ -30,6 +30,24 @@ class PhotoRules(unittest.TestCase):
   root=preview_parse('IPARA 2');self.assertEqual(root,ex.parse('0.5 * IPARA 1'))
 
 class PhotoUi(unittest.TestCase):
+ def test_optional_attributes_hidden_in_both_editors_without_data_loss(self):
+  from catalog_studio.integrated import IntegratedStudio
+  try:app=IntegratedStudio()
+  except tk.TclError as exc:self.skipTest(str(exc))
+  try:
+   for page,kind,hidden in [('ptset','PTAXI',('DESC','PURP')),('gmset','SCYL',('DESC','GTYP','PURP'))]:
+    app.switch(page);app.update();e=app.geometry_editor
+    node=s.add_element(e.definition(),kind);node['attrs'].update({k:'saved-'+k for k in hidden})
+    before=copy.deepcopy(node);e.element_id=node['id'];e.refresh();app.update()
+    self.assertTrue(e.optional_attrs_button.winfo_ismapped())
+    for k in hidden:self.assertNotIn(k,e.tables['main'].get_children())
+    e.optional_attrs_button.invoke();app.update()
+    for k in hidden:self.assertIn(k,e.tables['main'].get_children())
+    e.optional_attrs_button.invoke();e.refresh();app.update()
+    for k in hidden:self.assertNotIn(k,e.tables['main'].get_children())
+    self.assertEqual(node['attrs'],before['attrs'])
+  finally:app.destroy()
+
  def test_sphere_uniform_resize_and_point_position_picker(self):
   from catalog_studio.integrated import IntegratedStudio
   from catalog_studio.geometry_scene import SCALE_KEY

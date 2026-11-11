@@ -182,15 +182,14 @@ def build_simple(editor):
     e.preset_choice = ttk.Combobox(preset_row, state='readonly')
     e.preset_choice.pack(side='left',fill='x',expand=True)
     e.preset_choice.bind('<<ComboboxSelected>>', e.assign_preset)
-    if point:
-        def optional():
-            if not e.commit_inline():return
-            e.show_optional_attrs=not getattr(e,'show_optional_attrs',False)
-            e.optional_attrs_button.configure(text=('▲' if e.show_optional_attrs else '▼'))
-            e.refresh_element()
-        e.optional_attrs_button=ttk.Button(preset_row,text='▼',width=2,command=optional,style='AttributeTool.TButton')
-        e.optional_attrs_button.pack(side='right',padx=(4,0))
-        e.optional_attrs_button.hint=Hint(e.optional_attrs_button,'DESC・PURPを表示／非表示')
+    def optional():
+        if not e.commit_inline():return
+        e.show_optional_attrs=not getattr(e,'show_optional_attrs',False)
+        e.optional_attrs_button.configure(text=('▲' if e.show_optional_attrs else '▼'))
+        e.refresh_element()
+    e.optional_attrs_button=ttk.Button(preset_row,text='▼',width=2,command=optional,style='AttributeTool.TButton')
+    e.optional_attrs_button.pack(side='right',padx=(4,0))
+    e.optional_attrs_button.hint=Hint(e.optional_attrs_button,('DESC・PURP' if point else 'DESC・GTYP・PURP')+'を表示／非表示')
 
     e.element_name = tk.StringVar()
     e.type_choice = tk.StringVar()

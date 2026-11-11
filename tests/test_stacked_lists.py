@@ -62,7 +62,7 @@ class StackedListTests(unittest.TestCase):
     def test_right_preset_updates_labels_and_negative_attributes_stay_editable(self):
         app=self.app;app.switch('gmset');app.update();e=app.geometry_editor
         negative=schema.add_element(e.definition(),'NSCY');negative['attrs'].update(PHEI='PARAM 3',OBST='0',NAPP='1');e.element_id=negative['id'];e.refresh();app.update()
-        table=e.tables['main'];self.assertEqual(table.get_children(),schema.fields('NSCY')+schema.fields('NSCY','common')+schema.NEGATIVE_EXTRA)
+        table=e.tables['main'];self.assertEqual(table.get_children(),tuple(k for k in schema.fields('NSCY')+schema.fields('NSCY','common')+schema.NEGATIVE_EXTRA if k not in ('DESC','GTYP','PURP')))
         self.assertIs(e.preset_choice.master.master,e.attribute_pane);self.assertLess(e.preset_choice.winfo_rooty()+e.preset_choice.winfo_height(),table.winfo_rooty())
         profile=presets.add(app.data,'別の規則');next(p for p in profile['parameters'] if p['id']=='P3')['role']='胴長'
         e.refresh();app.update();e.preset_choice.set(profile['name']);e.preset_choice.event_generate('<<ComboboxSelected>>');app.update()

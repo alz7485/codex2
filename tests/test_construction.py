@@ -69,7 +69,7 @@ class ConstructionGuiTests(unittest.TestCase):
         editor.negative.set(True);editor.populate_library();self.assertEqual(editor.library.size(),16)
         index=list(schema.NEGATIVE_BASE).index('NSRU');editor.library.selection_clear(0,'end');editor.library.selection_set(index);editor.add_element();app.update()
         self.assertEqual(editor.element()['type'],'NSRU')
-        self.assertEqual(editor.tables['main'].get_children(),tuple(k for k in schema.GM_COMMON if k!='NAPP')+schema.NEGATIVE_EXTRA)
+        self.assertEqual(editor.tables['main'].get_children(),tuple(k for k in schema.GM_COMMON if k not in ('NAPP','DESC','GTYP','PURP'))+schema.NEGATIVE_EXTRA)
         self.assertNotIn('PJOI',editor.tables['main'].get_children())
         self.select_field(editor,'NAPP');editor.expression.set('6');app.update()
         self.select_field(editor,'OBST');editor.expression.set('1：ソフト');app.update()

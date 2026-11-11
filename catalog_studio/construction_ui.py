@@ -453,7 +453,7 @@ class ConstructionEditor(ttk.Frame):
                 for key in schema.fields(e['type'], section):
                     self.attribute_sections[key]=section
                     listed.add(key)
-                    if self.kind=='PTSET' and key in ('DESC','PURP') and not expanded:continue
+                    if key in (('DESC','PURP') if self.kind=='PTSET' else ('DESC','GTYP','PURP')) and not expanded:continue
                     table.insert('', 'end', iid=key, values=(key, schema.meaning(e['type'],key), ('自動・編集不可：'+self.display_field_value(e,key) if schema.positive(e['type'])=='LPYR' and key=='PAAX' else self.display_field_value(e,key))))
             for key, value in e['attrs'].items():
                 if key not in listed and not (key == 'PTCD' and 'PTCDIR' in listed):
