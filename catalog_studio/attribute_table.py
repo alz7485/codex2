@@ -4,6 +4,20 @@ from tkinter import font, ttk
 from . import theme
 
 
+def napp_selected(value):
+    try:number=int(value)
+    except (ValueError,TypeError):return ()
+    if number in (0,7):return (str(number),)
+    return tuple(str(bit) for bit in (1,2,4) if number&bit) if 0<number<7 else ()
+
+
+def napp_toggle(value,choice):
+    if choice in ('0','7'):return choice
+    try:number=int(value)
+    except (ValueError,TypeError):number=0
+    return str((number if 0<=number<=7 else 0)^int(choice))
+
+
 class AttributeTable(ttk.Frame):
     def __init__(self,parent,family,value_caption=None,edit_context=None,missing_value=None,editor_factory=None):
         super().__init__(parent)
@@ -38,7 +52,8 @@ class AttributeTable(ttk.Frame):
         if sequence=='<Double-1>' and func:
             def double(event):
                 y=self.canvas.canvasy(event.y)
-                if any(a<=event.x<=b and top<=y<=bottom for a,top,b,bottom in self.toggle_bounds.values()):return 'break'
+                if any(a<=event.x<=b and top<=y<=bottom for a,top,b,bottom in self.toggle_bounds.values()):
+                    self.click(event);return 'break'
                 return func(event)
             return self.canvas.bind(sequence,double,add)
         if sequence=='<Return>':return self.canvas.bind(sequence,func,add)
@@ -91,7 +106,7 @@ class AttributeTable(ttk.Frame):
                     if context and context.get('toggle'):
                         for (row,choice),(left,t,right,b) in self.toggle_bounds.items():
                             if row==iid and left<=event.x<=right and t<=y<=b:
-                                try:context['commit'](choice)
+                                try:context['commit'](napp_toggle(context['value'],choice) if iid=='NAPP' else choice)
                                 except ValueError as exc:context['report'](str(exc))
                                 self.schedule();break
                 break
@@ -194,20 +209,22 @@ class AttributeTable(ttk.Frame):
             color=theme.ACCENT if chosen else theme.INK
             background=c.create_rectangle(0,top,width,top+minimum,fill=theme.SELECT if chosen else 'white',outline='')
             shown=value
-            toggle=attr in ('CLFLA','TUFLA','TVISI','BVISI','OBST')
+            toggle=attr in ('CLFLA','TUFLA','TVISI','BVISI','OBST','NAPP')
             if toggle:
-                options=('0','1','2') if attr=='OBST' else ('TRUE','FALSE')
+                options=('0','1','2','4','7') if attr=='NAPP' else ('0','1','2') if attr=='OBST' else ('TRUE','FALSE')
                 gap=3;left=divider+5;slot=(width-divider-10-gap*(len(options)-1))/len(options)
                 for index,choice in enumerate(options):
-                    x=left+index*(slot+gap);selected=str(value).upper()==choice
+                    x=left+index*(slot+gap);selected=choice in napp_selected(value) if attr=='NAPP' else str(value).upper()==choice
                     rect=(x,top+3,x+slot,top+minimum-3)
                     self.toggle_bounds[(iid,choice)]=rect
                     c.create_rectangle(*rect,fill=theme.ACCENT if selected else theme.SUBTLE,outline=theme.ACCENT if selected else theme.BORDER,tags=('toggle:'+iid,'toggle:'+iid+':'+choice))
                     fg='white' if selected else theme.INK
-                    if attr=='OBST':
-                        c.create_text(x+slot/2,top+5,text=choice,anchor='n',font=self.value_font,fill=fg)
-                        c.create_text(x+slot/2,top+5+self.value_font.metrics('linespace'),text={'0':'対象外','1':'ソフト','2':'ハード'}[choice],anchor='n',font=self.meaning_font,fill=fg,tags=('toggle-meaning:'+iid+':'+choice,))
-                    else:c.create_text(x+slot/2,top+minimum/2,text=choice,font=self.value_font,fill=fg)
+                    if attr=='OBST':label={'0':'対象外','1':'ソフト','2':'ハード'}[choice]
+                    elif attr=='NAPP':label={'0':'なし','1':'取付先','2':'所有元','4':'自身','7':'全対象'}[choice]
+                    elif attr in ('TVISI','BVISI'):label='表示' if choice=='TRUE' else '非表示'
+                    else:label='描画する' if choice=='TRUE' else '描画しない'
+                    c.create_text(x+slot/2,top+5,text=choice,anchor='n',font=self.value_font,fill=fg)
+                    c.create_text(x+slot/2,top+5+self.value_font.metrics('linespace'),text=label,anchor='n',font=self.meaning_font,fill=fg,tags=('toggle-meaning:'+iid+':'+choice,))
                 shown=''
             item=c.create_text(divider+10,top+5,text=shown,anchor='nw',width=value_width,font=self.value_font,fill=color,tags=('value:'+iid,))
             bbox=c.bbox(item);value_height=(bbox[3]-bbox[1]) if bbox else self.value_font.metrics('linespace')

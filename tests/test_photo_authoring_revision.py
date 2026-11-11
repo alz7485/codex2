@@ -103,6 +103,30 @@ class PhotoUi(unittest.TestCase):
     self.assertEqual(t.canvas.itemcget(t.canvas.find_withtag('toggle-meaning:OBST:'+choice)[0],'text'),meaning)
   finally:app.destroy()
 
+ def test_napp_buttons_normalize_all_none_and_partial_selections(self):
+  from catalog_studio.integrated import IntegratedStudio
+  from catalog_studio import theme
+  try:app=IntegratedStudio()
+  except tk.TclError as exc:self.skipTest(str(exc))
+  try:
+   app.switch('gmset');app.update();e=app.geometry_editor;t=e.tables['main']
+   def choose(choice,expected,active):
+    t.see('NAPP');app.update();a,b,c,d=t.toggle_bounds[('NAPP',choice)]
+    t.click(SimpleNamespace(x=(a+c)/2,y=(b+d)/2-t.canvas.canvasy(0)));app.update()
+    self.assertIsNone(t.editing);self.assertEqual(e.element()['attrs']['NAPP'],expected)
+    for v in ('0','1','2','4','7'):
+     item=t.canvas.find_withtag('toggle:NAPP:'+v)[0]
+     self.assertEqual(t.canvas.itemcget(item,'fill'),theme.ACCENT if v in active else theme.SUBTLE)
+   choose('0','0',('0',));choose('1','1',('1',));choose('2','3',('1','2'))
+   choose('4','7',('7',));choose('1','6',('2','4'));choose('2','4',('4',));choose('4','0',('0',))
+   choose('7','7',('7',));choose('7','7',('7',));choose('0','0',('0',))
+   for value,active in [('3',('1','2')),('5',('1','4')),('6',('2','4'))]:
+    e.inline_context('NAPP','common')['commit'](value);e.refresh();app.update()
+    for v in active:self.assertEqual(t.canvas.itemcget(t.canvas.find_withtag('toggle:NAPP:'+v)[0],'fill'),theme.ACCENT)
+   for key,choice,label in [('TVISI','TRUE','表示'),('BVISI','FALSE','非表示'),('CLFLA','TRUE','描画する'),('TUFLA','FALSE','描画しない'),('NAPP','1','取付先'),('NAPP','2','所有元'),('NAPP','4','自身')]:
+    self.assertEqual(t.canvas.itemcget(t.canvas.find_withtag('toggle-meaning:'+key+':'+choice)[0],'text'),label)
+  finally:app.destroy()
+
  def test_optional_attributes_hidden_in_both_editors_without_data_loss(self):
   from catalog_studio.integrated import IntegratedStudio
   try:app=IntegratedStudio()

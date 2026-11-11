@@ -352,7 +352,7 @@ class ConstructionEditor(ttk.Frame):
                     busy=self.busy;self.busy=True;self.expression.set(value);self.busy=busy;self.update_validation()
                 if self.kind=='PTSET' and key=='NUMB':self.elements.item(element['id'],values=(value,element['name'],self.elements.item(element['id'],'values')[2]))
             self.redraw_points();self.draw()
-        return {'value':original,'toggle':('FALSE','TRUE') if key in ('CLFLA','TUFLA','TVISI','BVISI') else ('0','1','2') if key=='OBST' else (), 'choices':choices,'commit':commit,'report':lambda text:self.validation_note.configure(text=text)}
+        return {'value':original,'toggle':('FALSE','TRUE') if key in ('CLFLA','TUFLA','TVISI','BVISI') else ('0','1','2') if key=='OBST' else ('0','1','2','4','7') if key=='NAPP' else (), 'choices':choices,'commit':commit,'report':lambda text:self.validation_note.configure(text=text)}
 
     def open_point_canvas(self):
         if self.kind!='PTSET' or not self.definition():return

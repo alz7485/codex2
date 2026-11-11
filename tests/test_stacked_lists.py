@@ -70,7 +70,7 @@ class StackedListTests(unittest.TestCase):
         for _ in range(3):
             if negative['attrs']['OBST']=='2':break
             table.begin_edit('OBST')
-        table.begin_edit('NAPP');table.editing['variable'].set('6');self.assertTrue(table.finish_edit())
+        e.inline_context('NAPP','negative')['commit']('6');self.assertIsNone(table.editing)
         self.assertEqual(negative['attrs']['OBST'],'2');self.assertEqual(negative['attrs']['NAPP'],'6');self.assertEqual(negative['attrs']['PHEI'],'PARAM 3')
 
     def test_scroll_and_nested_element_renaming_keep_hierarchy(self):
