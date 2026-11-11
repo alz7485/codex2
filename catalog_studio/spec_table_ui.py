@@ -3,17 +3,20 @@ import re
 from decimal import Decimal, InvalidOperation
 import tkinter as tk
 from tkinter import ttk
-from . import project
+from . import project, spec_headers
 
 # A single registry controls table headings, editing and legacy defaults.
 COLUMNS = (
     ('name', '名前 / NAME', 105), ('type', '部品種別 / TYPE', 85),
-    ('bore1', '呼び径1 / PBOR1', 85), ('bore2', '呼び径2 / PBOR2', 85),
-    ('angle', '角度 / ANGLE', 78), ('height', '高さ / HEIGHT', 78),
+    ('bore0', '呼び径 / PBOR0', 85), ('bore1', '呼び径1 / PBOR1', 85), ('bore2', '呼び径2 / PBOR2', 85),
+    ('bore3', '呼び径3 / PBOR3', 85), ('angle', '角度 / ANGL', 78), ('height', '高さ / HEIG', 78),
+    ('radius','半径 / RADI',85), ('edge','端部 / EDGE',85), ('allowance','許容 / ALLO',85),
     ('text', 'TEXT', 110), ('styp', '種別 / STYP', 78), ('shop', '工場製作 / SHOP', 82), ('scom_id', 'カタログ部品 / CATREF', 150),
-    ('detail_id', '説明 / DETAIL', 115), ('prop_id', '物性 / 参照', 115),
+    ('detail_id', '説明 / DETAIL', 115), ('prop_id', '物性 / CMPREF', 115),
+    ('bolt_ref','ボルト参照 / BLTREF',115), ('tmp_ref','TMPREF',115),
+    ('pda_ref','PDAREF',115), ('prt_ref','PRTREF',115),
     ('description', '説明文', 120), ('sdte_id', 'SDTE（従来参照）', 110),
-    ('smte_id', '材質 / SMTE', 100),
+    ('smte_id', '材質 / MATXT', 100),
 )
 REFERENCES = dict(scom_id='scoms', detail_id='catalog_details', prop_id='catalog_props',
                   sdte_id='texts', smte_id='texts')
@@ -47,7 +50,7 @@ def build(host):
     ttk.Label(filters, text='部品種類').pack(side='left')
     host.spec_type_filter = tk.StringVar(master=host, value='すべて')
     combo = ttk.Combobox(filters, textvariable=host.spec_type_filter, state='readonly',
-                         values=['すべて']+sorted({e['type'] for e in spec['entries']}), width=16)
+                         values=['すべて']+sorted(set(spec_headers.SELECTORS)|{e['type'] for e in spec['entries']}), width=16)
     combo.pack(side='left', padx=6)
     style=ttk.Style(host)
     style.configure('Spec.Treeview',font=(host.ui_font,9),rowheight=26)
@@ -90,9 +93,10 @@ def populate(host):
     finish_edit(host)
     tree=host.spec_table
     selected=tree.selection()
+    configure_columns(host)
     tree.delete(*tree.get_children())
     for entry in host.spec()['entries']:
-        if host.spec_type_filter.get() not in ('すべて',entry['type']):continue
+        if host.spec_type_filter.get()!='すべて' and host.spec_type_filter.get().upper()!=entry['type'].upper():continue
         tree.insert('', 'end', iid=entry['id'], values=[value(host.data,entry,c[0]) for c in COLUMNS])
     apply_sort(host)
     ids=tree.get_children()
@@ -100,6 +104,28 @@ def populate(host):
     host.spec_table_rules.schedule()
     host.update_spec_preview()
 
+
+
+def configure_columns(host):
+    kind=host.spec_type_filter.get().upper()
+    if kind in spec_headers.SELECTORS:
+        available=list(spec_headers.columns(kind))
+    else:
+        # All-types view is the union, with administrative legacy fields retained.
+        kinds={e['type'].upper() for e in host.spec()['entries']}
+        available=[]
+        for item in spec_headers.SELECTORS:
+            if item in kinds:
+                for key in spec_headers.columns(item):
+                    if key not in available:available.append(key)
+        if not available:available=[c[0] for c in COLUMNS]
+        available += [c[0] for c in COLUMNS if c[0] not in available and c[0] in ('description','sdte_id')]
+    settings=host.data.get('spec_table_settings',{})
+    profiles=settings.get('profiles',{})
+    shown=profiles.get(kind,available)
+    visible=[key for key in available if key in shown or key=='text']
+    host.spec_available_columns=available
+    host.spec_table.configure(displaycolumns=visible or ['text'])
 
 
 def sort_value(raw):
@@ -148,17 +174,18 @@ def column_dialog(host):
     if not hasattr(host,'spec_table') or not host.spec_table.winfo_exists():return
     win=tk.Toplevel(host);win.title('表示する列');win.transient(host)
     current=host.spec_table['displaycolumns'];variables={}
-    for i,(key,label,_) in enumerate(COLUMNS):
+    options=[c for c in COLUMNS if c[0] in host.spec_available_columns]
+    for i,(key,label,_) in enumerate(options):
         var=tk.BooleanVar(win,value=key in current);variables[key]=var
-        ttk.Checkbutton(win,text=label,variable=var).grid(row=i//2,column=i%2,sticky='w',padx=12,pady=4)
+        ttk.Checkbutton(win,text=label,variable=var,state='disabled' if key=='text' else 'normal').grid(row=i//2,column=i%2,sticky='w',padx=12,pady=4)
     def apply():
-        visible=[key for key,var in variables.items() if var.get()]
+        visible=[key for key in host.spec_available_columns if variables[key].get() or key=='text']
         if not visible:return
         host.spec_table.configure(displaycolumns=visible)
-        host.data.setdefault('spec_table_settings',{})['visible']=visible
+        host.data.setdefault('spec_table_settings',{}).setdefault('profiles',{})[host.spec_type_filter.get().upper()]=visible
         host.spec_table_rules.schedule()
         host.mark();win.destroy()
-    ttk.Button(win,text='適用',command=apply).grid(row=8,column=1,padx=12,pady=10)
+    ttk.Button(win,text='適用',command=apply).grid(row=(len(options)+1)//2,column=1,padx=12,pady=10)
 
 
 def finish_edit(host,commit=True):

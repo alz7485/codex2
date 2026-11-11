@@ -150,3 +150,29 @@ RUNはDATE9文字、UNAME12文字。CARDはCATYとCTXT120文字。解析パッ�
 - CASWL/CASH、CMPWL/CMPWなどの図と本文の表記差。正式長名・略記・有効な所有先を実機で確認する。
 
 既存の仕様メモ§15および未確認事項§14にある「PROPの型・参照が不明」は、この資料によって型名対応と資料上の参照先候補が増えたものとして読む。全項目が未解決のままとも、E3Dで全面解決済みとも扱わない。
+
+
+## 12. ユーザー提示のSPEC登録・出力実例と採用ヘッダー
+
+ユーザーは追加写真を登録・出力両方のSPECマクロと説明し、タイプ別ヘッダーを例どおり、TEXTは全タイプへ付けると指定した。写真の固有名・行データ・原本は収録しない。以下は採用する列構成。TYPE NAMEを先頭にし、TEXTが例にないタイプはSHOP直前へ挿入する。
+
+| TYPE | 選択列（順序を保持） |
+| --- | --- |
+| TUBE | PBOR0 TEXT SHOP |
+| BEND | PBOR0 STYP RADI TEXT SHOP |
+| WELD | PBOR0 STYP EDGE ALLO TEXT SHOP |
+| ELBO | PBOR0 STYP TEXT SHOP |
+| TEE | PBOR0 PBOR3 STYP HEIG TEXT SHOP |
+| REDU | PBOR1 PBOR2 STYP TEXT SHOP |
+| OLET | PBOR0 PBOR3 STYP HEIG ANGL TEXT SHOP |
+| CAP | PBOR0 STYP TEXT SHOP |
+| FLAN | PBOR0 STYP TEXT SHOP |
+| BOLT | PBOR1 PBOR2 STYP TEXT SHOP |
+| GASK | PBOR0 STYP TEXT SHOP |
+| PCOM | PBOR0 STYP HEIG TEXT SHOP |
+| INST | PBOR0 STYP HEIG ANGL TEXT SHOP |
+| VALV | PBOR1 PBOR2 STYP HEIG TEXT SHOP |
+
+共通参照列はCATREF DETAIL MATXT CMPREF BLTREF TMPREF PDAREF PRTREFの順。TYPEごとにPBOR0/1/2/3を区別し、呼び径を根拠なく別の点番号へ移さない。UIの高さ・角度はHEIG/ANGLに対応。単位付き値・TEXT文字列の原文は保持する。写真冒頭のBORE/DISTANCE単位行はコメント内であり実行命令と解釈しない。
+
+今回の反映はSPEC登録表の列構成と再利用可能なヘッダー定義。SPEC実行マクロの読込・出力、DEFAULTSの実装、未設定TEXTの出力表現、CMPREF等の参照先実機確認を完了した意味ではない。既存のDETAIL/物性参照の未解決事項は継続する。

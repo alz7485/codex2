@@ -219,11 +219,13 @@ def validate(data):
     widths=settings.get('widths',{})
     if not isinstance(visible,list) or any(not isinstance(k,str) for k in visible):raise ValueError('SPEC表示列を確認してください。')
     if not isinstance(widths,dict) or any(not isinstance(k,str) or not isinstance(v,int) or not 65<=v<=1200 for k,v in widths.items()):raise ValueError('SPEC列幅を確認してください。')
+    profiles=settings.get('profiles',{})
+    if not isinstance(profiles,dict) or any(not isinstance(k,str) or not isinstance(v,list) or any(not isinstance(c,str) for c in v) for k,v in profiles.items()):raise ValueError('SPECタイプ別表示列を確認してください。')
     _records(data.get('specs'), 'SPEC', ('name', 'description', 'revision'), LIMITS['specs'])
     for spec in data['specs']:
         _records(spec.get('entries'), 'SPEC 選択行', ('type','bore1','bore2','scom_id','description'),5000)
         for entry in spec['entries']:
-            for key in ('sdte_id','smte_id','name','angle','height','text','styp','shop'):
+            for key in ('sdte_id','smte_id','name','angle','height','text','styp','shop','bore0','bore3','radius','edge','allowance','bolt_ref','tmp_ref','pda_ref','prt_ref'):
                 if key in entry and not isinstance(entry[key],str): raise ValueError('SPEC のテキスト参照は識別子です。')
         _records(spec.get('entries'), 'SPEC 選択行',
                  ('type', 'bore1', 'bore2', 'scom_id', 'description'), 5000)
