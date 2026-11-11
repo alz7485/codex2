@@ -16,7 +16,7 @@ Python / Tkinter で、CATE・SCOM、ポイント・形状定義、SPEC、説明
 
 ## PTSET・GMSET編集の今回の修正
 
-新規PTAXIはPAXI・PDISを空欄にし、XYドラッグでPAXIを決定します。PDISは手入力です。要素のタイプ別連番、複数選択・一括削除、PTSETのDESC/PURP・GMSETのDESC/GTYP/PURPの折畳み（右上の▼で展開）、属性表内の真偽値・OBST切替、NAPP、LINEの3欄入力、LPYRのPAAX自動決定を追加しました。球のサイズ変更は全軸に追従します。
+新規PTAXIはPAXI・PDISを空欄にし、初回ドラッグをX軸またはY軸上にスナップしてPAXIを決定します。PDISは手入力です。要素のタイプ別連番、複数選択・一括削除、PTSETのDESC/PURP・GMSETのDESC/GTYP/PURPの折畳み（右上の▼で展開）、属性表内の真偽値・OBST切替、NAPP、LINEの3欄入力、LPYRのPAAX自動決定を追加しました。球のサイズ変更は全軸に追従します。
 
 回転はホイールドラッグ、ホイールクリックで中心移動、F11でワイヤー/ソリッドを切り替えます。初期表示はワイヤーです。要素追加の見本も操作できます。
 

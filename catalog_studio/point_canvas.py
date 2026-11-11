@@ -211,10 +211,17 @@ class PointCanvas(ttk.Frame):
                 direction=schema.value(element,direction_key)
                 if not empty(direction):model.axis(direction)
             if element and element['type']=='PTAXI' and empty(element['attrs'].get('PDIS','')):
-                import math
-                point=tuple(self.camera.unproject(x,y,self.canvas.winfo_width(),self.canvas.winfo_height(),'XY',0))
-                angle=math.degrees(math.atan2(point[1],point[0]))
-                axis=('X' if point[0]>=0 else '-X') if abs(point[1])<1e-8 else ('Y' if point[1]>=0 else '-Y') if abs(point[0])<1e-8 else f'X{angle:.8g}Y'
+                axis=element['attrs'].get('PAXI','')
+                if empty(axis):
+                    point=tuple(self.camera.unproject(x,y,self.canvas.winfo_width(),self.canvas.winfo_height(),'XY',0))
+                    # First placement chooses one of the four XY axis rays.
+                    if abs(point[0])>=abs(point[1]):
+                        axis='X' if point[0]>=0 else '-X';point=(point[0],0.,0.)
+                    else:
+                        axis='Y' if point[1]>=0 else '-Y';point=(0.,point[1],0.)
+                else:
+                    origin,vector=model.axis(axis)
+                    point=self.camera.unproject_axis(x,y,self.canvas.winfo_width(),self.canvas.winfo_height(),origin,vector)
                 self.pending=dict(id=ident,base=copy.deepcopy(element['attrs']),layout=copy.deepcopy(element.get(LAYOUT_KEY)),attrs={'PAXI':axis},point=point,kind='PTAXI',preset=presets.selected_id(e.data,e.definition()),definition=e.definition_id,preview=model,snapshot=copy.deepcopy(e.definition()['elements']),dimensions=copy.deepcopy(e.definition().get(DIMENSIONS_KEY)),axis_only=True)
                 self.redraw();return
             if element and element['type']=='PTAXI' and not empty(element['attrs'].get('PAXI','')):

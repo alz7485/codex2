@@ -30,6 +30,22 @@ class PhotoRules(unittest.TestCase):
   root=preview_parse('IPARA 2');self.assertEqual(root,ex.parse('0.5 * IPARA 1'))
 
 class PhotoUi(unittest.TestCase):
+ def test_initial_point_placement_snaps_to_xy_axes_and_keeps_distance_blank(self):
+  from catalog_studio.integrated import IntegratedStudio
+  from catalog_studio.point_geometry import LAYOUT_KEY
+  try:app=IntegratedStudio()
+  except tk.TclError as exc:self.skipTest(str(exc))
+  try:
+   app.update();e=app.geometry_editor;v=e.point_canvas
+   for raw,axis,expected in [((8,3,0),'X',(8,0,0)),((-8,3,0),'-X',(-8,0,0)),((2,9,0),'Y',(0,9,0)),((2,-9,0),'-Y',(0,-9,0))]:
+    n=s.add_element(e.definition(),'PTAXI');e.element_id=n['id'];e.refresh();app.update()
+    with patch.object(v.camera,'unproject',return_value=raw):v.propose(100,100,n['id'])
+    self.assertIsNotNone(v.pending);self.assertEqual(v.pending['attrs']['PAXI'],axis)
+    self.assertEqual(v.pending['point'],expected);v.apply();app.update()
+    self.assertEqual(n['attrs']['PAXI'],axis);self.assertEqual(n['attrs']['PDIS'],'')
+    self.assertEqual(n[LAYOUT_KEY],list(expected))
+  finally:app.destroy()
+
  def test_optional_attributes_hidden_in_both_editors_without_data_loss(self):
   from catalog_studio.integrated import IntegratedStudio
   try:app=IntegratedStudio()
