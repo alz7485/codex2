@@ -51,9 +51,10 @@ class StackedListTests(unittest.TestCase):
         e=self.editor;point=schema.add_element(e.definition(),'PTPOS');point['attrs'].pop('PTCDIR',None)
         point['attrs'].update(PTCD='X45U',EXTRA='PARAM 3 を含む保持データ');e.element_id=point['id'];e.refresh();self.app.update()
         table=e.tables['main'];self.assertEqual(set(e.tables),{'main'});self.assertNotIsInstance(e.tabs,ttk.Notebook)
-        self.assertEqual(table.get_children(),schema.fields('PTPOS')+schema.PT_DETAIL+('EXTRA',))
+        self.assertEqual(table.get_children(),schema.fields('PTPOS')+('PSKEY',)+('EXTRA',))
         self.assertFalse(table.begin_edit('EXTRA'));self.assertFalse(table.canvas.find_withtag('caption:EXTRA'))
         table.begin_edit('PTCDIR');table.editing['variable'].set('Y');table.finish_edit();self.assertEqual(point['attrs']['PTCD'],'Y');self.assertNotIn('PTCDIR',point['attrs'])
+        e.optional_attrs_button.invoke();self.app.update()
         table.begin_edit('DESC');table.editing['variable'].set('PARAM 3 の説明');table.finish_edit();self.app.update()
         self.assertEqual(point['attrs']['DESC'],'PARAM 3 の説明');self.assertFalse(table.canvas.find_withtag('caption:DESC'))
         self.assertEqual(point['attrs']['EXTRA'],'PARAM 3 を含む保持データ');self.assertEqual(point['attrs']['PSKEY'],'unset')
@@ -61,13 +62,15 @@ class StackedListTests(unittest.TestCase):
     def test_right_preset_updates_labels_and_negative_attributes_stay_editable(self):
         app=self.app;app.switch('gmset');app.update();e=app.geometry_editor
         negative=schema.add_element(e.definition(),'NSCY');negative['attrs'].update(PHEI='PARAM 3',OBST='0',NAPP='1');e.element_id=negative['id'];e.refresh();app.update()
-        table=e.tables['main'];self.assertEqual(table.get_children(),schema.fields('NSCY')+schema.GM_COMMON+schema.NEGATIVE_EXTRA)
-        self.assertIs(e.preset_choice.master,e.attribute_pane);self.assertLess(e.preset_choice.winfo_rooty()+e.preset_choice.winfo_height(),table.winfo_rooty())
+        table=e.tables['main'];self.assertEqual(table.get_children(),schema.fields('NSCY')+schema.fields('NSCY','common')+schema.NEGATIVE_EXTRA)
+        self.assertIs(e.preset_choice.master.master,e.attribute_pane);self.assertLess(e.preset_choice.winfo_rooty()+e.preset_choice.winfo_height(),table.winfo_rooty())
         profile=presets.add(app.data,'別の規則');next(p for p in profile['parameters'] if p['id']=='P3')['role']='胴長'
         e.refresh();app.update();e.preset_choice.set(profile['name']);e.preset_choice.event_generate('<<ComboboxSelected>>');app.update()
         self.assertEqual(table.canvas.itemcget(table.canvas.find_withtag('caption:PHEI')[0],'text'),'胴長')
-        for attr,value in (('OBST','2'),('NAPP','6')):
-            table.begin_edit(attr);table.editing['variable'].set(value);self.assertTrue(table.finish_edit())
+        for _ in range(3):
+            if negative['attrs']['OBST']=='2':break
+            table.begin_edit('OBST')
+        table.begin_edit('NAPP');table.editing['variable'].set('6');self.assertTrue(table.finish_edit())
         self.assertEqual(negative['attrs']['OBST'],'2');self.assertEqual(negative['attrs']['NAPP'],'6');self.assertEqual(negative['attrs']['PHEI'],'PARAM 3')
 
     def test_scroll_and_nested_element_renaming_keep_hierarchy(self):
@@ -77,6 +80,6 @@ class StackedListTests(unittest.TestCase):
         view.focus_force();view.event_generate('<End>');app.update();last=vertices[-1]
         self.assertEqual(e.element_id,last['id']);self.assertEqual(view.parent(last['id']),loop['id']);self.assertTrue(view.bbox(last['id']))
         view.begin_edit(last['id']);view.editing['variable'].set('終端の頂点');view.finish_edit();app.update()
-        self.assertEqual(last['name'],'終端の頂点');self.assertIs(extrusion['children'][0],loop);self.assertEqual(view.item(last['id'],'values')[2],'SVER')
+        self.assertEqual(last['name'],'終端の頂点');self.assertIs(extrusion['children'][0],loop);self.assertEqual(view.item(last['id'],'values')[2],'SVER 30')
         header_top=view.coords(view.find_withtag('header')[0])[1];self.assertAlmostEqual(header_top,view.canvasy(0))
         view.event_generate('<Home>');app.update();self.assertLessEqual(view.canvasy(0),1)

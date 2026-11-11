@@ -36,7 +36,7 @@ GM_TYPES = {
     'SEXT': ('PX', 'PY', 'PZ', 'PAAX', 'PBAX', 'PHEI'),
     'SREV': ('PX', 'PY', 'PZ', 'PAAX', 'PBAX', 'PANGLE'),
 }
-GM_COMMON = ('LEVEL', 'CLFLA', 'TUFLA', 'OBST', 'DESC', 'GTYP', 'PURP')
+GM_COMMON = ('NAPP', 'LEVEL', 'CLFLA', 'TUFLA', 'TVISI','BVISI', 'OBST', 'DESC', 'GTYP', 'PURP')
 NEGATIVE_EXTRA = ('NAPP',)
 # UI working correspondence only; no executable command is generated from it.
 NEGATIVE_BASE = {
@@ -90,7 +90,7 @@ DESCRIPTIONS.update({
     'PXTS':'上面 X 方向傾斜', 'PYTS':'上面 Y 方向傾斜', 'PXBS':'底面 X 方向傾斜', 'PYBS':'底面 Y 方向傾斜',
     'LEVEL':'表示レベルの範囲（下限 上限）', 'CLFLA':'中心線描画フラグ', 'TUFLA':'チューブ描画フラグ',
     'GTYP':'汎用部品種別', 'PSKEY':'端部条件キー（通常 unset）', 'SKEY':'シンボルキー',
-    'NAPP':'除去する適用先の組み合わせ', 'PTS':'順序付き P/T ポイント（最大 6）',
+    'NAPP':'除去する適用先の組み合わせ', 'PTS':'順序付き P/T ポイント（3入力欄・TO対応）',
     'PTSPOS':'始点の位置式', 'PTEPOS':'終点の位置式', 'NAREF':'中立軸 PLINE の参照',
     'PKEY':'基準線の文字識別キー', 'PLAXI':'断面内の方向', 'DX':'終端までの X 座標差', 'DY':'終端までの Y 座標差',
     'DXLE':'終端までの X 寸法差', 'DYLE':'終端までの Y 寸法差', 'PRAD':'半径',
@@ -140,7 +140,7 @@ def fields(kind, section='main'):
         return STRUCTURAL_TYPES[kind] if section == 'main' else ()
     if kind in CHILD_TYPES: return CHILD_TYPES[kind] if section == 'main' else ()
     if kind in GM_TYPES or kind in NEGATIVE_BASE:
-        if section == 'common': return GM_COMMON
+        if section == 'common': return tuple(k for k in GM_COMMON if k not in GM_TYPES.get(positive(kind),()) and not (k=='NAPP' and kind in NEGATIVE_BASE))
         if section == 'negative': return NEGATIVE_EXTRA if kind in NEGATIVE_BASE else ()
         return GM_TYPES.get(positive(kind), ()) if section == 'main' else ()
     return ()
@@ -209,7 +209,10 @@ def default_attrs(kind, number=1):
             if key in attrs: attrs[key] = '0'
         if 'PAXI' in attrs: attrs['PAXI'] = 'X'
         if 'PTCDIR' in attrs: attrs['PTCDIR'] = 'X'
-    if kind in NEGATIVE_BASE: attrs['NAPP'] = '1'
+    from .editor_rules import defaults
+    attrs.update(defaults(kind))
+    if kind=='PTAXI':attrs.update(PAXI='',PDIS='')
+    if positive(kind)=='LPYR':attrs.update(PAAX='Z',PBAX='X',PCAX='Y')
     return attrs
 
 

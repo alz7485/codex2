@@ -28,6 +28,17 @@ class ValueEditor(tk.Toplevel):
         if key in DIRECTION_FIELDS:choices=()
         self.entry=ttk.Combobox(body,textvariable=self.variable,values=choices,state='normal',exportselection=False,font=(editor.host.ui_font,12)) if choices else ttk.Entry(body,textvariable=self.variable,exportselection=False,font=(editor.host.ui_font,12))
         self.entry.grid(row=2,column=0,sticky='ew')
+        if self.multiple_points:
+            self.line_slots=[]
+            import re
+            parts=re.findall(r'[PT]\d+|TO',context['value'].upper())
+            for i in range(3):
+                var=tk.StringVar(self,value=parts[i] if i<len(parts) else '')
+                slot=ttk.Combobox(body,textvariable=var,values=('', 'TO', *self.points),state='readonly',width=12)
+                slot.grid(row=2,column=i,sticky='ew',padx=(0,4))
+                self.line_slots.append(var)
+                var.trace_add('write',lambda *_:self.variable.set(' '.join(v.get() for v in self.line_slots if v.get())))
+            self.entry.grid_remove()
         self.caption=ttk.Label(body,text='',style='AttributeMeaning.TLabel',wraplength=410)
         self.caption.grid(row=3,column=0,sticky='w',pady=(4,8))
         if self.uses_parameters:
@@ -90,7 +101,11 @@ class ValueEditor(tk.Toplevel):
         current=self.variable.get()
         prefix_space=a and not current[a-1].isspace() and not (self.key in DIRECTION_FIELDS and current[a-1]=='-')
         text=(' ' if prefix_space else '')+point+(' ' if b<len(current) and not current[b].isspace() else '')
-        self.insert_text(text);self.point_variable.set('ポイントを選択');self.error.configure(text='')
+        if self.key in ('PTCPOS','PTSPOS','PTEPOS'):self.variable.set('PP '+point[1:])
+        elif self.multiple_points:
+            next((v for v in self.line_slots if not v.get()),self.line_slots[-1]).set(point)
+        else:self.insert_text(text)
+        self.point_variable.set('ポイントを選択');self.error.configure(text='')
 
     def open_references(self):
         if self.reference_menu is not None:
@@ -110,6 +125,9 @@ class ValueEditor(tk.Toplevel):
         populate(menu,'PARAM',{p['id']:presets.meaning(p) for p in presets.rules(self.data,self.definition)})
         menu.add_separator()
         other_roles=presets.reference_roles(self.data,self.definition)
+        other_roles=dict(other_roles)
+        other_roles['IPARAM']={k:other_roles.get('IPARAM',{}).get(k,'保温厚さ')+'（'+note+'）' for k,note in (('P1','IPARA 2 の2倍'),('P2','IPARA 1 の半分'))}
+        other_roles['DES PARAM']={**other_roles.get('DES PARAM',{}),**{'P'+str(i):('P'+str(i)+' ネック用' if i<=3 else 'P'+str(i-3)+' 溶接隙間補正用') for i in range(1,7)}}
         for family in schema.REFERENCE_TYPES[1:]:
             child=tk.Menu(menu,tearoff=False);self.reference_menus[family]=child
             populate(child,family,other_roles.get(family,{}));menu.add_cascade(label=family,menu=child)
@@ -131,7 +149,7 @@ class ValueEditor(tk.Toplevel):
         if snapshot is None:return
         text,a,b=snapshot
         if text!=self.variable.get():self.report('式が変更されています。挿入位置を選び直してください。');return
-        reference=family+'['+pid[1:]+']'
+        reference='PARAM '+pid[1:] if family=='PARAM' else expressions.e3d(family+'['+pid[1:]+']')
         self.variable.set(text[:a]+reference+text[b:]);self.entry.selection_clear();self.entry.icursor(a+len(reference))
         self.error.configure(text='')
 

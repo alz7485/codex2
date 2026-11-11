@@ -40,7 +40,7 @@ class CatalogueLinkTests(unittest.TestCase):
             self.assertGreater(len(view.scene.meshes),0)
             before=copy.deepcopy(app.data)
             old=(view.camera.yaw,view.camera.pitch)
-            for event,x,y in (('<Button-1>',100,100),('<B1-Motion>',140,125),('<ButtonRelease-1>',140,125)):
+            for event,x,y in (('<Button-2>',100,100),('<B2-Motion>',140,125),('<ButtonRelease-2>',140,125)):
                 view.canvas.event_generate(event,x=x,y=y)
             app.update();self.assertNotEqual(old,(view.camera.yaw,view.camera.pitch))
             view.view_buttons['XY'].invoke();view.zoom(1.1);view.fit_all();app.update()

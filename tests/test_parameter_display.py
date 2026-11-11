@@ -93,6 +93,7 @@ class ParameterDisplayGuiTests(unittest.TestCase):
         e.focus_value_input();self.app.update();dialog=e.tables['main'].editing['dialog']
         dialog.insert_button.invoke();self.app.update();menu,index=dialog.reference_rows[('PARAM','P3')]
         self.assertIn('全長',menu.entrycget(index,'label'));dialog.dismiss_references();dialog.cancel_button.invoke();self.app.update()
+        e.optional_attrs_button.invoke();self.app.update()
         e.tables['main'].selection_set('DESC')
         self.app.update()
         e.expression.set('PARAM 3 という説明文')

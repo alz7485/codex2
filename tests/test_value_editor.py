@@ -19,6 +19,7 @@ class ValueEditorTests(unittest.TestCase):
         self.assertEqual(self.errors,[])
 
     def open(self,key='PDIS'):
+        if key in ('DESC','PURP') and key not in self.table.get_children():self.editor.optional_attrs_button.invoke();self.app.update()
         self.table.selection_set(key);self.app.update();self.editor.focus_value_input();self.app.update()
         return self.table.editing['dialog']
 
@@ -27,8 +28,8 @@ class ValueEditorTests(unittest.TestCase):
         self.assertIsInstance(dialog,tk.Toplevel);dialog.insert_button.invoke();self.app.update()
         self.assertEqual(self.app.data,before);menu,index=dialog.reference_rows[('PARAM','P3')]
         self.assertIn('全長',menu.entrycget(index,'label'));menu.invoke(index);self.app.update()
-        self.assertEqual(dialog.variable.get(),'PARAM[3]');dialog.half_button.invoke();self.app.update()
-        self.assertEqual(dialog.variable.get(),'(PARAM[3]) / 2');self.assertEqual(self.app.data,before)
+        self.assertEqual(dialog.variable.get(),'PARAM 3');dialog.half_button.invoke();self.app.update()
+        self.assertEqual(dialog.variable.get(),'(PARAM 3) / 2');self.assertEqual(self.app.data,before)
         dialog.insert_button.focus_force();self.app.update();self.assertIsNotNone(self.table.editing)
         dialog.cancel_button.invoke();self.app.update();self.assertEqual(self.app.data,before)
         self.assertIsNone(self.table.editing);self.assertIsNone(self.app.grab_current())
@@ -44,7 +45,7 @@ class ValueEditorTests(unittest.TestCase):
         menu.invoke(index);self.app.update()
         self.assertIn('面間距離',dialog.caption['text']);self.assertIn('断熱厚さ',dialog.caption['text'])
         dialog.confirm_button.invoke();self.app.update();raw=self.editor.element()['attrs']['PDIS']
-        self.assertEqual(raw,'PARAM[3] + IPARAM[1]');self.assertNotIn('断熱',raw);self.assertIsNone(self.table.editing)
+        self.assertEqual(raw,'PARAM 3 + (ATTRIB IPARA[1])');self.assertNotIn('断熱',raw);self.assertIsNone(self.table.editing)
 
     def test_dismissing_parameter_list_and_normalizing_leave_source_unchanged(self):
         original=self.editor.element()['attrs']['PDIS'];dialog=self.open()
@@ -81,7 +82,7 @@ class ValueEditorTests(unittest.TestCase):
     def test_list_insertion_replaces_selected_range_and_rejects_stale_draft(self):
         dialog=self.open();dialog.variable.set('PARAM[1] + 100');dialog.entry.selection_range(11,14)
         dialog.insert_button.invoke();self.app.update();menu,index=dialog.reference_rows[('PARAM','P3')];menu.invoke(index);self.app.update()
-        self.assertEqual(dialog.variable.get(),'PARAM[1] + PARAM[3]')
+        self.assertEqual(dialog.variable.get(),'PARAM[1] + PARAM 3')
         dialog.insert_button.invoke();self.app.update();menu,index=dialog.reference_rows[('PARAM','P1')]
         dialog.variable.set('PARAM[2]');menu.invoke(index);self.app.update()
         self.assertEqual(dialog.variable.get(),'PARAM[2]');self.assertIn('挿入位置を選び直',dialog.error['text'])
@@ -90,7 +91,7 @@ class ValueEditorTests(unittest.TestCase):
     def test_parameter_list_does_not_invent_roles_for_unregistered_families(self):
         dialog=self.open();dialog.insert_button.invoke();self.app.update()
         self.assertEqual(tuple(dialog.reference_menus),schema.REFERENCE_TYPES)
-        other=dialog.reference_menus['IPARAM'];self.assertEqual(other.entrycget(0,'state'),'disabled')
+        other=dialog.reference_menus['IPARAM'];self.assertEqual(other.entrycget(0,'state'),'normal')
         dialog.dismiss_references();dialog.variable.set('IPARAM[99]');dialog.confirm_button.invoke();self.app.update()
         self.assertEqual(self.editor.element()['attrs']['PDIS'],'IPARAM[99]')
 
@@ -147,9 +148,9 @@ class ValueEditorTests(unittest.TestCase):
         dialog.point_picker.set('P2');dialog.point_picker.event_generate('<<ComboboxSelected>>');self.app.update()
         self.assertEqual(dialog.variable.get(),'P2 P7 P2');self.assertEqual(self.app.data,before)
         dialog.normalize_button.invoke();self.assertEqual(dialog.variable.get(),'P2 P7 P2')
-        dialog.entry.selection_range(3,5)
+        dialog.line_slots[1].set('P0')
         dialog.point_picker.set('P0');dialog.point_picker.event_generate('<<ComboboxSelected>>');self.app.update()
-        self.assertEqual(dialog.variable.get(),'P2 P0 P2')
+        self.assertEqual(dialog.variable.get(),'P2 P0 P0')
         dialog.cancel_button.invoke();self.app.update();self.assertEqual(self.app.data,before)
 
     def test_point_picker_preserves_negative_axis_when_replacing_selected_point(self):

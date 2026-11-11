@@ -33,6 +33,7 @@ def valid_layout(value):
 def schematic_position(element,index=0):
     """Tool-only, unitless layout. Never evaluate PARAM or SCOM distances."""
     saved=element.get(LAYOUT_KEY)
+    if element['type']=='PTAXI' and not str(element['attrs'].get('PAXI','')).strip() and not saved:return (0.,0.,0.)
     if valid_layout(saved):return tuple(saved)
     attrs=element['attrs'];size=.8+min(index,4)*.25
     def sign(text):
@@ -133,16 +134,16 @@ def placement(kind,coefficients,pid,axis='X',plane=None):
 
 
 class Camera:
-    def __init__(self):self.yaw=-40;self.pitch=30;self.zoom=125
+    def __init__(self):self.yaw=-40;self.pitch=30;self.zoom=125;self.pan=(0,0)
     def basis(self):
         a,b=math.radians(self.yaw),math.radians(self.pitch)
         return (math.cos(a),math.sin(a),0),(-math.sin(a)*math.sin(b),math.cos(a)*math.sin(b),math.cos(b))
     def project(self,point,width,height):
         right,up=self.basis()
-        return width/2+self.zoom*sum(v*x for v,x in zip(right,point)),height/2-self.zoom*sum(v*x for v,x in zip(up,point))
+        return width/2+self.pan[0]+self.zoom*sum(v*x for v,x in zip(right,point)),height/2+self.pan[1]-self.zoom*sum(v*x for v,x in zip(up,point))
     def unproject(self,x,y,width,height,plane,fixed=0):
         a,b=PLANES[plane];c=next(i for i in range(3) if i not in (a,b));right,up=self.basis()
-        sx=(x-width/2)/self.zoom-right[c]*fixed;sy=-(y-height/2)/self.zoom-up[c]*fixed
+        sx=(x-width/2-self.pan[0])/self.zoom-right[c]*fixed;sy=-(y-height/2-self.pan[1])/self.zoom-up[c]*fixed
         determinant=right[a]*up[b]-right[b]*up[a]
         if abs(determinant)<1e-6:raise ValueError('作図面が横向きです。視点のXY・XZ・YZから作図面と同じ面を選んでください。')
         result=[0,0,0];result[c]=fixed

@@ -12,7 +12,7 @@ class GuideResolver(geo.Resolver):
         return samples.get(schema.positive(node['type']),{}).get(key,super().value(node,key,default,positive))
 
 
-def draw_points(c,kind,w,h,text,color):
+def draw_points(c,kind,w,h,text,color,angles=None):
     point=(.8,.55,.5);origin=geo.ZERO
     direction=geo.unit(point) if kind=='PTAXI' else geo.unit((.8,-.25,.6))
     tip=geo.add(point,geo.mul(direction,.28))
@@ -22,6 +22,7 @@ def draw_points(c,kind,w,h,text,color):
         c.create_rectangle(x0,48,x0+pw,h-40,outline='#d7e1ed',fill='#f8faff')
         text(x0+pw/2,65,title)
         camera=geo.FitCamera()
+        if angles:camera.yaw,camera.pitch=angles
         if index:camera.face('XY')
         camera.fit(anchors,pw,ph,padding=42)
         def xy(p):
@@ -81,9 +82,11 @@ def draw(editor):
     def text(x,y,value,**kw):c.create_text(x,y,text=value,font=(editor.host.ui_font,10),fill='#40556d',**kw)
     text(w/2,20,kind+'  '+schema.LABELS.get(kind,schema.LABELS.get(base,'未対応')))
     if kind in schema.PT_TYPES:
-        draw_points(c,kind,w,h,text,color);return
+        draw_points(c,kind,w,h,text,color,getattr(editor,'guide_angles',None));return
     if base in ('LINE','SLINE'):
-        pts=[(60,h-70),(w/2,90),(w-55,h-100)] if base=='LINE' else [(65,h-65),(w-65,85)]
+        vertices=[(0,0,0),(1,.4,.8),(1.5,1,.2)] if base=='LINE' else [(0,0,0),(1,1,.5)]
+        camera=geo.FitCamera();camera.yaw,camera.pitch=getattr(editor,'guide_angles',(-40,30));camera.fit(vertices,w,h,padding=60)
+        pts=[camera.project(p,w,h) for p in vertices]
         c.create_line(*(v for p in pts for v in p),fill=color,width=3)
         for i,(x,y) in enumerate(pts):c.create_oval(x-4,y-4,x+4,y+4,fill=color);text(x,y+20,'P'+str(i+1) if base=='LINE' else ('開始点' if i==0 else '終了点'))
         return
@@ -94,11 +97,11 @@ def draw(editor):
     try:mesh=geo.build_mesh(node,resolver)
     except (ValueError,TypeError,KeyError):
         text(w/2,h/2,'この種類の説明図は準備中です');return
-    camera=geo.FitCamera();camera.fit(mesh.vertices,w,h,padding=60)
+    camera=geo.FitCamera();camera.yaw,camera.pitch=getattr(editor,'guide_angles',(-40,30));camera.fit(mesh.vertices,w,h,padding=60)
     faces=sorted(mesh.faces,key=lambda face:sum(camera.depth(mesh.vertices[i]) for i in face)/len(face))
     for face in faces:
         points=[camera.project(mesh.vertices[i],w,h) for i in face]
-        if not mesh.negative:
+        if not mesh.negative and not getattr(editor,'guide_wire',True):
             vertices=[mesh.vertices[i] for i in face]
             normal=geo.cross(geo.sub(vertices[1],vertices[0]),geo.sub(vertices[2],vertices[0]))
             length=math.hypot(*normal)

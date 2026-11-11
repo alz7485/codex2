@@ -45,8 +45,8 @@ def parse(text, parameters=()):
                 return ('quantity',value,dim)
             return ('number', value)
         if upper == 'ATTRIB': return atom(depth+1)
-        if upper in ('SUM', 'DIFF', 'TIMES', 'DIV'):
-            return ('binary', {'SUM':'+', 'DIFF':'-', 'TIMES':'*', 'DIV':'/'}[upper], atom(depth+1), atom(depth+1))
+        if upper in ('SUM', 'DIFF', 'DIFFERENCE', 'TIMES', 'DIV'):
+            return ('binary', {'SUM':'+', 'DIFF':'-', 'DIFFERENCE':'-', 'TIMES':'*', 'DIV':'/'}[upper], atom(depth+1), atom(depth+1))
         if upper == 'TAN': return ('tan', atom(depth+1))
         if upper in ('SIN','COS','ASIN','ACOS','ATAN'):return ('func',upper,atom(depth+1))
         if upper=='TWICE':return ('binary','*',('number',2.),atom(depth+1))
@@ -155,3 +155,41 @@ def contexts_for(scom):
     supplied = dict(scom.get('expression_contexts', {}))
     supplied['PARAM'] = scom.get('values', {})
     return supplied
+
+
+def e3d(text):
+    """Canonical PARAM spelling for export; preserve unsupported forms verbatim."""
+    try:root=parse(text)
+    except ValueError:return text
+    if not refs(root) and not attribute_refs(root):return text
+    forms={'PARAM':'PARA','IPARAM':'IPARA','APARAM':'APARA','OPARAM':'OPARA',
+           'DES PARAM':'DESP','DES APARAM':'ADESP','DES OPARAM':'ODESP'}
+    def render(node,inside=False):
+        kind=node[0]
+        if kind=='ref':
+            if not inside and node[1]=='PARAM':return 'PARAM '+node[2][1:]
+            return 'ATTRIB '+forms[node[1]]+'['+node[2][1:]+']'
+        if kind=='attr':return 'ATTRIB '+node[1]
+        if kind=='number':return f'{node[1]:g}'
+        if kind=='quantity':return f'{node[1]:.15g}'+{units.DIST:'mm',units.ANGL:'degrees',units.SCALAR:'none'}[node[2]]
+        if kind=='word':return "'"+node[1].replace("'","''")+"'"
+        if kind=='binary':return '('+render(node[2],True)+' '+node[1]+' '+render(node[3],True)+')'
+        if kind=='unary':return '('+node[1]+render(node[2],True)+')'
+        if kind=='tan':return 'TAN('+render(node[1],True)+')'
+        return node[1]+'('+render(node[2],True)+')'
+    result=render(root)
+    return '('+result+')' if root[0] in ('attr','ref') and (root[0]!='ref' or root[1]!='PARAM') else result
+
+
+def e3d_embedded(text):
+    """Normalise parameter tokens in direction grammar without parsing its axes."""
+    pattern=r'(?i)(?:ATTRIB\s+)?(DES\s+PARAM|DES\s+APARAM|DES\s+OPARAM|IPARAM|IPARA|APARAM|APARA|OPARAM|OPARA|PARAM|PARA|DESP|ADESP|ODESP)\s*(?:\[\s*(\d+)\s*\]|\s+(\d+))'
+    names={'PARAM':'PARA','PARA':'PARA','IPARAM':'IPARA','IPARA':'IPARA','APARAM':'APARA','APARA':'APARA','OPARAM':'OPARA','OPARA':'OPARA','DES PARAM':'DESP','DESP':'DESP','DES APARAM':'ADESP','ADESP':'ADESP','DES OPARAM':'ODESP','ODESP':'ODESP'}
+    def replace(match):
+        token='ATTRIB '+names[' '.join(match[1].upper().split())]+'['+(match[2] or match[3])+']'
+        depth=0
+        for c in text[:match.start()]:
+            if c=='(':depth+=1
+            elif c==')':depth-=1
+        return token if depth>0 else '('+token+')'
+    return re.sub(pattern,replace,text)

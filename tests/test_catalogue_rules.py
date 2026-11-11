@@ -50,7 +50,7 @@ class RulesTests(unittest.TestCase):
     def test_negative_applies_combinations_not_item_attributes(self):
         d=self.definition('NGMSET');e=schema.add_element(d,'NSCY')
         self.assertEqual(schema.fields('NSCY','negative'),('NAPP',))
-        self.assertEqual(e['attrs']['NAPP'],'1')
+        self.assertEqual(e['attrs']['NAPP'],'2')
         for value in range(8):e['attrs']['NAPP']=str(value);self.assertNotIn('NAPP',self.problems(d))
         e['attrs']['NAPP']='8';self.assertIn('NAPP',self.problems(d))
         e['attrs']['PJOI']='/original';schema.change_type(e,'NLCY');self.assertEqual(e['attrs']['PJOI'],'/original')

@@ -97,7 +97,8 @@ class MacroExportGuiTests(unittest.TestCase):
                 definitions = macro_import.parse(path.read_text(encoding='cp932')).definitions
                 self.assertEqual(len(definitions), 1)
                 self.assertEqual(definitions[0]['name'], editor.definition()['name'])
-                self.assertEqual(definitions[0]['elements'][0]['attrs'], editor.definition()['elements'][0]['attrs'])
+                from tests.macro_assertions import assert_attrs_equivalent
+                assert_attrs_equivalent(self,editor.definition()['elements'][0]['attrs'],definitions[0]['elements'][0]['attrs'],editor.definition()['elements'][0]['type'])
             self.assertEqual(self.app.data, before); self.assertEqual(self.app.dirty, dirty)
         self.assertEqual(self.errors, [])
 

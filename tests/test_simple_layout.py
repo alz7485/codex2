@@ -57,7 +57,7 @@ class SimpleAuthoringTests(unittest.TestCase):
         self.assertEqual(e.element()['type'], 'PTPOS')
         self.assertEqual(e.elements.selection(), (e.element_id,))
         self.assertFalse(e.creation_frame.winfo_ismapped())
-        self.assertEqual(e.tables['main'].get_children(), schema.fields('PTPOS')+schema.PT_DETAIL)
+        self.assertEqual(e.tables['main'].get_children(), schema.fields('PTPOS')+('PSKEY',))
         self.assertEqual(self.errors, [])
 
     def test_parameter_picker_in_dialog_inserts_without_committing_until_confirmed(self):
@@ -66,8 +66,8 @@ class SimpleAuthoringTests(unittest.TestCase):
         dialog.variable.set('');dialog.insert_button.invoke();self.app.update()
         menu,index=dialog.reference_rows[('PARAM','P3')];self.assertIn('全長',menu.entrycget(index,'label'))
         menu.invoke(index);self.app.update()
-        self.assertEqual(dialog.variable.get(),'PARAM[3]');self.assertEqual(e.element()['attrs']['PDIS'],original)
-        dialog.confirm_button.invoke();self.app.update();self.assertEqual(e.element()['attrs']['PDIS'],'PARAM[3]')
+        self.assertEqual(dialog.variable.get(),'PARAM 3');self.assertEqual(e.element()['attrs']['PDIS'],original)
+        dialog.confirm_button.invoke();self.app.update();self.assertEqual(e.element()['attrs']['PDIS'],'PARAM 3')
         table.selection_set('NUMB');self.app.update();e.focus_value_input();self.app.update()
         self.assertFalse(table.editing['dialog'].uses_parameters);table.cancel_edit();self.assertEqual(self.errors,[])
 

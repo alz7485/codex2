@@ -46,9 +46,11 @@ class PointCanvas(ttk.Frame):
         self.canvas.bind('<MouseWheel>',lambda ev:self.zoom(1.12 if ev.delta>0 else 1/1.12));self.canvas.bind('<Button-4>',lambda _:self.zoom(1.12));self.canvas.bind('<Button-5>',lambda _:self.zoom(1/1.12))
         self.note=ttk.Label(self,text='',wraplength=280,foreground='#738499');self.note.grid(row=5,column=0,sticky='ew',pady=(6,0))
         self.note.bind('<Configure>',lambda ev:self.note.configure(wraplength=max(140,ev.width-4)))
-        hint=ttk.Label(self,text='左ドラッグ：回転 ｜ 点ドラッグ：移動 ｜ 右クリック：点作成 ｜ ホイール：ズーム',wraplength=280,style='Muted.TLabel');hint.grid(row=6,column=0,sticky='ew',pady=(6,0))
+        hint=ttk.Label(self,text='ホイールドラッグ：回転 / ホイールクリック：パン ｜ 点ドラッグ：移動 ｜ 右クリック：点作成 ｜ ホイール：ズーム',wraplength=280,style='Muted.TLabel');hint.grid(row=6,column=0,sticky='ew',pady=(6,0))
         hint.bind('<Configure>',lambda ev:hint.configure(wraplength=max(140,ev.width-4)))
         self.canvas.bind('<Escape>',lambda _:self.cancel());self.redraw()
+        from .preview_navigation import attach as navigation
+        navigation(self)
         from .preview_preferences import attach
         attach(self)
         self.plane_binding=self.editor.host.bind('<F5>',self.cycle_plane,add='+')
@@ -112,7 +114,7 @@ class PointCanvas(ttk.Frame):
             try:point,vector=model.point(model.number_for(element['id']))
             except ValueError:point,vector=schematic_position(element,index),(0,0,0)
             self.positions[element['id']]=point;x,y=xy(point);self.hits[element['id']]=(x,y)
-            selected=element['id']==self.editor.element_id;color=preview_colors.get(self,'selected' if selected else 'points');r=11 if selected else 8
+            selected=element['id'] in self.editor.elements.selection();color=preview_colors.get(self,'selected' if selected else 'points');r=11 if selected else 8
             if self.show_relations.get():c.create_line(*origin,x,y,fill='#b3c4d8',dash=(3,4),tags=('relations',))
             if selected:c.create_oval(x-r-5,y-r-5,x+r+5,y+r+5,outline=preview_colors.get(self,'selected'),width=2,tags=('selected-point-halo',))
             c.create_oval(x-r,y-r,x+r,y+r,fill=color,outline='white',width=2,tags=('point','selected-point' if selected else 'other-point'))
@@ -166,11 +168,13 @@ class PointCanvas(ttk.Frame):
     def pick(self,x,y):return next((ident for ident,point in sorted(self.hits.items(),key=lambda item:((item[1][0]-x)**2+(item[1][1]-y)**2,item[0]!=self.editor.element_id)) if (point[0]-x)**2+(point[1]-y)**2<=(20 if ident==self.editor.element_id else 15)**2),None)
     def press(self,event):
         if not self.editor.commit_inline():return
-        self.cancel();self.canvas.focus_set();ident=self.pick(event.x,event.y)
+        self.cancel();self.canvas.focus_set();
+        if len(self.editor.elements.selection())>1:return
+        ident=self.pick(event.x,event.y)
         if ident:
             self.editor.elements.selection_set(ident);self.editor.select_element()
             self.dragging=ident;self.press_position=(event.x,event.y);self.redraw()
-        else:self.orbit_start(event)
+        else:self.orbit=None
 
     def create_press(self,event):
         if not self.editor.commit_inline():return
@@ -206,6 +210,13 @@ class PointCanvas(ttk.Frame):
                 direction_key='PAXI' if element['type'] in ('PTAXI','PTMIX') else 'PTCDIR'
                 direction=schema.value(element,direction_key)
                 if not empty(direction):model.axis(direction)
+            if element and element['type']=='PTAXI' and empty(element['attrs'].get('PDIS','')):
+                import math
+                point=tuple(self.camera.unproject(x,y,self.canvas.winfo_width(),self.canvas.winfo_height(),'XY',0))
+                angle=math.degrees(math.atan2(point[1],point[0]))
+                axis=('X' if point[0]>=0 else '-X') if abs(point[1])<1e-8 else ('Y' if point[1]>=0 else '-Y') if abs(point[0])<1e-8 else f'X{angle:.8g}Y'
+                self.pending=dict(id=ident,base=copy.deepcopy(element['attrs']),layout=copy.deepcopy(element.get(LAYOUT_KEY)),attrs={'PAXI':axis},point=point,kind='PTAXI',preset=presets.selected_id(e.data,e.definition()),definition=e.definition_id,preview=model,snapshot=copy.deepcopy(e.definition()['elements']),dimensions=copy.deepcopy(e.definition().get(DIMENSIONS_KEY)),axis_only=True)
+                self.redraw();return
             if element and element['type']=='PTAXI' and not empty(element['attrs'].get('PAXI','')):
                 origin,vector=model.axis(element['attrs']['PAXI'])
                 point=self.camera.unproject_axis(x,y,self.canvas.winfo_width(),self.canvas.winfo_height(),origin,vector)
@@ -240,6 +251,10 @@ class PointCanvas(ttk.Frame):
             if p['definition']!=e.definition_id or p['preset']!=presets.selected_id(e.data,e.definition()):raise ValueError('セット・プリセットが変更されています。候補を作り直してください。')
             if e.definition()['elements']!=p['snapshot']:raise ValueError('属性・配置が変更されています。候補を作り直してください。')
             if e.definition().get(DIMENSIONS_KEY)!=p['dimensions']:raise ValueError('共有仮寸法が変更されています。候補を作り直してください。')
+            if p.get('axis_only'):
+                element=next(r for r in e.definition()['elements'] if r['id']==p['id'])
+                element['attrs'].update(p['attrs']);element[LAYOUT_KEY]=list(p['point'])
+                e.host.mark();self.pending=None;e.refresh();self.cancel();return
             if p['id']:
                 element=next((r for r in e.definition()['elements'] if r['id']==p['id']),None)
                 if not element or element['attrs']!=p['base'] or element.get(LAYOUT_KEY)!=p['layout']:raise ValueError('属性・配置が変更されています。候補を作り直してください。')

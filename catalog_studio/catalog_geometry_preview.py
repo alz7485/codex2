@@ -16,6 +16,9 @@ class CatalogueEditor:
     def definition(self):
         scom=project.get(self.data,'scoms',self.preview_scom_id)
         return project.get(self.data,'definitions',(scom or {}).get('gmset_id'))
+    @property
+    def elements(self):return self
+    def selection(self):return (self.element_id,) if self.element_id else ()
     def element(self):return None
     def commit_inline(self):
         inspector=getattr(self.host,'catalog_inspector',None)
@@ -80,7 +83,7 @@ class CatalogGeometryPreview(GeometryCanvas):
         if key:catalog_dimensions.start(self,key,event)
         else:
             self.geometry_click=(event.x,event.y);self.geometry_moved=False
-            self.orbit_start(event)
+            self.orbit=None
     def move(self,event):
         if self.dimension_drag:catalog_dimensions.move(self,event)
         else:

@@ -70,7 +70,7 @@ class FitCamera(Camera):
         else:self.zoom=min(max(1,width-2*padding)/max(xmax-xmin,1e-12),max(1,height-2*padding)/max(ymax-ymin,1e-12))
     def project(self,point,width,height):
         right,up=self.basis();p=tuple(x/self.span for x in sub(point,self.center));offset=getattr(self,'offset',(0,0))
-        return width/2+self.zoom*(dot(right,p)-offset[0]),height/2-self.zoom*(dot(up,p)-offset[1])
+        return width/2+self.pan[0]+self.zoom*(dot(right,p)-offset[0]),height/2+self.pan[1]-self.zoom*(dot(up,p)-offset[1])
     def depth(self,point):return dot(cross(*self.basis()),tuple(x/self.span for x in sub(point,self.center)))
 
 
@@ -160,6 +160,8 @@ class Resolver:
             return ZERO,default
 
     def position_expression(self,text):
+        match=re.fullmatch(r'P(?:P\s*)?(\d+)',str(text).strip(),re.I)
+        if match:return self.point(int(match[1]))[0]
         return tuple(self.number(part) for part in coordinate_expressions(text))
 
     def point(self,number):
@@ -239,13 +241,17 @@ def build_mesh(node,resolver):
         rings=[[add(center,(sx*sizes[0]/2,sy*sizes[1]/2,sz*sizes[2]/2)) for sx,sy in ((-1,-1),(1,-1),(1,1),(-1,1))] for sz in (-1,1)]
         rings_mesh(mesh,rings)
     elif kind in ('LSNO','LPYR'):
-        origin,a=axis('PAAX')
+        if kind=='LPYR':
+            raw=str(node['attrs'].get('PAAX','')).strip()
+            origin=axis('PAAX')[0] if raw and raw.lower()!='unset' else ZERO
+            _,b=axis('PBAX',AXES[0]);_,c=axis('PCAX',AXES[1]);a=unit(cross(b,c))
+        else:origin,a=axis('PAAX')
         offset=value('POFF',0) if kind=='LSNO' else None
         # A concentric snout has no eccentric direction. Do not require PBAX
         # when POFF is explicitly zero; its direction cannot affect the mesh.
         if kind=='LSNO' and offset==0:b=frame(a)[0]
         else:
-            _,b=axis('PBAX',AXES[1])
+            if kind!='LPYR':_,b=axis('PBAX',AXES[1])
             if abs(dot(a,b))>1e-6:raise ValueError('A軸とB軸を直交させてください。')
         low,high=value('PBDI',0),value('PTDI',1.2)
         if high<=low:raise ValueError('上面位置は底面位置より大きくしてください。')
@@ -255,7 +261,7 @@ def build_mesh(node,resolver):
                 return value(diameter,.6,True)/2
             rings=[circle(at(origin,a,low),a,radius('PBDM','PBRA')),circle(add(at(origin,a,high),mul(b,offset)),a,radius('PTDM','PTRA'))]
         else:
-            _,c=axis('PCAX',AXES[2])
+            if kind!='LPYR':_,c=axis('PCAX',AXES[2])
             if abs(dot(a,c))>1e-6 or abs(dot(b,c))>1e-6:raise ValueError('A・B・C軸を相互に直交させてください。')
             rings=[]
             for distance,bkey,ckey,offset in ((low,'PBBT','PCBT',ZERO),(high,'PBTP','PCTP',add(mul(b,value('PBOF',0)),mul(c,value('PCOF',0))))):
@@ -289,7 +295,11 @@ def build_mesh(node,resolver):
     elif kind in ('LINE','SLINE'):
         if kind=='LINE':
             tokens=str(node['attrs'].get('PTS','')).upper().split()
-            if not 2<=len(tokens)<=6 or any(not re.fullmatch(r'[PT]\d+',t) for t in tokens):raise ValueError('LINE の点列は2〜6個の P/T 番号で指定してください。')
+            if len(tokens)==3 and tokens[1]=='TO' and re.fullmatch(r'P\d+',tokens[0]) and re.fullmatch(r'P\d+',tokens[2]):
+                a,b=int(tokens[0][1:]),int(tokens[2][1:]);step=1 if b>=a else -1
+                if abs(b-a)>199:raise ValueError('LINEの点列は200点以内にしてください。')
+                tokens=['P'+str(i) for i in range(a,b+step,step)]
+            if not 2<=len(tokens)<=200 or any(not re.fullmatch(r'[PT]\d+',t) for t in tokens):raise ValueError('LINE の点列は2〜200個の P/T 番号で指定してください。')
             if r.actual and any(t.startswith('T') for t in tokens):raise ValueError('LINE の接線点 T の曲線表示は未対応です。')
             mesh.vertices=[r.point(int(t[1:]))[0] for t in tokens]
         elif r.actual:mesh.vertices=[r.position_expression(node['attrs'].get(k,'')) for k in ('PTSPOS','PTEPOS')]

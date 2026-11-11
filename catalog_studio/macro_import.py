@@ -295,7 +295,7 @@ def parse(text):
                     warn(token.line, command + 'は原文属性として保持します（未対応の属性は読み取り専用）。')
                 if key in target['attrs']: warn(token.line, command + 'の再代入は最後の値を採用します。')
                 # Text delimiters are syntax, while expression parentheses are stored verbatim.
-                target['attrs'][key] = _literal(raw) if key in ('DESC','PURP') else raw
+                target['attrs'][key] = _literal(raw) if key in ('DESC','PURP') or raw in ("''", '""') else raw
     if active: raise MacroImportError(statements[-1][0].line, 'INPUT ENDがありません。')
     if blocks and not finished: raise MacroImportError(statements[-1][0].line, 'INPUT FINISHがありません。')
     if not definitions: raise ValueError('NEW PTSET /名前 または NEW GMSET /名前 で始まる定義がありません。')

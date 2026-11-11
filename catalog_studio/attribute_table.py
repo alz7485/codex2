@@ -78,7 +78,12 @@ class AttributeTable(ttk.Frame):
         if not self.finish_edit():return
         self.canvas.focus_set();y=self.canvas.canvasy(event.y)
         for iid,(top,bottom) in self.bounds.items():
-            if top<=y<bottom:self.selection_set(iid);break
+            if top<=y<bottom:
+                self.selection_set(iid)
+                if event.x>max(105,int(self.canvas.winfo_width()*.39)):
+                    context=self.edit_context(iid) if self.edit_context else None
+                    if context and context.get('toggle'):self.begin_edit(iid)
+                break
 
     def navigate(self,step=0,first=False,last=False):
         if self.order:
@@ -114,6 +119,8 @@ class AttributeTable(ttk.Frame):
         if not self.edit_context or iid not in self.rows or not self.finish_edit():return False
         context=self.edit_context(iid)
         if context is None:return False
+        if context.get('toggle'):
+            choices=context['toggle'];old=context['value'];context['commit'](choices[(choices.index(old)+1)%len(choices)] if old in choices else choices[0]);self.schedule();return True
         if self.editor_factory:
             self.selection_set(iid);self.see(iid)
             self.editing=self.editor_factory(self,iid,context);return True
@@ -175,7 +182,11 @@ class AttributeTable(ttk.Frame):
             attr,meaning,value=self.rows[iid];chosen=iid in self.selected
             color=theme.ACCENT if chosen else theme.INK
             background=c.create_rectangle(0,top,width,top+minimum,fill=theme.SELECT if chosen else 'white',outline='')
-            item=c.create_text(divider+10,top+5,text=value,anchor='nw',width=value_width,font=self.value_font,fill=color,tags=('value:'+iid,))
+            shown=value
+            if attr in ('CLFLA','TUFLA','TVISI','BVISI','OBST'):
+                c.create_rectangle(divider+4,top+3,width-5,top+minimum-3,fill=theme.SELECT,outline=theme.BORDER,tags=('toggle:'+iid,))
+                shown=('☑ ' if str(value).upper()=='TRUE' else '☐ ')+str(value) if attr!='OBST' else '↻ '+str(value)
+            item=c.create_text(divider+10,top+5,text=shown,anchor='nw',width=value_width,font=self.value_font,fill=color,tags=('value:'+iid,))
             bbox=c.bbox(item);value_height=(bbox[3]-bbox[1]) if bbox else self.value_font.metrics('linespace')
             caption=self.value_caption(attr,value);caption_height=0
             if caption:

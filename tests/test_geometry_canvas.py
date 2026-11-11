@@ -133,7 +133,7 @@ class GeometryCanvasTests(unittest.TestCase):
         self.assertIn('PTSET',self.view.issue_label['text']);self.assertEqual(self.errors,[])
 
     def test_sparse_wire_and_solid_display_modes_preserve_geometry(self):
-        self.actual();before=copy.deepcopy(self.data)
+        self.actual();self.view.render_mode.set('ソリッド');self.view.redraw();self.app.update();before=copy.deepcopy(self.data)
         self.assertTrue(self.canvas.find_withtag('surface'));self.assertFalse(self.canvas.find_withtag('wireframe'))
         self.view.display_buttons['ワイヤー'].invoke();self.app.update()
         self.assertFalse(self.canvas.find_withtag('surface'));self.assertEqual(len(self.canvas.find_withtag('wireframe')),50)
@@ -144,7 +144,7 @@ class GeometryCanvasTests(unittest.TestCase):
 
     def test_transparency_keeps_rear_surface_pixels_and_shape_selection_available(self):
         self.actual();before=copy.deepcopy(self.data)
-        self.view.transparency.set(60);self.view.redraw();self.app.update()
+        self.view.render_mode.set('ソリッド');self.view.transparency.set(60);self.view.redraw();self.app.update()
         image=self.view.surface_bitmap;self.assertIsNotNone(image)
         self.assertTrue(self.canvas.find_withtag('transparent-surface'))
         alphas=image.getchannel('A');self.assertTrue(0<alphas.getextrema()[1]<255)

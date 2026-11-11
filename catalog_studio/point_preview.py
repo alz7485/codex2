@@ -10,6 +10,16 @@ from .geometry_scene import Resolver, Scene, ZERO, add, sub, mul, dot, unit
 def empty(text):return str(text).strip().lower() in ('','unset')
 
 
+def preview_parse(text,parameters=()):
+    def convert(node):
+        if node==('ref','IPARAM','P2'):return ('binary','*',('number',.5),('ref','IPARAM','P1'))
+        if node[0]=='binary':return (node[0],node[1],convert(node[2]),convert(node[3]))
+        if node[0] in ('unary','func'):return (node[0],node[1],convert(node[2]))
+        if node[0]=='tan':return (node[0],convert(node[1]))
+        return node
+    return convert(expressions.parse(text,parameters))
+
+
 class PointPreview(Resolver):
     def __init__(self,data,definition):
         # Use the strict expression/axis interpreter with private preview values.
@@ -22,12 +32,12 @@ class PointPreview(Resolver):
             validate_dimensions(saved);self.scale=saved['scale']
             self.values={(family,pid):value for family,group in saved['values'].items() for pid,value in group.items()}
             for item in saved['expressions']:
-                root=expressions.parse(item['expression']);self.exact[root]=item['value'];self.root_text[root]=item['expression']
+                root=preview_parse(item['expression']);self.exact[root]=item['value'];self.root_text[root]=item['expression']
         for number,(node,_) in self.nodes.items():
             if node['type'] not in schema.PT_TYPES:continue
             try:
                 for key,text in self.fields(node).items():
-                    try:root=expressions.parse(text,self.parameters)
+                    try:root=preview_parse(text,self.parameters)
                     except ValueError:continue
                     self.forms[(number,key)]=root
                     self.root_text[root]=expressions.normalized(text,self.parameters)
@@ -114,7 +124,7 @@ class PointPreview(Resolver):
         return self.scalar(root),{}
 
     def number(self,text,expected=None):
-        root=expressions.parse(text,self.parameters)
+        root=preview_parse(text,self.parameters)
         try:value=self.scalar(root)
         except ValueError:
             if root not in self.exact:raise
@@ -125,7 +135,10 @@ class PointPreview(Resolver):
     def value(self,node,key,default=0,positive=False):
         text=node['attrs'].get(key,'')
         return self.number(text)*self.scale
-    def position_expression(self,text):return tuple(self.number(part)*self.scale for part in coordinate_expressions(text))
+    def position_expression(self,text):
+        match=re.fullmatch(r'P(?:P\s*)?(\d+)',str(text).strip(),re.I)
+        if match:return self.point(int(match[1]))[0]
+        return tuple(self.number(part)*self.scale for part in coordinate_expressions(text))
 
     def axis(self,text,default=None):
         origin,vector=super().axis(text)
@@ -148,6 +161,7 @@ class PointPreview(Resolver):
         if number in self.active:raise ValueError('PTSET の軸参照が循環しています。')
         node,_=self.nodes[number]
         try:
+            if node['type']=='PTAXI' and empty(node['attrs'].get('PDIS','')):raise ValueError('PDISを入力してください。')
             result=super().point(number)
             if not valid_layout(result[0]):raise ValueError('仮寸法の表示範囲を超えています。')
             return result
@@ -272,7 +286,7 @@ def merged_dimensions(first,second):
         for pid,value in group.items():target.setdefault(pid,value*factor)
     known={expressions.parse(item['expression']) for item in result['expressions']}
     for item in second['expressions']:
-        root=expressions.parse(item['expression'])
+        root=preview_parse(item['expression'])
         if root not in known:result['expressions'].append(dict(item,value=item['value']*factor));known.add(root)
     validate_dimensions(result);return result
 

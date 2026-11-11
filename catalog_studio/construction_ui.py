@@ -42,7 +42,9 @@ class ConstructionEditor(ttk.Frame):
             from .geometry_preview import remember
         else:return
         remember(self.data,definition or self.definition())
-    def element(self): return next((e for e in schema.walk((self.definition() or {}).get('elements', [])) if e['id'] == self.element_id), None)
+    def element(self):
+        if hasattr(self,'elements') and len(self.elements.selection())>1:return None
+        return next((e for e in schema.walk((self.definition() or {}).get('elements', [])) if e['id'] == self.element_id), None)
 
     def build(self):
         if self.kind in ('PTSET','GMSET'):
@@ -318,6 +320,7 @@ class ConstructionEditor(ttk.Frame):
     def inline_context(self,key,section):
         element=self.element();definition=self.definition();data=self.data
         if not element or not schema.known(element['type']) or section=='extra':return None
+        if schema.positive(element['type'])=='LPYR' and key=='PAAX':return None
         original=schema.value(element,key);choices=()
         if key=='OBST':choices=tuple(schema.OBST_CHOICES)
         elif key in ('CLFLA','TUFLA','TVISI','BVISI'):choices=('','TRUE','FALSE')
@@ -330,16 +333,23 @@ class ConstructionEditor(ttk.Frame):
             if key=='OBST':value=schema.OBST_CHOICES.get(value,value)
             if value==schema.value(element,key):return
             self.remember_preview(definition)
+            if key in ('PTCPOS','PTSPOS','PTEPOS'):
+                import re
+                value=re.sub(r'\bP(?:P\s*)?(\d+)\b',r'PP \1',value,flags=re.I)
             schema.set_value(element,key,value)
+            from .editor_rules import derived_axes
+            derived_axes(element)
+            if schema.positive(element['type'])=='LPYR' and self.tables['main'].exists('PAAX'):
+                self.tables['main'].item('PAAX',values=('PAAX',schema.meaning(element['type'],'PAAX'),'自動：'+element['attrs'].get('PAAX','')))
             self.remember_preview(definition)
             self.host.mark()
             if self.element() is element:
                 self.tables['main' if getattr(self,'unified_attributes',False) else section].item(key,values=(key,schema.meaning(element['type'],key),self.display_field_value(element,key)))
                 if self.field==key:
                     busy=self.busy;self.busy=True;self.expression.set(value);self.busy=busy;self.update_validation()
-                if self.kind=='PTSET' and key=='NUMB':self.elements.item(element['id'],values=(value,element['name'],element['type']))
+                if self.kind=='PTSET' and key=='NUMB':self.elements.item(element['id'],values=(value,element['name'],self.elements.item(element['id'],'values')[2]))
             self.redraw_points();self.draw()
-        return {'value':original,'choices':choices,'commit':commit,'report':lambda text:self.validation_note.configure(text=text)}
+        return {'value':original,'toggle':('FALSE','TRUE') if key in ('CLFLA','TUFLA','TVISI','BVISI') else ('0','1','2') if key=='OBST' else (), 'choices':choices,'commit':commit,'report':lambda text:self.validation_note.configure(text=text)}
 
     def open_point_canvas(self):
         if self.kind!='PTSET' or not self.definition():return
@@ -376,9 +386,12 @@ class ConstructionEditor(ttk.Frame):
         self.refresh_pairing()
         if d:
             self.host.definition_id = d['id']
+            counters={}
             def insert(items,parent='',depth=0):
                 for index,e in enumerate(items):
-                    values=(e['attrs'].get('NUMB','') if self.kind=='PTSET' else str(index+1),'  '*depth+e['name'],e['type']) if getattr(self,'simple_layout',False) else ((e['attrs'].get('NUMB',''),e['type']) if self.kind=='PTSET' else (e['type'],))
+                    counters[e['type']]=counters.get(e['type'],0)+1
+                    label=e['type']+' '+str(counters[e['type']])
+                    values=(e['attrs'].get('NUMB','') if self.kind=='PTSET' else str(index+1),'  '*depth+e['name'],label) if getattr(self,'simple_layout',False) else ((e['attrs'].get('NUMB',''),e['type']) if self.kind=='PTSET' else (e['type'],))
                     self.elements.insert(parent,'end',iid=e['id'],text=e['name'],values=values,open=True)
                     insert(e.get('children',[]),e['id'],depth+1)
             insert(d['elements'])
@@ -433,12 +446,15 @@ class ConstructionEditor(ttk.Frame):
             self.field = None; self.load_field(); self.element_note.configure(text='ポイント・形状欄の「＋ 追加」から要素を作成してください。' if self.definition() else '左端の '+self.kind+' 一覧の「＋ 追加」で名前を登録してください。'); return
         if schema.known(e['type']):
             listed = set()
+            expanded=getattr(self,'show_optional_attrs',False)
             for section in (('main','detail','common','negative') if unified else self.tables):
                 if section == 'extra': continue
                 table=self.tables['main' if unified else section]
                 for key in schema.fields(e['type'], section):
                     self.attribute_sections[key]=section
-                    listed.add(key); table.insert('', 'end', iid=key, values=(key, schema.meaning(e['type'],key), self.display_field_value(e,key)))
+                    listed.add(key)
+                    if self.kind=='PTSET' and key in ('DESC','PURP') and not expanded:continue
+                    table.insert('', 'end', iid=key, values=(key, schema.meaning(e['type'],key), ('自動・編集不可：'+self.display_field_value(e,key) if schema.positive(e['type'])=='LPYR' and key=='PAAX' else self.display_field_value(e,key))))
             for key, value in e['attrs'].items():
                 if key not in listed and not (key == 'PTCD' and 'PTCDIR' in listed):
                     self.attribute_sections[key]='extra'
@@ -483,6 +499,11 @@ class ConstructionEditor(ttk.Frame):
     def select_element(self, _=None):
         if self.busy: return
         selected = self.elements.selection()
+        if hasattr(self,'multi_notice'):self.multi_notice.pack_forget()
+        if len(selected)>1:
+            if hasattr(self,'multi_notice'):self.multi_notice.pack(fill='x',pady=8,before=self.tabs)
+            if not self.commit_inline():return
+            self.element_id=None;self.refresh_element();self.element_note.configure(text='複数選択中：属性は表示・編集できません。');self.draw();self.redraw_points();return
         if selected and selected[0] != self.element_id:
             if not self.commit_inline():
                 if self.element_id:self.elements.selection_set(self.element_id)
@@ -555,6 +576,9 @@ class ConstructionEditor(ttk.Frame):
 
     def display_field_value(self,element,key):
         raw=schema.value(element,key)
+        if key in ('PTCPOS','PTSPOS','PTEPOS'):
+            import re
+            raw=re.sub(r'\bP(?:P\s*)?(\d+)\b',r'PP \1',raw,flags=re.I)
         literal={'NUMB','DESC','PURP','PSKEY','GTYP','SKEY','PKEY','LEVEL','OBST','NAPP','CLFLA','TUFLA','TVISI','BVISI'}
         return raw if getattr(self,'simple_layout',False) or key in literal else presets.display_expression(self.data,self.definition(),raw)
 
@@ -591,7 +615,7 @@ class ConstructionEditor(ttk.Frame):
         schema.set_value(self.element(), self.field, value)
         self.remember_preview()
         self.tables[self.section].item(self.field, values=(self.field, schema.meaning(self.element()['type'],self.field), self.display_field_value(self.element(),self.field)))
-        if self.kind=='PTSET' and self.field=='NUMB':self.elements.item(self.element_id,values=(value,self.element()['name'],self.element()['type']) if getattr(self,'simple_layout',False) else (value,self.element()['type']))
+        if self.kind=='PTSET' and self.field=='NUMB':self.elements.item(self.element_id,values=(value,self.element()['name'],self.elements.item(self.element_id,'values')[2]) if getattr(self,'simple_layout',False) else (value,self.element()['type']))
         self.host.mark(); self.update_validation();self.redraw_points();self.draw()
 
     def rename_element(self, *_):
@@ -711,10 +735,13 @@ class ConstructionEditor(ttk.Frame):
 
     def delete_element(self):
         if not self.commit_inline():return
-        e = self.element()
-        if e and messagebox.askyesno('要素を削除', '要素を削除しますか？ 使用先にも影響します。', parent=self.host):
+        ids=set(self.elements.selection())
+        if ids and messagebox.askyesno('要素を削除',str(len(ids))+'件の選択要素を削除しますか？ 使用先にも影響します。',parent=self.host):
             self.remember_preview()
-            self.siblings(e).remove(e); self.element_id = None; self.host.mark(); self.refresh()
+            def remove(items):
+                items[:]=[n for n in items if n['id'] not in ids]
+                for node in items:remove(node.get('children',[]))
+            remove(self.definition()['elements']);self.element_id=None;self.host.mark();self.refresh()
 
     def select_scom(self, _=None):
         self.preview_scom_id = self.scom_names.get(self.scom_choice.get()); self.refresh_values(); self.update_validation()

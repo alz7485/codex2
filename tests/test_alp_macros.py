@@ -47,7 +47,8 @@ INPUT FINISH'''
             text, _ = mi.read_text(path)
             result = mi.parse(text).definitions[0]
         for old, new in zip(original['elements'], result['elements']):
-            self.assertEqual(old['attrs'], new['attrs'])
+            from tests.macro_assertions import assert_attrs_equivalent
+            assert_attrs_equivalent(self,old['attrs'],new['attrs'],old['type'])
             self.assertTrue(new['macro_locked'])
         attrs = result['elements'][1]['attrs']
         contexts = {'PARAM': {'P3': 65, 'P4': 80, 'P9': 'BWD'}, 'DES PARAM': {'P1': 10}}
@@ -85,7 +86,8 @@ INPUT FINISH'''
             decoded,_=mi.read_text(path)
             imported=mi.parse(decoded).definitions[0]
         for old,new in zip(records[0]['elements'],imported['elements']):
-            self.assertEqual(old['attrs'],new['attrs']);self.assertTrue(new['macro_locked'])
+            from tests.macro_assertions import assert_attrs_equivalent
+            assert_attrs_equivalent(self,old['attrs'],new['attrs'],old['type']);self.assertTrue(new['macro_locked'])
 
     def test_nested_type_ordinals_and_unlocked_elements(self):
         source='''INPUT BEGIN

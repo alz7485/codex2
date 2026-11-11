@@ -10,7 +10,7 @@ from tkinter import ttk
 from . import preview_colors
 
 FACTORY=dict(version=1,colors=dict(preview_colors.DEFAULTS),shared=dict(show_grid=True,show_axes=True,show_labels=True),
-             point=dict(show_relations=True),geometry=dict(render_mode='ソリッド',transparency=0,
+             point=dict(show_relations=True),geometry=dict(render_mode='ワイヤー',transparency=0,
              show_points=True,show_negative=True,representation_mode='全形状',
              rep_options=dict(tube=True,cl=False,obst=False,level=0,obst_bypass=False)))
 

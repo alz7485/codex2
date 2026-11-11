@@ -30,7 +30,7 @@ class MacroImportGuiTests(unittest.TestCase):
             text, _ = macro_import.read_text(path)
             record = macro_import.parse(text).definitions[0]
         self.assertEqual(record['elements'][2]['attrs']['PTS'], 'P1 P3')
-        self.assertEqual(record['elements'][0]['attrs']['PDIA'], 'SUM PARAM 2 IPARAM 1')
+        self.assertEqual(record['elements'][0]['attrs']['PDIA'], '(ATTRIB PARA[2] + ATTRIB IPARA[1])')
         self.assertTrue(all(e['macro_locked'] for e in record['elements']))
         self.assertEqual(self.errors, [])
 

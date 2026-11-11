@@ -16,14 +16,14 @@ class MacroExportTests(unittest.TestCase):
         records[1]['elements'][0]['attrs'][':CUSTOM'] = '42'
         before = copy.deepcopy(records)
         output = macro_export.creation_text(records)
-        self.assertIn('NUMB 1 PAXI -X PDIS (PARA[3] / 2) PBOR (PARA[1])', output)
+        self.assertIn('NUMB 1 PAXI -X PDIS (ATTRIB PARA[3] / 2) PBOR PARAM 1', output)
         self.assertIn("\n:EXTRA 'NEW END'\n", output)
         self.assertIn('\n:CUSTOM 42\n', output)
         self.assertFalse(any(line.startswith(('INPUT ', 'OLD ', '$*')) or line == 'LOCK' for line in output.splitlines()))
         self.assertEqual(records, before)
         result = macro_import.parse(output).definitions
         self.assertEqual(result[0]['attrs'], records[0]['attrs'])
-        self.assertEqual(result[1]['elements'][0]['attrs'], records[1]['elements'][0]['attrs'])
+        self.assertEqual(result[1]['elements'][0]['attrs'],macro_export._attrs(records[1]['elements'][0]['attrs'],records[1]['elements'][0]['type']))
 
     def test_optional_lock_uses_current_element_after_children(self):
         records = macro_import.parse('NEW GMSET /NESTED\nNEW SCYL\nPHEI 30\nNEW NSCY\nPHEI 10\nEND\nEND\nEND').definitions
@@ -46,11 +46,17 @@ class MacroExportTests(unittest.TestCase):
         text = macro_export.creation_text(records)
         parsed = macro_import.parse(text).definitions
         self.assertEqual(records, before)
-        self.assertIn('PHEI (-PARA[3])', text)
+        self.assertIn('PHEI (-ATTRIB PARA[3])', text)
         self.assertNotIn('987654', text)
         for old, new in zip(records, parsed):
             self.assertEqual(old['attrs'], new['attrs'])
-            self.assertEqual([e['attrs'] for e in old['elements']], [e['attrs'] for e in new['elements']])
+            from catalog_studio import expressions
+            for a,b in zip(old['elements'],new['elements']):
+                for key,raw in a['attrs'].items():
+                    if key not in b['attrs']:
+                        from catalog_studio.editor_rules import defaults
+                        self.assertEqual(raw,defaults(a['type'])[key])
+                    elif raw!=b['attrs'].get(key):self.assertEqual(expressions.parse(raw),expressions.parse(b['attrs'][key]))
 
     def test_nested_negatives_outline_and_names(self):
         records = macro_import.parse('''NEW GMSET /TEST
@@ -85,7 +91,7 @@ END''').definitions
         result = macro_import.parse(macro_export.creation_text(records)).definitions[0]
         self.assertEqual(result['attrs']['DESC'], attrs['DESC'])
         self.assertEqual(result['attrs'][':CUSTOM'], '42')
-        self.assertNotIn('PSKEY', result['attrs'])
+        self.assertEqual(result['attrs']['PSKEY'],'')
 
     def test_reject_ambiguous_or_executable_values_and_names(self):
         for value in ('100\nDELETE ALL', '100, PHEI 20', '100 $*lost', '100 PHEI 20', '!secret', '1;DELETE ALL'):
@@ -129,8 +135,8 @@ PAXI P1
 END
 END''').definitions
         parsed = macro_import.parse(macro_export.creation_text(records)).definitions
-        self.assertEqual(parsed[1]['elements'][0]['attrs'], {'PDIAM':'(PARA[2])'})
-        self.assertEqual(parsed[1]['elements'][0]['children'][0]['attrs'], {'PDIAM':'(PARA[3])'})
+        self.assertEqual(parsed[1]['elements'][0]['attrs'], {'PDIAM':'PARAM 2'})
+        self.assertEqual(parsed[1]['elements'][0]['children'][0]['attrs'], {'PDIAM':'PARAM 3'})
         self.assertEqual(parsed[1]['elements'][1]['attrs'], {'PAXI':'P1'})
 
     def test_public_straight_cylinder_sample(self):

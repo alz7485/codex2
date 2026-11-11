@@ -4,7 +4,7 @@ import re
 import tempfile
 from pathlib import Path
 
-from . import element_schema as schema, macro_import, alp, macro_destinations
+from . import expressions, editor_rules, element_schema as schema, macro_import, alp, macro_destinations
 
 
 def _name(value):
@@ -26,7 +26,10 @@ def _attrs(attrs, kind):
         raw = ('TRUE' if value else 'FALSE') if isinstance(value, bool) else str(value)
         if key not in ('DESC', 'PURP'):
             raw = raw.strip()
-        if not raw or raw.lower() == 'unset':
+        initial=editor_rules.defaults(kind).get(key)
+        if initial is not None and raw.strip().casefold()==str(initial).casefold():continue
+        if not raw or raw.lower()=='unset':
+            result[key]=''
             continue
         # Control characters and multiline source must not introduce commands.
         if any(ord(char) < 32 or ord(char) == 127 for char in raw):
@@ -36,6 +39,11 @@ def _attrs(attrs, kind):
             canonical = 'PDIAM'
         if canonical in result:
             raise ValueError('同じ属性の別名が重複しています：' + key)
+        if canonical in editor_rules.POSITION_FIELDS:
+            raw=re.sub(r'\bP(?:P\s*)?(\d+)\b',r'PP \1',raw,flags=re.I)
+        elif canonical in ('PAXI','PAAX','PBAX','PCAX','PTCDIR'):raw=expressions.e3d_embedded(raw)
+        elif canonical not in ('NUMB','DESC','PURP','PSKEY','GTYP','SKEY','PKEY','LEVEL','OBST','NAPP','CLFLA','TUFLA','TVISI','BVISI','PAXI','PAAX','PBAX','PCAX','PTS','PTCDIR'):
+            raw=expressions.e3d(raw)
         result[canonical] = raw
     return result
 
@@ -67,10 +75,13 @@ def creation_text(definitions, *, lock_created=False, destinations=None):
             names.add(formal_name)
         output_kind = alp.TYPE_NAMES.get(kind, kind)
         lines.append('NEW ' + output_kind + (' ' + formal_name if formal_name else ''))
+        if schema.positive(kind)=='LPYR':
+            import copy
+            record=copy.deepcopy(record);editor_rules.derived_axes(record)
         attrs = _attrs(record.get('attrs', {}), kind)
         group = ''
         for key, value in attrs.items():
-            encoded = "'" + value.replace("'", "''") + "'" if key in ('DESC', 'PURP') else value
+            encoded = "''" if not value else ("'" + value.replace("'", "''") + "'" if key in ('DESC', 'PURP') else value)
             assignment = alp.ATTR_NAMES.get(key, key) + ' ' + encoded
             # The importer knows boundaries of known attributes. Keep unknown
             # attributes and free text on their own lines to avoid ambiguity.

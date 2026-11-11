@@ -126,7 +126,7 @@ class PointCanvasGuiTests(unittest.TestCase):
         self.assertEqual(self.view.positions[other['id']],expected);self.assertEqual(self.errors,[])
 
     def test_rotation_zoom_and_navigation_do_not_edit_data(self):
-        before=copy.deepcopy(self.app.data);self.view.canvas.event_generate('<Button-1>',x=200,y=200);self.view.canvas.event_generate('<B1-Motion>',x=240,y=230);self.view.zoom(1.2);self.app.update()
+        before=copy.deepcopy(self.app.data);self.view.canvas.event_generate('<Button-2>',x=200,y=200);self.view.canvas.event_generate('<B2-Motion>',x=240,y=230);self.view.zoom(1.2);self.app.update()
         self.assertNotEqual(self.view.camera.yaw,0);self.assertEqual(self.app.data,before)
         win=self.view;self.app.switch('gmset');self.app.update();self.assertFalse(win.winfo_exists());self.assertEqual(self.errors,[])
 

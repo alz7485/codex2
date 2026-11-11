@@ -5,7 +5,7 @@ import re
 from . import expressions, element_schema as schema, pairing, presets
 from . import geometry_scene as geo
 from .point_geometry import DIMENSIONS_KEY, validate_dimensions
-from .point_preview import PointPreview, empty, merged_dimensions, remember as remember_points
+from .point_preview import PointPreview, preview_parse, empty, merged_dimensions, remember as remember_points
 
 ANGLES={'PANGLE','PXTS','PYTS','PXBS','PYBS'}
 
@@ -96,7 +96,7 @@ class GeometryPreview(geo.Resolver):
         text=node['attrs'].get(key,'')
         if empty(text):return default
         try:
-            root=expressions.parse(text,self.parameters);numeric_form(root,self.dimensions.attributes);refs=expressions.refs(root)
+            root=preview_parse(text,self.parameters);numeric_form(root,self.dimensions.attributes);refs=expressions.refs(root)
             if key not in ANGLES:self.forms[(node['id'],key)]=root
             try:value=self.dimensions.scalar(root)
             except ValueError:

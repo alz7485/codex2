@@ -9,6 +9,7 @@ POINT_FIELDS = frozenset(DIRECTION_FIELDS) - {'PLAXI'}
 
 def is_point_reference(key, text):
     """Distinguish point tokens from the numeric expression shorthand P1."""
+    if key in ('PTCPOS','PTSPOS','PTEPOS'):return bool(re.fullmatch(r'P(?:P\s*)?\d+',str(text).strip(),re.I))
     pattern = r'-?P[0-9]+(?:\s+P[0-9]+)?' if key in POINT_FIELDS else r'[PT][0-9]+(?:\s+[PT][0-9]+)*' if key == 'PTS' else None
     return bool(pattern and re.fullmatch(pattern, str(text).strip(), re.IGNORECASE))
 
@@ -38,7 +39,7 @@ def point_choices(data, definition, element, key):
     """
     if not definition or not element or definition.get('kind') not in ('PTSET', 'GMSET', 'NGMSET'):
         return None
-    if key not in POINT_FIELDS and not (key == 'PTS' and schema.positive(element.get('type')) == 'LINE'):
+    if key not in POINT_FIELDS and key not in ('PTCPOS','PTSPOS','PTEPOS') and not (key == 'PTS' and schema.positive(element.get('type')) == 'LINE'):
         return None
     pointset = _pointset(data, definition)
     numbered = {}

@@ -31,7 +31,7 @@ class ValveSampleTests(unittest.TestCase):
         text=macro_export.creation_text([pt,gm]);parsed=macro_import.parse(text).definitions
         self.assertEqual(len(parsed[0]['elements']),3)
         self.assertEqual(len(parsed[1]['elements']),7)
-        self.assertIn('PHEI (-PARAM[3])',text)
+        self.assertIn('PHEI (-ATTRIB PARA[3])',text)
         self.assertNotIn('89.1',text)
         self.assertEqual(data,before)
 

@@ -71,22 +71,21 @@ def build_simple(editor):
     e.set_name_label.pack(anchor='w',fill='x',pady=(0,6))
     e.set_name_label.bind('<Configure>',lambda event:e.set_name_label.configure(wraplength=max(120,event.width-4)))
     row=ttk.Frame(left);row.pack(fill='x',pady=(0,6))
+    from .project_actions import icon,Hint
     if not getattr(e.host,'is_preset_editor',False):
         from .element_presets_ui import select_ptset_preset
+        # Compatibility controller only; selection is exposed through the recall button.
         e.element_preset_choice=ttk.Combobox(row,state='readonly',width=12)
-        e.element_preset_choice.pack(side='left',fill='x',expand=True,padx=(0,6))
-        e.element_preset_choice.bind('<<ComboboxSelected>>',lambda _:select_ptset_preset(e))
-    e.add_button=ttk.Button(row,text='＋',width=2,command=e.toggle_create,style='AttributeTool.TButton')
-    e.add_button.pack(side='right')
+        e.element_preset_choice.bind('<<ComboboxSelected>>',lambda event:select_ptset_preset(e))
+    e.element_action_icons={k:icon(e,k,color=theme.ACCENT) for k in ('new','recall','save')}
+    e.add_button=ttk.Button(row,text='要素を追加',image=e.element_action_icons['new'],command=e.toggle_create,style='AttributeTool.TButton')
+    e.add_button.pack(side='left',padx=(0,4));e.add_button.hint=Hint(e.add_button,'要素を追加')
     if not getattr(e.host,'is_preset_editor',False):
         from . import element_presets_ui
-        preset_actions=ttk.Frame(left);preset_actions.pack(fill='x',pady=(0,6))
-        from .project_actions import icon
-        e.recall_icon=icon(e,'recall',color='#2864dc')
-        e.recall_preset_button=ttk.Button(preset_actions,text='プリセット呼出',image=e.recall_icon,compound='left',style='AttributeTool.TButton',command=lambda:element_presets_ui.choose(e,'recall'))
-        e.recall_preset_button.pack(side='left',fill='x',expand=True,padx=(0,4))
-        e.register_preset_button=ttk.Button(preset_actions,text='＋ 現在を登録',padding=(6,6,6,7),style='AttributeTool.TButton',command=lambda:element_presets_ui.register_current(e))
-        e.register_preset_button.pack(side='left',fill='x',expand=True)
+        e.recall_preset_button=ttk.Button(row,text='プリセット呼出',image=e.element_action_icons['recall'],style='AttributeTool.TButton',command=lambda:element_presets_ui.choose(e,'recall'))
+        e.recall_preset_button.pack(side='left',padx=(0,4));e.recall_preset_button.hint=Hint(e.recall_preset_button,'プリセット呼出')
+        e.register_preset_button=ttk.Button(row,text='現在を登録',image=e.element_action_icons['save'],style='AttributeTool.TButton',command=lambda:element_presets_ui.register_current(e))
+        e.register_preset_button.pack(side='left');e.register_preset_button.hint=Hint(e.register_preset_button,'現在をプリセットに登録')
 
     e.creation_frame=tk.Toplevel(e)
     e.creation_frame.withdraw();e.creation_frame.title('ポイントを追加' if point else '形状を追加')
@@ -100,14 +99,26 @@ def build_simple(editor):
         ttk.Checkbutton(creation, text='ネガティブ形状', variable=e.negative, command=e.populate_library).pack(anchor='w', pady=(0, 6))
     holder = ttk.Frame(creation)
     holder.pack(fill='both',expand=True)
-    list_side=ttk.Frame(holder,width=310 if e.kind=='GMSET' else 250);list_side.pack(side='left',fill='both',padx=(0,16));list_side.pack_propagate(False)
+    list_side=ttk.Frame(holder,width=340);list_side.pack(side='left',fill='both',padx=(0,16));list_side.pack_propagate(False)
     diagram_side=ttk.Frame(holder);diagram_side.pack(side='left',fill='both',expand=True)
     e.guide_canvas=tk.Canvas(diagram_side,height=270,background='#f5f8fc',highlightthickness=1,highlightbackground='#d7e1ed')
     e.guide_canvas.pack(fill='both',expand=True)
     from . import element_guide
     e.guide_canvas.bind('<Configure>',lambda _:element_guide.draw(e))
+    e.guide_angles=(-40.,30.);e.guide_wire=True;e.guide_drag=None
+    def guide_press(event):e.guide_drag=(event.x,event.y,*e.guide_angles);e.guide_canvas.focus_set()
+    def guide_move(event):
+        if e.guide_drag:
+            x,y,a,b=e.guide_drag;e.guide_angles=(a+(event.x-x)*.5,max(-85,min(85,b+(event.y-y)*.5)));element_guide.draw(e)
+    def guide_toggle(event=None):e.guide_wire=not e.guide_wire;element_guide.draw(e);return 'break'
+    e.guide_canvas.bind('<Button-2>',guide_press);e.guide_canvas.bind('<B2-Motion>',guide_move)
+    e.guide_canvas.bind('<ButtonRelease-2>',lambda event:setattr(e,'guide_drag',None))
+    e.guide_canvas.bind('<F11>',guide_toggle)
+    ttk.Button(diagram_side,text='ワイヤー／ソリッド (F11)',command=guide_toggle,style='AttributeTool.TButton').pack(fill='x',pady=4)
+
     def make_library(parent):
-        result=tk.Listbox(parent,height=20 if e.kind=='GMSET' else 4,exportselection=False,font=(e.host.ui_font,10),relief='flat',borderwidth=0,activestyle='none',selectbackground=theme.SELECT,selectforeground=theme.ACCENT)
+        from .shape_library import ShapeLibrary
+        result=ShapeLibrary(parent,e.host.ui_font)
         result.pack(side='left',fill='both',expand=True)
         result.bind('<<ListboxSelect>>',e.describe_selected_type)
         return result
@@ -162,18 +173,31 @@ def build_simple(editor):
     row.pack(side='bottom', fill='x', pady=(8, 0), before=e.tree_holder)
     from .construction_actions import context_menu,enable_drag
     context_menu(e);enable_drag(e)
+    e.elements.bind('<Delete>',lambda event:e.delete_element())
     e.child_button = ttk.Button(row, text='子要素を追加', command=e.add_child,style='AttributeTool.TButton')
     if point:
         ttk.Label(row, text='P0：自動生成', style='Muted.TLabel').pack(side='right')
 
-    e.preset_choice = ttk.Combobox(right, state='readonly')
-    e.preset_choice.pack(fill='x', pady=(0,6))
+    preset_row=ttk.Frame(right);preset_row.pack(fill='x',pady=(0,6))
+    e.preset_choice = ttk.Combobox(preset_row, state='readonly')
+    e.preset_choice.pack(side='left',fill='x',expand=True)
     e.preset_choice.bind('<<ComboboxSelected>>', e.assign_preset)
+    if point:
+        def optional():
+            if not e.commit_inline():return
+            e.show_optional_attrs=not getattr(e,'show_optional_attrs',False)
+            e.optional_attrs_button.configure(text=('▲' if e.show_optional_attrs else '▼'))
+            e.refresh_element()
+        e.optional_attrs_button=ttk.Button(preset_row,text='▼',width=2,command=optional,style='AttributeTool.TButton')
+        e.optional_attrs_button.pack(side='right',padx=(4,0))
+        e.optional_attrs_button.hint=Hint(e.optional_attrs_button,'DESC・PURPを表示／非表示')
+
     e.element_name = tk.StringVar()
     e.type_choice = tk.StringVar()
     e.element_note = ttk.Label(right, text='', style='Muted.TLabel', wraplength=740)
     e.element_note.bind('<Configure>',lambda event:e.element_note.configure(wraplength=max(160,event.width-4)))
 
+    e.multi_notice=ttk.Label(right,text='複数選択中のため、属性の表示・編集はできません。',style='Muted.TLabel',wraplength=330)
     e.tabs = ttk.Frame(right)
     e.tabs.pack(fill='both', expand=True)
     e.tables = {}

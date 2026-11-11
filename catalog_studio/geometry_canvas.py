@@ -78,6 +78,8 @@ class GeometryCanvas(ttk.Frame):
         self.canvas.bind('<Button-1>',self.press);self.canvas.bind('<B1-Motion>',self.move);self.canvas.bind('<ButtonRelease-1>',self.release)
         self.canvas.bind('<Escape>',lambda _:self.cancel())
         self.bind('<Destroy>',lambda e:self.dispose() if e.widget is self else None)
+        from .preview_navigation import attach as navigation
+        navigation(self)
         from .preview_preferences import attach
         attach(self)
 
@@ -193,7 +195,7 @@ class GeometryCanvas(ttk.Frame):
                 c.create_text(x+7,y,text='XYZ'[i],fill=color,tags='orientation')
         faces=[];negative=[]
         for mesh in meshes:
-            selected=mesh.ident==e.element_id or self.parent_selected(mesh.ident)
+            selected=mesh.ident in e.elements.selection() or self.parent_selected(mesh.ident)
             outline=preview_colors.get(self,'selected' if selected else 'outline');fill=preview_colors.get(self,'selected' if selected else 'model')
             for face in mesh.faces:
                 if len(face)<3:continue
@@ -223,7 +225,7 @@ class GeometryCanvas(ttk.Frame):
             for mesh in meshes:
                 if mesh.negative:continue
                 if mode not in ('ワイヤー','面＋線') and mesh.ident not in self.scene.soft:continue
-                color=preview_colors.get(self,'selected' if mesh.ident==e.element_id or self.parent_selected(mesh.ident) else 'outline')
+                color=preview_colors.get(self,'selected' if mesh.ident in e.elements.selection() or self.parent_selected(mesh.ident) else 'outline')
                 edges=feature_edges(mesh,geometry.cross(*self.camera.basis()),visible_only=(mode=='面＋線' and opacity==1))
                 for a,b in edges:c.create_line(*xy(mesh.vertices[a]),*xy(mesh.vertices[b]),fill=color,width=1,dash=(4,3) if mesh.ident in self.scene.soft else (),tags=('mesh','wireframe','element:'+mesh.ident))
         for mesh in meshes:
@@ -249,7 +251,7 @@ class GeometryCanvas(ttk.Frame):
         if self.actual and meshes:
             points=[p for m in meshes for p in m.vertices]
             dimensions='\n外形：'+' / '.join('XYZ'[i]+' '+format(max(p[i] for p in points)-min(p[i] for p in points),'.5g') for i in range(3))+' mm（DB 単位）'
-        self.note.configure(text=('登録寸法で確認：寸法比を保持して全体表示 / 左ドラッグ：回転'+dimensions if self.actual else '仮配置・単位なし ｜ 左ドラッグ：回転 ｜ ホイール：ズーム')+'')
+        self.note.configure(text=('登録寸法で確認：寸法比を保持して全体表示 / ホイールドラッグ：回転 / ホイールクリック：パン'+dimensions if self.actual else '仮配置・単位なし ｜ ホイールドラッグ：回転 / ホイールクリック：パン ｜ ホイール：ズーム')+'')
         status=('登録寸法で確認 · '+(scom['name'] if scom else '参照SCOMを選択してください')) if self.actual else '仮配置で確認 · 編集用の仮値'
         c.create_text(width-12,12,text=status,anchor='ne',justify='right',fill=theme.MUTED,width=max(100,width-self.mode_overlay.winfo_reqwidth()-36),font=(e.host.ui_font,9),tags='preview-mode')
         hidden=self.scene.hidden
@@ -279,7 +281,8 @@ class GeometryCanvas(ttk.Frame):
     def press(self,event):
         self.canvas.focus_set()
         if not self.editor.commit_inline():return
-        self.resize_issue='';self.orbit_start(event)
+        self.resize_issue='';self.orbit=None
+        if len(self.editor.elements.selection())>1:return
         if not self.actual:
             hit=next((i for i,h in self.handles.items() if math.hypot(event.x-h['screen'][0],event.y-h['screen'][1])<=10),None)
             if hit is not None:
@@ -313,7 +316,7 @@ class GeometryCanvas(ttk.Frame):
             state=preview.resize(d['node']['id'],d['axis'],d['extent']*ratio)
             if state is None:
                 if preview.has_dimensions(d['node']):raise ValueError('この軸の寸法には変更できる PARAM がありません。別のハンドルを選んでください。')
-                scale=list(d['scale']);scale[d['axis']]=max(.02,min(50,scale[d['axis']]*ratio));d['candidate']=scale;d.pop('candidate_state',None)
+                scale=[max(.02,min(50,d['scale'][d['axis']]*ratio))]*3 if schema.positive(d['node']['type'])=='SSPH' else list(d['scale']);scale[d['axis']]=max(.02,min(50,d['scale'][d['axis']]*ratio));d['candidate']=scale;d.pop('candidate_state',None)
             else:d['candidate_state']=state;d.pop('candidate',None)
             self.resize_issue=''
         except (ValueError,OverflowError) as exc:

@@ -61,7 +61,7 @@ class ElementList(tk.Canvas):
     def selection(self):return self.selected
     def selection_set(self,items):
         selected=(items,) if isinstance(items,str) else tuple(items)
-        selected=tuple(i for i in selected if i in self.rows)[:1]
+        selected=tuple(i for i in selected if i in self.rows)
         if selected!=self.selected:
             if not self.finish_edit():return
             self.selected=selected;self.schedule();self.event_generate('<<TreeviewSelect>>',when='tail')
@@ -89,11 +89,18 @@ class ElementList(tk.Canvas):
     def click(self,event):
         if not self.finish_edit():return
         self.focus_set();iid=self.identify_row(event.y)
-        if iid:self.selection_set(iid)
+        if iid:
+            items=list(self.visible())
+            if event.state & 1 and self.selected:
+                a,b=sorted((items.index(self.selected[0]),items.index(iid)))
+                self.selection_set(items[a:b+1])
+            elif event.state & 4:
+                self.selection_set(tuple(i for i in self.selected if i!=iid) if iid in self.selected else self.selected+(iid,))
+            else:self.selection_set(iid)
 
     def edit_clicked(self,event):
         iid=self.identify_row(event.y)
-        if iid and event.x>=45:self.begin_edit(iid)
+        if iid and event.x>=45 and len(self.selected)==1:self.begin_edit(iid)
         return 'break'
 
     def navigate(self,step=0,first=False,last=False):
@@ -126,6 +133,7 @@ class ElementList(tk.Canvas):
         return text+'…'
 
     def begin_edit(self,iid):
+        if len(self.selected)>1:return False
         if iid not in self.rows or not self.finish_edit():return False
         context=self.edit_context(iid)
         if context is None:return False

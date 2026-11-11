@@ -51,9 +51,10 @@ class ValueChoicesTests(unittest.TestCase):
         for key in ('PAXI', 'PAAX', 'PBAX', 'PCAX', 'PTCDIR', 'PTCD'):
             with self.subTest(key=key):
                 self.assertEqual(self.choices(key), ('P0', 'P2'))
-        for key in ('PLAXI', 'PDIS', 'PDIA', 'PBDI', 'PTDI', 'PX', 'PTCPOS', 'PTSPOS', 'PTEPOS', 'DESC', 'PTS'):
+        for key in ('PLAXI', 'PDIS', 'PDIA', 'PBDI', 'PTDI', 'PX', 'DESC', 'PTS'):
             with self.subTest(key=key):
                 self.assertIsNone(self.choices(key))
+        for key in ('PTCPOS','PTSPOS','PTEPOS'):self.assertEqual(self.choices(key),('P0','P2'))
         line = {'id': 'line', 'type': 'LINE', 'attrs': {}}
         self.assertEqual(self.choices('PTS', element=line), ('P0', 'P2'))
         with patch.dict(schema.NEGATIVE_BASE, {'TEST_NEGATIVE_LINE': 'LINE'}):

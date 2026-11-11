@@ -24,7 +24,7 @@ def context_menu(editor):
     negative_index=menu.index('end')
     def popup(event):
         ident=e.elements.identify_row(event.y)
-        if ident:e.elements.selection_set(ident);e.select_element()
+        if ident and ident not in e.elements.selection():e.elements.selection_set(ident);e.select_element()
         for index in (0,1):menu.entryconfigure(index,state='normal' if ident else 'disabled')
         node=e.element();menu.entryconfigure(negative_index,state='normal' if node and any(k in schema.NEGATIVE_BASE for k in schema.allowed_children(node['type'])) else 'disabled')
         try:menu.tk_popup(event.x_root,event.y_root)
@@ -39,7 +39,7 @@ def enable_drag(editor):
         if e.drop_target and e.elements.exists(e.drop_target):e.elements.item(e.drop_target,tags=())
         e.drop_target=None
     def press(event):
-        e.drag_source=e.elements.identify_row(event.y);e.drag_start=event.y;e.drag_active=False
+        e.drag_source=e.elements.identify_row(event.y) if len(e.elements.selection())<=1 and not event.state & 5 else None;e.drag_start=event.y;e.drag_active=False
     def move(event):
         if not e.drag_source or abs(event.y-e.drag_start)<5:return
         e.drag_active=True;clear();target=e.elements.identify_row(event.y)
