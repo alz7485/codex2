@@ -30,20 +30,55 @@ class PhotoRules(unittest.TestCase):
   root=preview_parse('IPARA 2');self.assertEqual(root,ex.parse('0.5 * IPARA 1'))
 
 class PhotoUi(unittest.TestCase):
- def test_initial_point_placement_snaps_to_xy_axes_and_keeps_distance_blank(self):
+ def test_direction_drag_rotates_in_each_plane_without_changing_position_values(self):
+  from catalog_studio.integrated import IntegratedStudio
+  from catalog_studio.point_geometry import PLANES,DIMENSIONS_KEY
+  from catalog_studio.point_preview import PointPreview
+  try:app=IntegratedStudio()
+  except tk.TclError as exc:self.skipTest(str(exc))
+  try:
+   app.update();e=app.geometry_editor;v=e.point_canvas
+   for plane,(a,b) in PLANES.items():
+    for kind,key in [('PTAXI','PAXI'),('PTMIX','PAXI'),('PTCAR','PTCDIR'),('PTPOS','PTCDIR')]:
+     n=s.add_element(e.definition(),kind)
+     n['attrs'].update({key:'XYZ'[a]})
+     if kind=='PTAXI':n['attrs']['PDIS']='PARAM 3'
+     elif kind=='PTPOS':n['attrs']['PTCPOS']='X 0 Y 0 Z 0'
+     else:n['attrs'].update(PX='PARAM 3',PY='0',PZ='0')
+     e.element_id=n['id'];e.refresh();app.update();v.plane.set(plane);v.plane_changed();v.camera.face(plane);v.redraw()
+     before=copy.deepcopy(n['attrs']);dims=copy.deepcopy(e.definition().get(DIMENSIONS_KEY));sc=copy.deepcopy(app.data['scoms'])
+     original_model=PointPreview(e.data,e.definition());pivot=original_model.location(n['id']);original_values=copy.deepcopy(original_model.values);target=list(pivot)
+     target[a]+=math.cos(math.radians(33));target[b]+=math.sin(math.radians(33))
+     v.press_position=v.camera.project(pivot,v.canvas.winfo_width(),v.canvas.winfo_height())
+     x,y=v.camera.project(target,v.canvas.winfo_width(),v.canvas.winfo_height())
+     v.propose_rotation(x,y,n['id']);self.assertIsNotNone(v.pending,v.error_message)
+     self.assertEqual(n['attrs'],before);v.apply();app.update()
+     vector=PointPreview(e.data,e.definition()).axis(n['attrs'][key])[1]
+     self.assertAlmostEqual(vector[a],math.cos(math.radians(35)),places=7)
+     self.assertAlmostEqual(vector[b],math.sin(math.radians(35)),places=7)
+     self.assertEqual({k:x for k,x in n['attrs'].items() if k!=key},{k:x for k,x in before.items() if k!=key})
+     self.assertEqual(e.definition().get(DIMENSIONS_KEY),dims);self.assertEqual(app.data['scoms'],sc)
+     if kind=='PTAXI':
+      actual=PointPreview(e.data,e.definition())
+      for ref,value in original_values.items():self.assertAlmostEqual(actual.values[ref],value)
+  finally:app.destroy()
+
+ def test_parameter_position_input_uses_virtual_distance_without_real_values(self):
   from catalog_studio.integrated import IntegratedStudio
   from catalog_studio.point_geometry import LAYOUT_KEY
   try:app=IntegratedStudio()
   except tk.TclError as exc:self.skipTest(str(exc))
   try:
-   app.update();e=app.geometry_editor;v=e.point_canvas
-   for raw,axis,expected in [((8,3,0),'X',(8,0,0)),((-8,3,0),'-X',(-8,0,0)),((2,9,0),'Y',(0,9,0)),((2,-9,0),'-Y',(0,-9,0))]:
-    n=s.add_element(e.definition(),'PTAXI');e.element_id=n['id'];e.refresh();app.update()
-    with patch.object(v.camera,'unproject',return_value=raw):v.propose(100,100,n['id'])
-    self.assertIsNotNone(v.pending);self.assertEqual(v.pending['attrs']['PAXI'],axis)
-    self.assertEqual(v.pending['point'],expected);v.apply();app.update()
-    self.assertEqual(n['attrs']['PAXI'],axis);self.assertEqual(n['attrs']['PDIS'],'')
-    self.assertEqual(n[LAYOUT_KEY],list(expected))
+   app.update();e=app.geometry_editor
+   for kind,key in [('PTAXI','PDIS'),('PTCAR','PX')]:
+    n=s.add_element(e.definition(),kind);n[LAYOUT_KEY]=[0.,0.,0.]
+    n['attrs'].update(PAXI='X')
+    if kind=='PTCAR':n['attrs'].update(PX='0',PY='0',PZ='0')
+    e.element_id=n['id'];e.refresh();app.update();before=copy.deepcopy(app.data['scoms'])
+    self.assertAlmostEqual(e.point_canvas.positions[n['id']][0],0.)
+    context=e.inline_context(key,'main');context['commit']('PARAM 29');e.refresh();app.update()
+    self.assertGreater(abs(e.point_canvas.positions[n['id']][0]),.1)
+    self.assertEqual(n['attrs'][key],'PARAM 29');self.assertEqual(app.data['scoms'],before)
   finally:app.destroy()
 
  def test_optional_attributes_hidden_in_both_editors_without_data_loss(self):

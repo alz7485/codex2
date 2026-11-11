@@ -2,12 +2,32 @@
 import copy
 import math
 import re
-from . import expressions, element_schema as schema
+from . import expressions, element_schema as schema, presets
 from .point_geometry import LAYOUT_KEY, DIMENSIONS_KEY, PLANES, schematic_position, valid_layout, coordinate_expressions, validate_dimensions
 from .geometry_scene import Resolver, Scene, ZERO, add, sub, mul, dot, unit
 
 
 def empty(text):return str(text).strip().lower() in ('','unset')
+
+
+def seed_parameter_position(data,definition,node,key):
+    """Give a new positional PARAM a visible unitless seed, never a SCOM value."""
+    if key not in ('PDIS','PX','PY','PZ'):return
+    try:
+        root=expressions.parse(node['attrs'].get(key,''),presets.rules(data,definition))
+        if not expressions.refs(root):return
+        model=PointPreview(data,definition);point=list(model.location(node['id']))
+        size=1.+.15*(model.number_for(node['id'])%5)
+        if key=='PDIS':
+            origin,axis=model.axis(node['attrs'].get('PAXI',''))
+            if abs(dot(sub(point,origin),axis))>1e-8:return
+            point=list(add(origin,mul(axis,size)))
+        else:
+            index='XYZ'.index(key[-1])
+            if abs(point[index])>1e-8:return
+            point[index]=size
+        node[LAYOUT_KEY]=point
+    except (ValueError,KeyError):return
 
 
 def preview_parse(text,parameters=()):

@@ -1,5 +1,6 @@
-"""Unitless point layout with PARAM dimensions editable from any shared point."""
+"""Point direction rotation and attribute-driven unitless PARAM preview."""
 import copy
+import math
 import tkinter as tk
 from tkinter import ttk
 from . import element_schema as schema, presets, expressions
@@ -11,8 +12,8 @@ from . import theme, preview_controls, preview_colors
 class PointCanvas(ttk.Frame):
     def __init__(self,editor,parent):
         super().__init__(parent);self.editor=editor
-        self.camera=Camera();self.pending=None;self.hits={};self.positions={};self.dragging=None;self.orbit=None
-        self.error_message='';self.menu_context=None;self.press_position=None
+        self.camera=Camera();self.pending=None;self.hits={};self.positions={};self.direction_hits={};self.dragging=None;self.orbit=None
+        self.error_message='';self.menu_context=None;self.press_position=None;self.rotation_start=None
         self.plane=tk.StringVar(value='XY');self.view=tk.StringVar(value='立体')
         self.show_grid=tk.BooleanVar(value=True);self.show_axes=tk.BooleanVar(value=True)
         self.show_labels=tk.BooleanVar(value=True);self.show_relations=tk.BooleanVar(value=True)
@@ -46,7 +47,7 @@ class PointCanvas(ttk.Frame):
         self.canvas.bind('<MouseWheel>',lambda ev:self.zoom(1.12 if ev.delta>0 else 1/1.12));self.canvas.bind('<Button-4>',lambda _:self.zoom(1.12));self.canvas.bind('<Button-5>',lambda _:self.zoom(1/1.12))
         self.note=ttk.Label(self,text='',wraplength=280,foreground='#738499');self.note.grid(row=5,column=0,sticky='ew',pady=(6,0))
         self.note.bind('<Configure>',lambda ev:self.note.configure(wraplength=max(140,ev.width-4)))
-        hint=ttk.Label(self,text='ホイールドラッグ：回転 / ホイールクリック：パン ｜ 点ドラッグ：移動 ｜ 右クリック：点作成 ｜ ホイール：ズーム',wraplength=280,style='Muted.TLabel');hint.grid(row=6,column=0,sticky='ew',pady=(6,0))
+        hint=ttk.Label(self,text='ホイールドラッグ：回転 / ホイールクリック：パン ｜ 点・方向矢印ドラッグ：5°回転 ｜ 右クリック：点作成 ｜ ホイール：ズーム',wraplength=280,style='Muted.TLabel');hint.grid(row=6,column=0,sticky='ew',pady=(6,0))
         hint.bind('<Configure>',lambda ev:hint.configure(wraplength=max(140,ev.width-4)))
         self.canvas.bind('<Escape>',lambda _:self.cancel());self.redraw()
         from .preview_navigation import attach as navigation
@@ -87,7 +88,7 @@ class PointCanvas(ttk.Frame):
 
     def redraw(self):
         if not self.winfo_exists():return
-        c=self.canvas;c.configure(background=preview_colors.get(self,'background'));c.delete('all');w,h=c.winfo_width(),c.winfo_height();self.hits={};self.positions={}
+        c=self.canvas;c.configure(background=preview_colors.get(self,'background'));c.delete('all');w,h=c.winfo_width(),c.winfo_height();self.hits={};self.positions={};self.direction_hits={}
         def xy(point):return self.camera.project(point,w,h)
         a,b=PLANES[self.plane.get()]
         if self.show_grid.get():
@@ -119,9 +120,12 @@ class PointCanvas(ttk.Frame):
             if selected:c.create_oval(x-r-5,y-r-5,x+r+5,y+r+5,outline=preview_colors.get(self,'selected'),width=2,tags=('selected-point-halo',))
             c.create_oval(x-r,y-r,x+r,y+r,fill=color,outline='white',width=2,tags=('point','selected-point' if selected else 'other-point'))
             if self.show_labels.get():c.create_text(x+r+6,y-r-4,text='P'+str(element['attrs'].get('NUMB','?')),anchor='w',fill=color,font=(self.editor.host.ui_font,11 if selected else 10,'bold' if selected else 'normal'),tags=('labels',))
+            if not any(vector):
+                vector=tuple(1 if i==a else 0 for i in range(3))
             if any(vector):
+                self.direction_hits[element['id']]=xy(tuple(point[i]+.3*vector[i] for i in range(3)))
                 c.create_line(x,y,*xy(tuple(point[i]+.3*vector[i] for i in range(3))),fill=color,width=3 if selected else 1.5,arrow='last')
-        message='共有仮寸法：どの点を動かしても同じ PARAM の点が追従します。'
+        message='ドラッグ：作図面で方向を5°回転。位置は属性値で変更（PARAMは仮値で表示）。'
         if not definition:message='左の PTSET 一覧からセットを選ぶか追加してください。'
         elif self.editor.element_id:
             try:
@@ -170,10 +174,10 @@ class PointCanvas(ttk.Frame):
         if not self.editor.commit_inline():return
         self.cancel();self.canvas.focus_set();
         if len(self.editor.elements.selection())>1:return
-        ident=self.pick(event.x,event.y)
+        ident=self.pick(event.x,event.y) or next((ident for ident,p in self.direction_hits.items() if (p[0]-event.x)**2+(p[1]-event.y)**2<=225),None)
         if ident:
             self.editor.elements.selection_set(ident);self.editor.select_element()
-            self.dragging=ident;self.press_position=(event.x,event.y);self.redraw()
+            self.dragging=ident;self.press_position=(event.x,event.y);self.rotation_start=None;self.redraw()
         else:self.orbit=None
 
     def create_press(self,event):
@@ -187,69 +191,87 @@ class PointCanvas(ttk.Frame):
     def move(self,event):
         if not self.dragging:self.orbit_move(event);return
         if self.dragging and self.press_position and max(abs(event.x-self.press_position[0]),abs(event.y-self.press_position[1]))>=4:
-            self.propose(event.x,event.y,self.dragging)
+            self.propose_rotation(event.x,event.y,self.dragging)
 
     def release(self,event):
         self.orbit=None
         if self.dragging and self.pending:self.apply()
-        self.dragging=None;self.press_position=None
+        self.dragging=None;self.press_position=None;self.rotation_start=None
+
+    def propose_rotation(self,x,y,ident):
+        e=self.editor;self.error_message=''
+        try:
+            if len(e.elements.selection())>1:return
+            if not e.commit_inline():return
+            node=next(n for n in e.definition()['elements'] if n['id']==ident)
+            key='PAXI' if node['type'] in ('PTAXI','PTMIX') else 'PTCDIR'
+            model=PointPreview(e.data,e.definition());a,b=PLANES[self.plane.get()]
+            normal=next(i for i in range(3) if i not in (a,b))
+            if self.rotation_start is None:
+                text=schema.value(node,key)
+                origin,vector=model.axis(text) if not empty(text) else ((0,0,0),tuple(1. if i==a else 0. for i in range(3)))
+                if any(abs(v)>1e-8 for v in origin):raise ValueError('参照点を原点とする方向は属性欄で変更してください。')
+                if math.hypot(vector[a],vector[b])<1e-8:raise ValueError('方向が作図面に垂直です。別の作図面を選択してください。')
+                pivot=model.location(ident)
+                sx,sy=self.press_position or (x,y)
+                start=self.camera.unproject(sx,sy,self.canvas.winfo_width(),self.canvas.winfo_height(),self.plane.get(),pivot[normal])
+                offset=(start[a]-pivot[a],start[b]-pivot[b])
+                angle=math.atan2(*reversed(offset)) if math.hypot(*offset)>0.04 else math.atan2(vector[b],vector[a])
+                self.rotation_start=(ident,pivot,vector,angle,self.plane.get(),copy.deepcopy(e.definition()['elements']),copy.deepcopy(e.definition().get(DIMENSIONS_KEY)))
+            saved_id,pivot,vector,start_angle,plane,start_elements,start_dimensions=self.rotation_start
+            if e.definition()['elements']!=start_elements or e.definition().get(DIMENSIONS_KEY)!=start_dimensions:
+                raise ValueError('属性・配置が変更されています。ドラッグをやり直してください。')
+            if saved_id!=ident or plane!=self.plane.get():raise ValueError('選択・作図面が変更されています。')
+            end=self.camera.unproject(x,y,self.canvas.winfo_width(),self.canvas.winfo_height(),plane,pivot[normal])
+            if math.hypot(end[a]-pivot[a],end[b]-pivot[b])<1e-8:return
+            delta=math.atan2(end[b]-pivot[b],end[a]-pivot[a])-start_angle
+            degrees=round(math.degrees(delta)/5)*5
+            theta=math.radians(degrees);rotated=list(vector)
+            rotated[a]=vector[a]*math.cos(theta)-vector[b]*math.sin(theta)
+            rotated[b]=vector[a]*math.sin(theta)+vector[b]*math.cos(theta)
+            axis=None
+            for i in range(3):
+                if abs(abs(rotated[i])-1)<1e-8:axis=('-' if rotated[i]<0 else '')+'XYZ'[i];break
+            if axis is None:
+                if abs(rotated[normal])<1e-8:
+                    axis=f'{"XYZ"[a]}{math.degrees(math.atan2(rotated[b],rotated[a])):.10g}{"XYZ"[b]}'
+                else:axis=f'X{math.degrees(math.atan2(rotated[1],rotated[0])):.10g}Y{math.degrees(math.asin(max(-1,min(1,rotated[2])))):.10g}Z'
+            working=copy.deepcopy(e.definition());target=next(n for n in working['elements'] if n['id']==ident)
+            target['attrs'][key]=axis
+            rotation_layout=None
+            if node['type']=='PTAXI':
+                distance=sum(pivot[i]*vector[i] for i in range(3))
+                rotation_layout=[distance*v for v in rotated]
+                target[LAYOUT_KEY]=rotation_layout
+            preview=PointPreview(e.data,working)
+            self.pending=dict(id=ident,attrs={key:axis},point=preview.location(ident),preview=preview,
+                              snapshot=copy.deepcopy(e.definition()['elements']),dimensions=copy.deepcopy(e.definition().get(DIMENSIONS_KEY)),
+                              definition=e.definition_id,preset=presets.selected_id(e.data,e.definition()),rotation_only=True,rotation_layout=rotation_layout)
+            self.redraw()
+        except (ValueError,KeyError,StopIteration) as exc:
+            self.error_message=str(exc);self.pending=None;self.redraw()
 
     def propose(self,x,y,ident=None,kind=None):
+        if ident:return self.propose_rotation(x,y,ident)
         e=self.editor;self.error_message=''
         try:
             if not e.definition():raise ValueError('先に PTSET を作成してください。')
             if not e.commit_inline():return
-            plane=self.plane.get();perpendicular=next(i for i in range(3) if i not in PLANES[plane])
-            element=next((r for r in e.definition()['elements'] if r['id']==ident),None)
-            if ident and not element:raise ValueError('要素が変更されています。選択し直してください。')
-            model=PointPreview(e.data,e.definition())
-            if element:
-                if element['type']!='PTPOS' or not empty(element['attrs'].get('PTCPOS','')):
-                    for text in model.fields(element).values():
-                        if not empty(text):expressions.parse(text,model.parameters)
-                direction_key='PAXI' if element['type'] in ('PTAXI','PTMIX') else 'PTCDIR'
-                direction=schema.value(element,direction_key)
-                if not empty(direction):model.axis(direction)
-            if element and element['type']=='PTAXI' and empty(element['attrs'].get('PDIS','')):
-                axis=element['attrs'].get('PAXI','')
-                if empty(axis):
-                    point=tuple(self.camera.unproject(x,y,self.canvas.winfo_width(),self.canvas.winfo_height(),'XY',0))
-                    # First placement chooses one of the four XY axis rays.
-                    if abs(point[0])>=abs(point[1]):
-                        axis='X' if point[0]>=0 else '-X';point=(point[0],0.,0.)
-                    else:
-                        axis='Y' if point[1]>=0 else '-Y';point=(0.,point[1],0.)
-                else:
-                    origin,vector=model.axis(axis)
-                    point=self.camera.unproject_axis(x,y,self.canvas.winfo_width(),self.canvas.winfo_height(),origin,vector)
-                self.pending=dict(id=ident,base=copy.deepcopy(element['attrs']),layout=copy.deepcopy(element.get(LAYOUT_KEY)),attrs={'PAXI':axis},point=point,kind='PTAXI',preset=presets.selected_id(e.data,e.definition()),definition=e.definition_id,preview=model,snapshot=copy.deepcopy(e.definition()['elements']),dimensions=copy.deepcopy(e.definition().get(DIMENSIONS_KEY)),axis_only=True)
-                self.redraw();return
-            if element and element['type']=='PTAXI' and not empty(element['attrs'].get('PAXI','')):
-                origin,vector=model.axis(element['attrs']['PAXI'])
-                point=self.camera.unproject_axis(x,y,self.canvas.winfo_width(),self.canvas.winfo_height(),origin,vector)
-                # Keep the axis expression and let the shared dimensions decide
-                # which distance is editable, including reference-point axes.
-                attrs={}
-            else:
-                fixed=self.positions[ident][perpendicular] if element else 0
-                point=self.camera.unproject(x,y,self.canvas.winfo_width(),self.canvas.winfo_height(),plane,fixed)
-                attrs=None
-            kind=element['type'] if element else kind
-            if attrs is None:point,attrs=schematic_placement(kind,point,element['attrs'] if element else None,plane if element else None)
-            working=copy.deepcopy(e.definition())
-            target=next(r for r in working['elements'] if r['id']==ident) if element else schema.add_element(working,kind)
+            plane=self.plane.get()
+            point=self.camera.unproject(x,y,self.canvas.winfo_width(),self.canvas.winfo_height(),plane,0)
+            point,attrs=schematic_placement(kind,point)
+            working=copy.deepcopy(e.definition());target=schema.add_element(working,kind)
             target['attrs'].update(attrs);target[LAYOUT_KEY]=list(point)
-            proposed=model.moved(working,target['id'],plane) if element else PointPreview(e.data,working)
-            point=proposed.location(target['id'])
-            base=copy.deepcopy(element['attrs']) if element else None
-            layout=copy.deepcopy(element.get(LAYOUT_KEY)) if element else None
-            if self.pending and self.pending['id']==ident and ident:base=self.pending['base'];layout=self.pending['layout']
-            self.pending={'id':ident,'base':base,'layout':layout,'attrs':attrs,'point':point,'kind':kind,'preset':presets.selected_id(e.data,e.definition()),'definition':e.definition_id,'preview':proposed,'snapshot':copy.deepcopy(e.definition()['elements']),'dimensions':copy.deepcopy(e.definition().get(DIMENSIONS_KEY))}
+            preview=PointPreview(e.data,working)
+            self.pending=dict(id=None,attrs=attrs,point=preview.location(target['id']),kind=kind,
+                              preset=presets.selected_id(e.data,e.definition()),definition=e.definition_id,
+                              preview=preview,snapshot=copy.deepcopy(e.definition()['elements']),
+                              dimensions=copy.deepcopy(e.definition().get(DIMENSIONS_KEY)))
             self.redraw()
         except (ValueError,KeyError) as exc:self.error_message=str(exc);self.pending=None;self.redraw()
 
     def cancel(self):
-        self.dismiss_menu();self.error_message='';self.pending=None;self.dragging=None;self.press_position=None;self.orbit=None;self.redraw()
+        self.dismiss_menu();self.error_message='';self.pending=None;self.dragging=None;self.press_position=None;self.rotation_start=None;self.orbit=None;self.redraw()
     def apply(self):
         if not self.pending:return
         p=self.pending;e=self.editor
@@ -258,17 +280,12 @@ class PointCanvas(ttk.Frame):
             if p['definition']!=e.definition_id or p['preset']!=presets.selected_id(e.data,e.definition()):raise ValueError('セット・プリセットが変更されています。候補を作り直してください。')
             if e.definition()['elements']!=p['snapshot']:raise ValueError('属性・配置が変更されています。候補を作り直してください。')
             if e.definition().get(DIMENSIONS_KEY)!=p['dimensions']:raise ValueError('共有仮寸法が変更されています。候補を作り直してください。')
-            if p.get('axis_only'):
+            if p.get('rotation_only'):
                 element=next(r for r in e.definition()['elements'] if r['id']==p['id'])
-                element['attrs'].update(p['attrs']);element[LAYOUT_KEY]=list(p['point'])
+                element['attrs'].update(p['attrs'])
+                if p.get('rotation_layout') is not None:element[LAYOUT_KEY]=p['rotation_layout']
                 e.host.mark();self.pending=None;e.refresh();self.cancel();return
-            if p['id']:
-                element=next((r for r in e.definition()['elements'] if r['id']==p['id']),None)
-                if not element or element['attrs']!=p['base'] or element.get(LAYOUT_KEY)!=p['layout']:raise ValueError('属性・配置が変更されています。候補を作り直してください。')
-                current=PointPreview(e.data,e.definition()).location(element['id'])
-                if all(element['attrs'].get(k)==v for k,v in p['attrs'].items()) and max(abs(a-b) for a,b in zip(current,p['point']))<1e-9:
-                    self.cancel();return
-            else:element=schema.add_element(e.definition(),p['kind'])
+            element=schema.add_element(e.definition(),p['kind'])
             element['attrs'].update(p['attrs']);element[LAYOUT_KEY]=list(p['point'])
             e.definition()[DIMENSIONS_KEY]=p['preview'].snapshot();remember(e.data,e.definition())
             e.element_id=element['id'];e.field=None;e.select_first_section();e.host.mark();self.pending=None;e.refresh();self.cancel()

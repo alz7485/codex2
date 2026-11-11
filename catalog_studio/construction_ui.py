@@ -337,6 +337,9 @@ class ConstructionEditor(ttk.Frame):
                 import re
                 value=re.sub(r'\bP(?:P\s*)?(\d+)\b',r'PP \1',value,flags=re.I)
             schema.set_value(element,key,value)
+            if self.kind=='PTSET':
+                from .point_preview import seed_parameter_position
+                seed_parameter_position(data,definition,element,key)
             from .editor_rules import derived_axes
             derived_axes(element)
             if schema.positive(element['type'])=='LPYR' and self.tables['main'].exists('PAAX'):
@@ -613,6 +616,9 @@ class ConstructionEditor(ttk.Frame):
         if self.field == 'OBST': value = schema.OBST_CHOICES.get(value, value)
         self.remember_preview()
         schema.set_value(self.element(), self.field, value)
+        if self.kind=='PTSET':
+            from .point_preview import seed_parameter_position
+            seed_parameter_position(self.data,self.definition(),self.element(),self.field)
         self.remember_preview()
         self.tables[self.section].item(self.field, values=(self.field, schema.meaning(self.element()['type'],self.field), self.display_field_value(self.element(),self.field)))
         if self.kind=='PTSET' and self.field=='NUMB':self.elements.item(self.element_id,values=(value,self.element()['name'],self.elements.item(self.element_id,'values')[2]) if getattr(self,'simple_layout',False) else (value,self.element()['type']))
