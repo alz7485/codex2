@@ -81,6 +81,28 @@ class PhotoUi(unittest.TestCase):
     self.assertEqual(n['attrs'][key],'PARAM 29');self.assertEqual(app.data['scoms'],before)
   finally:app.destroy()
 
+ def test_segment_buttons_choose_exact_values_and_show_obst_meanings(self):
+  from catalog_studio.integrated import IntegratedStudio
+  from catalog_studio import theme
+  try:app=IntegratedStudio()
+  except tk.TclError as exc:self.skipTest(str(exc))
+  try:
+   app.switch('gmset');app.update();e=app.geometry_editor;t=e.tables['main']
+   for key,choices in [('CLFLA',('TRUE','FALSE')),('OBST',('0','1','2'))]:
+    for choice in choices:
+     t.see(key);app.update();a,b,c,d=t.toggle_bounds[(key,choice)]
+     y=(b+d)/2-t.canvas.canvasy(0);x=(a+c)/2
+     t.canvas.event_generate('<Button-1>',x=round(x),y=round(y));app.update()
+     self.assertEqual(e.element()['attrs'][key],choice);self.assertIsNone(t.editing)
+     selected=t.canvas.find_withtag('toggle:'+key+':'+choice)[0]
+     self.assertEqual(t.canvas.itemcget(selected,'fill'),theme.ACCENT)
+     before=copy.deepcopy(e.element()['attrs'])
+     t.canvas.event_generate('<Button-1>',x=round(x),y=round(y));app.update()
+     self.assertEqual(e.element()['attrs'],before)
+   for choice,meaning in [('0','対象外'),('1','ソフト'),('2','ハード')]:
+    self.assertEqual(t.canvas.itemcget(t.canvas.find_withtag('toggle-meaning:OBST:'+choice)[0],'text'),meaning)
+  finally:app.destroy()
+
  def test_optional_attributes_hidden_in_both_editors_without_data_loss(self):
   from catalog_studio.integrated import IntegratedStudio
   try:app=IntegratedStudio()

@@ -1,6 +1,6 @@
 """Aligned icon / type / meaning rows with the Listbox selection interface."""
 import tkinter as tk
-from . import theme,element_schema as schema
+from . import theme,shape_icons
 
 class ShapeLibrary(tk.Canvas):
     def __init__(self,parent,family):
@@ -28,15 +28,7 @@ class ShapeLibrary(tk.Canvas):
             chosen=i in self.chosen
             if chosen:self.create_rectangle(0,y,self.winfo_width(),y+24,fill=theme.SELECT,outline='')
             color=theme.ACCENT if chosen else theme.INK
-            base=schema.positive(kind);negative=kind in schema.NEGATIVE_BASE
-            tags={'fill':'','outline':color,'dash':(2,2) if negative else ()}
-            if base in ('SSPH','SDIS'):self.create_oval(4,y+5,22,y+21,**tags)
-            elif base in ('LINE','SLINE') or kind in schema.PT_TYPES:
-                self.create_line(4,y+19,14,y+6,23,y+16,fill=color,width=1)
-                self.create_oval(10,y+4,16,y+10,outline=color)
-            elif base in ('SCYL','LCYL','SCON','LSNO','SCTO','SRTO'):
-                self.create_oval(4,y+3,22,y+10,**tags);self.create_line(4,y+7,4,y+19,22,y+19,22,y+7,fill=color)
-            else:self.create_polygon(4,y+8,14,y+3,24,y+8,24,y+18,14,y+23,4,y+18,fill='',outline=color)
-            self.create_text(32,y+12,text=kind,anchor='w',font=(self.family,10),fill=color)
-            self.create_text(99,y+12,text=label,anchor='w',font=(self.family,10),fill=color)
+            shape_icons.draw(self,kind,2,y+1,color,theme.SELECT if chosen else 'white')
+            self.create_text(37,y+12,text=kind,anchor='w',font=(self.family,10),fill=color)
+            self.create_text(104,y+12,text=label,anchor='w',font=(self.family,10),fill=color)
         self.configure(scrollregion=(0,0,self.winfo_width(),len(self.items)*24))

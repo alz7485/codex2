@@ -7,7 +7,7 @@ from . import theme
 class AttributeTable(ttk.Frame):
     def __init__(self,parent,family,value_caption=None,edit_context=None,missing_value=None,editor_factory=None):
         super().__init__(parent)
-        self.rows={};self.order=[];self.selected=();self.bounds={};self.pending=None;self.ensure_visible=None;self.scheduler=self.winfo_toplevel()
+        self.rows={};self.order=[];self.selected=();self.bounds={};self.toggle_bounds={};self.pending=None;self.ensure_visible=None;self.scheduler=self.winfo_toplevel()
         self.value_caption=value_caption or (lambda key,value:'')
         self.edit_context=edit_context;self.editing=None
         self.missing_value=missing_value or (lambda key:False)
@@ -35,7 +35,13 @@ class AttributeTable(ttk.Frame):
         super().bind('<Destroy>',self.cleanup,add='+')
 
     def bind(self,sequence=None,func=None,add=None):
-        if sequence in ('<Double-1>','<Return>'):return self.canvas.bind(sequence,func,add)
+        if sequence=='<Double-1>' and func:
+            def double(event):
+                y=self.canvas.canvasy(event.y)
+                if any(a<=event.x<=b and top<=y<=bottom for a,top,b,bottom in self.toggle_bounds.values()):return 'break'
+                return func(event)
+            return self.canvas.bind(sequence,double,add)
+        if sequence=='<Return>':return self.canvas.bind(sequence,func,add)
         return super().bind(sequence,func,add)
 
     def cleanup(self,event):
@@ -82,7 +88,12 @@ class AttributeTable(ttk.Frame):
                 self.selection_set(iid)
                 if event.x>max(105,int(self.canvas.winfo_width()*.39)):
                     context=self.edit_context(iid) if self.edit_context else None
-                    if context and context.get('toggle'):self.begin_edit(iid)
+                    if context and context.get('toggle'):
+                        for (row,choice),(left,t,right,b) in self.toggle_bounds.items():
+                            if row==iid and left<=event.x<=right and t<=y<=b:
+                                try:context['commit'](choice)
+                                except ValueError as exc:context['report'](str(exc))
+                                self.schedule();break
                 break
 
     def navigate(self,step=0,first=False,last=False):
@@ -170,7 +181,7 @@ class AttributeTable(ttk.Frame):
     def redraw(self):
         self.pending=None
         if not self.winfo_exists():return
-        c=self.canvas;c.delete('all');self.header.delete('all');self.bounds={}
+        c=self.canvas;c.delete('all');self.header.delete('all');self.bounds={};self.toggle_bounds={}
         width=max(220,c.winfo_width());divider=max(105,int(width*.39));value_width=max(80,width-divider-20)
         for x,text in ((10,'属性 / 意味'),(divider+10,'値・式')):
             self.header.create_text(x,16,text=text,anchor='w',font=self.heading_font,fill=theme.INK)
@@ -183,12 +194,24 @@ class AttributeTable(ttk.Frame):
             color=theme.ACCENT if chosen else theme.INK
             background=c.create_rectangle(0,top,width,top+minimum,fill=theme.SELECT if chosen else 'white',outline='')
             shown=value
-            if attr in ('CLFLA','TUFLA','TVISI','BVISI','OBST'):
-                c.create_rectangle(divider+4,top+3,width-5,top+minimum-3,fill=theme.SELECT,outline=theme.BORDER,tags=('toggle:'+iid,))
-                shown=('☑ ' if str(value).upper()=='TRUE' else '☐ ')+str(value) if attr!='OBST' else '↻ '+str(value)
+            toggle=attr in ('CLFLA','TUFLA','TVISI','BVISI','OBST')
+            if toggle:
+                options=('0','1','2') if attr=='OBST' else ('TRUE','FALSE')
+                gap=3;left=divider+5;slot=(width-divider-10-gap*(len(options)-1))/len(options)
+                for index,choice in enumerate(options):
+                    x=left+index*(slot+gap);selected=str(value).upper()==choice
+                    rect=(x,top+3,x+slot,top+minimum-3)
+                    self.toggle_bounds[(iid,choice)]=rect
+                    c.create_rectangle(*rect,fill=theme.ACCENT if selected else theme.SUBTLE,outline=theme.ACCENT if selected else theme.BORDER,tags=('toggle:'+iid,'toggle:'+iid+':'+choice))
+                    fg='white' if selected else theme.INK
+                    if attr=='OBST':
+                        c.create_text(x+slot/2,top+5,text=choice,anchor='n',font=self.value_font,fill=fg)
+                        c.create_text(x+slot/2,top+5+self.value_font.metrics('linespace'),text={'0':'対象外','1':'ソフト','2':'ハード'}[choice],anchor='n',font=self.meaning_font,fill=fg,tags=('toggle-meaning:'+iid+':'+choice,))
+                    else:c.create_text(x+slot/2,top+minimum/2,text=choice,font=self.value_font,fill=fg)
+                shown=''
             item=c.create_text(divider+10,top+5,text=shown,anchor='nw',width=value_width,font=self.value_font,fill=color,tags=('value:'+iid,))
             bbox=c.bbox(item);value_height=(bbox[3]-bbox[1]) if bbox else self.value_font.metrics('linespace')
-            caption=self.value_caption(attr,value);caption_height=0
+            caption='' if toggle else self.value_caption(attr,value);caption_height=0
             if caption:
                 caption_item=c.create_text(divider+10,top+7+value_height,text=self.short_meaning(caption,value_width-2),anchor='nw',font=self.meaning_font,fill='#597fa5' if chosen else theme.MUTED,tags=('caption:'+iid,))
                 caption_bbox=c.bbox(caption_item);caption_height=caption_bbox[3]-caption_bbox[1]+2
