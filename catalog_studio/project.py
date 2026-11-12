@@ -586,7 +586,9 @@ def load(path):
     except (UnicodeError, json.JSONDecodeError) as exc:
         raise ValueError('UTF-8 のプロジェクト JSON を選んでください。') from exc
     if isinstance(data, dict) and data.get('format') == 'catalog-studio-mockup' and data.get('version') == 1:
-        return migrate(data)
+        data=migrate(data)
+    from .element_schema import normalize_directions
+    normalize_directions(data)
     return validate(data)
 
 

@@ -132,7 +132,7 @@ class Resolver:
                 remaining=tail[index+1:]
                 if remaining:
                     if remaining[-1] not in 'XYZENWSUD':continue
-                    try:elevation=self.number(remaining[:-1],'ANGL')
+                    try:elevation=(-1 if remaining[-2:-1]=='-' else 1)*self.number(remaining[:-2] if remaining[-2:-1] in ('-','+') else remaining[:-1],'ANGL')
                     except ValueError:continue
                     third=remaining[-1]
                 else:elevation=0;third=None

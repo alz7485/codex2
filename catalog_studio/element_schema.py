@@ -57,7 +57,7 @@ DESCRIPTIONS = {
     'OBST': '干渉チェック', 'DESC': '説明', 'PURP': '用途', 'PSKEY': '通常非表示',
 }
 OBST_CHOICES = {'未設定': '', '0：対象外': '0', '1：ソフト': '1', '2：ハード': '2'}
-DIRECTIONS = ('X', '-X', 'Y', '-Y', 'Z', '-Z', 'E', 'W', 'U', 'D')
+DIRECTIONS = ('X', '-X', 'Y', '-Y', 'Z', '-Z')
 
 
 PARENT_FIELDS = {'PTSET': ('DESC', 'GTYP', 'SKEY', 'PURP'), 'GMSET': (), 'NGMSET': (),
@@ -227,7 +227,7 @@ def value(element, key):
 def set_value(element, key, text):
     attrs = element['attrs']
     if key == 'PTCDIR' and key not in attrs and 'PTCD' in attrs: key = 'PTCD'
-    attrs[key] = text
+    attrs[key] = xyz_direction(text) if key in DIRECTION_FIELDS else text
 
 
 def missing_fields(element):
@@ -279,3 +279,21 @@ def demo_definitions():
         if kind in ('SCYL', 'NSCY'): e['attrs'].update(PAXI='X', PHEI='PARAM[3]', PDIA='PARAM[1]', PDIS='PARAM[2]')
     gm['elements'][0]['attrs']['OBST'] = '2'
     return [pt, gm]
+
+
+DIRECTION_FIELDS=('PAXI','PAAX','PBAX','PCAX','PLAXI','PTCDIR','PTCD')
+
+def xyz_direction(text):
+    import re
+    aliases={'E':'X','W':'-X','U':'Z','D':'-Z'}
+    result=re.sub(r'(?<![A-Za-z_])([EWUD])(?![A-Za-z_])',lambda m:aliases[m[1].upper()],str(text),flags=re.I)
+    return result.replace('--X','X').replace('--Z','Z').replace('+-X','-X').replace('+-Z','-Z')
+
+def normalize_directions(data):
+    if isinstance(data,dict):
+        for key,value in list(data.items()):
+            if key in DIRECTION_FIELDS and isinstance(value,str):data[key]=xyz_direction(value)
+            elif isinstance(value,(dict,list)):normalize_directions(value)
+    elif isinstance(data,list):
+        for value in data:normalize_directions(value)
+    return data

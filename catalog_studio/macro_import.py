@@ -299,7 +299,9 @@ def parse(text):
     if active: raise MacroImportError(statements[-1][0].line, 'INPUT ENDがありません。')
     if blocks and not finished: raise MacroImportError(statements[-1][0].line, 'INPUT FINISHがありません。')
     if not definitions: raise ValueError('NEW PTSET /名前 または NEW GMSET /名前 で始まる定義がありません。')
-    for definition in definitions: project.validate_elements(definition['elements'])
+    for definition in definitions:
+        schema.normalize_directions(definition)
+        project.validate_elements(definition['elements'])
     return ParsedMacro(definitions, warnings)
 
 
