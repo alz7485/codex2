@@ -74,8 +74,11 @@ def build(host):
         host.spec_table.bind(event,lambda e:finish_edit(host),add='+')
     combo.bind('<<ComboboxSelected>>', lambda e:populate(host))
     host.spec_table.bind('<<TreeviewSelect>>', host.spec_entry_select)
-    host.spec_table.bind('<ButtonRelease-1>', lambda e:edit_cell(host,e))
-    host.spec_table.bind('<Double-1>', lambda e:'break')
+    host.spec_table.bind('<Button-1>', lambda e:finish_edit(host))
+    def double_click(event):
+        edit_cell(host,event)
+        return 'break'
+    host.spec_table.bind('<Double-1>', double_click)
     host.spec_table.bind('<ButtonRelease-1>', lambda e:remember_widths(host), add='+')
     host.spec_tree = host.registered_browser.tree
     settings = host.data.get('spec_table_settings', {})

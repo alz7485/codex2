@@ -15,7 +15,6 @@ class SpecTableTests(unittest.TestCase):
         with self.assertRaises(ValueError):project.validate(data)
 
     def test_inline_cells_commit_cancel_and_references(self):
-        from types import SimpleNamespace
         from catalog_studio.integrated import IntegratedStudio
         try:app=IntegratedStudio()
         except tk.TclError as exc:self.skipTest(str(exc))
@@ -23,11 +22,19 @@ class SpecTableTests(unittest.TestCase):
             app.switch('specs');app.update()
             tree=app.spec_table;entry=app.spec()['entries'][0]
             children=set(app.winfo_children())
+            click_time=[1000]
             def edit(key):
                 tree.configure(displaycolumns=('name','angle','text','scom_id'))
                 app.update()
                 box=tree.bbox(entry['id'],key)
-                spec_table_ui.edit_cell(app,SimpleNamespace(x=box[0]+8,y=box[1]+8))
+                x,y=box[0]+8,box[1]+8;click_time[0]+=1000
+                tree.event_generate('<Button-1>',x=x,y=y,time=click_time[0])
+                tree.event_generate('<ButtonRelease-1>',x=x,y=y,time=click_time[0]+1)
+                app.update()
+                self.assertEqual(tree.selection(),(entry['id'],))
+                self.assertIsNone(getattr(app,'spec_cell_edit',None))
+                tree.event_generate('<Button-1>',x=x,y=y,time=click_time[0]+100)
+                tree.event_generate('<ButtonRelease-1>',x=x,y=y,time=click_time[0]+101)
                 app.update()
                 return app.spec_cell_edit
             widget,var,*_=edit('angle')
