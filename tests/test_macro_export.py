@@ -135,9 +135,9 @@ PAXI P1
 END
 END''').definitions
         parsed = macro_import.parse(macro_export.creation_text(records)).definitions
-        self.assertEqual(parsed[1]['elements'][0]['attrs'], {'PDIAM':'PARAM 2'})
+        self.assertEqual(parsed[1]['elements'][0]['attrs'], {'PDIAM':'PARAM 2','NAPP':'0'})
         self.assertEqual(parsed[1]['elements'][0]['children'][0]['attrs'], {'PDIAM':'PARAM 3'})
-        self.assertEqual(parsed[1]['elements'][1]['attrs'], {'PAXI':'P1'})
+        self.assertEqual(parsed[1]['elements'][1]['attrs'], {'PAXI':'P1','NAPP':'0'})
 
     def test_public_straight_cylinder_sample(self):
         records = macro_import.parse(SAMPLE.with_name('creation-export-sample.mac').read_text()).definitions

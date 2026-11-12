@@ -46,6 +46,8 @@ class AttributeTable(ttk.Frame):
             self.canvas.bind(key,lambda _,step=direction:self.navigate(step))
         self.canvas.bind('<Home>',lambda _:self.navigate(first=True))
         self.canvas.bind('<End>',lambda _:self.navigate(last=True))
+        from .napp_hint import NappHint
+        self.napp_hint=NappHint(self)
         super().bind('<Destroy>',self.cleanup,add='+')
 
     def bind(self,sequence=None,func=None,add=None):
@@ -61,6 +63,7 @@ class AttributeTable(ttk.Frame):
 
     def cleanup(self,event):
         if event.widget is self:
+            self.napp_hint.hide()
             self.cancel_edit()
             if self.pending:self.scheduler.after_cancel(self.pending);self.pending=None
 
@@ -75,6 +78,7 @@ class AttributeTable(ttk.Frame):
         self.schedule();return iid
 
     def delete(self,*items):
+        self.napp_hint.hide()
         if self.editing and self.editing['iid'] in items:self.cancel_edit()
         for iid in items:
             if iid in self.rows:del self.rows[iid];self.order.remove(iid)
@@ -96,6 +100,7 @@ class AttributeTable(ttk.Frame):
             self.event_generate('<<TreeviewSelect>>',when='tail')
 
     def click(self,event):
+        self.napp_hint.hide()
         if not self.finish_edit():return
         self.canvas.focus_set();y=self.canvas.canvasy(event.y)
         for iid,(top,bottom) in self.bounds.items():
@@ -123,6 +128,7 @@ class AttributeTable(ttk.Frame):
         self.scroll('scroll',units,'units');return 'break'
 
     def scroll(self,*args):
+        self.napp_hint.hide()
         if len(args)==3 and args[0]=='scroll' and args[2]=='units':self.canvas.yview_scroll(int(args[1])*24,'units')
         else:self.canvas.yview(*args)
 
@@ -196,6 +202,7 @@ class AttributeTable(ttk.Frame):
     def redraw(self):
         self.pending=None
         if not self.winfo_exists():return
+        self.napp_hint.hide()
         c=self.canvas;c.delete('all');self.header.delete('all');self.bounds={};self.toggle_bounds={}
         width=max(220,c.winfo_width());divider=max(105,int(width*.39));value_width=max(80,width-divider-20)
         for x,text in ((10,'属性 / 意味'),(divider+10,'値・式')):

@@ -18,7 +18,7 @@ class PhotoRules(unittest.TestCase):
   d={'kind':'GMSET','name':'/DEMO','elements':[]}
   n=s.add_element(d,'SCYL');n['attrs'].update(PHEI='PARAM 1 / 2',PDIA='PARAM 2',PAXI='')
   before=copy.deepcopy(d);text=macro_export.creation_text([d]);parsed=macro_import.parse(text).definitions[0]
-  self.assertNotIn('LEVEL',text);self.assertNotIn('NAPP',text);self.assertIn("PAXI ''",text)
+  self.assertNotIn('LEVEL',text);self.assertIn('NAPP 0',text);self.assertIn("PAXI ''",text)
   self.assertEqual(parsed['elements'][0]['attrs']['PAXI'],'')
   self.assertEqual(d,before)
  def test_lpy_axis_and_insulation_ratio(self):
@@ -109,7 +109,8 @@ class PhotoUi(unittest.TestCase):
   try:app=IntegratedStudio()
   except tk.TclError as exc:self.skipTest(str(exc))
   try:
-   app.switch('gmset');app.update();e=app.geometry_editor;t=e.tables['main']
+   app.switch('gmset');app.update();e=app.geometry_editor
+   node=s.add_element(e.definition(),'NSCY');e.element_id=node['id'];e.refresh();app.update();t=e.tables['main']
    def choose(choice,expected,active):
     t.see('NAPP');app.update();a,b,c,d=t.toggle_bounds[('NAPP',choice)]
     t.click(SimpleNamespace(x=(a+c)/2,y=(b+d)/2-t.canvas.canvasy(0)));app.update()
@@ -125,6 +126,43 @@ class PhotoUi(unittest.TestCase):
     for v in active:self.assertEqual(t.canvas.itemcget(t.canvas.find_withtag('toggle:NAPP:'+v)[0],'fill'),theme.ACCENT)
    for key,choice,label in [('TVISI','TRUE','表示'),('BVISI','FALSE','非表示'),('CLFLA','TRUE','描画する'),('TUFLA','FALSE','描画しない'),('NAPP','1','取付先'),('NAPP','2','所有元'),('NAPP','4','自身')]:
     self.assertEqual(t.canvas.itemcget(t.canvas.find_withtag('toggle-meaning:'+key+':'+choice)[0],'text'),label)
+  finally:app.destroy()
+
+ def test_napp_scope_defaults_export_and_hover_diagram(self):
+  from catalog_studio.integrated import IntegratedStudio
+  from catalog_studio import editor_rules
+  self.assertEqual(editor_rules.defaults('SCYL')['NAPP'],'0')
+  self.assertEqual(editor_rules.defaults('NSCY')['NAPP'],'2')
+  d={'kind':'GMSET','name':'/NAPP-DEMO','elements':[]}
+  n=s.add_element(d,'SCYL');n['attrs']['NAPP']='7'
+  before=copy.deepcopy(d);text=macro_export.creation_text([d])
+  self.assertIn('NAPP 0',text);self.assertEqual(d,before)
+  negative=s.add_child(n,'NSCY');negative['attrs']['NAPP']='6'
+  result=macro_import.parse(macro_export.creation_text([d])).definitions[0]
+  self.assertEqual(result['elements'][0]['attrs']['NAPP'],'0')
+  self.assertEqual(result['elements'][0]['children'][0]['attrs']['NAPP'],'6')
+  try:app=IntegratedStudio()
+  except tk.TclError as exc:self.skipTest(str(exc))
+  try:
+   app.switch('gmset');app.update();e=app.geometry_editor
+   positive=s.add_element(e.definition(),'SCYL');positive['attrs']['NAPP']='7'
+   e.element_id=positive['id'];e.refresh();app.update()
+   self.assertEqual(positive['attrs']['NAPP'],'0');self.assertNotIn('NAPP',e.tables['main'].get_children())
+   negative=s.add_element(e.definition(),'NSCY');e.element_id=negative['id'];e.refresh();app.update();t=e.tables['main']
+   self.assertEqual(negative['attrs']['NAPP'],'2');self.assertIn('NAPP',t.get_children())
+   self.assertFalse(any(match=='negative' for button,match in e.helper_buttons))
+   before=copy.deepcopy(app.data);t.see('NAPP');app.update()
+   for value in ('0','1','2','4','7'):
+    a,b,c,d=t.toggle_bounds[('NAPP',value)];y=(b+d)/2-t.canvas.canvasy(0)
+    t.napp_hint.motion(SimpleNamespace(x=(a+c)/2,y=y,x_root=100,y_root=100))
+    app.after(450,app.quit);app.mainloop()
+    self.assertIsNotNone(t.napp_hint.window)
+    canvas=t.napp_hint.window.winfo_children()[0]
+    labels=[canvas.itemcget(i,'text') for i in canvas.find_all() if canvas.type(i)=='text']
+    self.assertIn('NAPP '+value+'：負形状の適用先',labels)
+    self.assertEqual(labels.count('適用'),int(value).bit_count())
+    t.canvas.event_generate('<Leave>');app.update();self.assertIsNone(t.napp_hint.window)
+   self.assertEqual(app.data,before)
   finally:app.destroy()
 
  def test_optional_attributes_hidden_in_both_editors_without_data_loss(self):

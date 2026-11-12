@@ -3,6 +3,8 @@ from catalog_studio import expressions
 from catalog_studio.editor_rules import defaults
 
 def assert_attrs_equivalent(case,old,new,kind):
+    from catalog_studio import element_schema as schema
+    if kind in schema.GM_TYPES:old=dict(old,NAPP='0')
     case.assertTrue(set(new)<=set(old),str(set(new)-set(old)))
     for key,value in old.items():
         if key not in new:

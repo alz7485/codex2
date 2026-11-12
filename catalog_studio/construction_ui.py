@@ -161,7 +161,7 @@ class ConstructionEditor(ttk.Frame):
         if self.kind=='PTSET':ttk.Button(reference,text='式を整理',command=self.normalize_expression).pack(side='left',padx=3)
         else:
             helpers=ttk.Frame(editor);helpers.pack(fill='x',pady=4)
-            for text,fn in [('式を読みやすく整理',self.normalize_expression),('NAPP 適用先',self.edit_napp),('直径／半径',self.edit_sizes),('LINE の点列',self.edit_points)]:ttk.Button(helpers,text=text,command=fn).pack(side='left',padx=2)
+            for text,fn in [('式を読みやすく整理',self.normalize_expression),('直径／半径',self.edit_sizes),('LINE の点列',self.edit_points)]:ttk.Button(helpers,text=text,command=fn).pack(side='left',padx=2)
         ttk.Label(editor,text='四則演算・三角関数・明示単位に対応。角度は度、距離のDB単位はmm。',style='Muted.TLabel',wraplength=520).pack(anchor='w',pady=5)
         self.validation_note = ttk.Label(editor, text='', foreground='#bb6440', wraplength=520); self.validation_note.pack(anchor='w')
         self.canvas=None
@@ -449,6 +449,8 @@ class ConstructionEditor(ttk.Frame):
             self.field = None; self.load_field(); self.element_note.configure(text='ポイント・形状欄の「＋ 追加」から要素を作成してください。' if self.definition() else '左端の '+self.kind+' 一覧の「＋ 追加」で名前を登録してください。'); return
         if schema.known(e['type']):
             listed = set()
+            if e['type'] in schema.GM_TYPES:e['attrs']['NAPP']='0'
+            elif e['type'] in schema.NEGATIVE_BASE:e['attrs'].setdefault('NAPP','2')
             expanded=getattr(self,'show_optional_attrs',False)
             for section in (('main','detail','common','negative') if unified else self.tables):
                 if section == 'extra': continue
@@ -456,6 +458,7 @@ class ConstructionEditor(ttk.Frame):
                 for key in schema.fields(e['type'], section):
                     self.attribute_sections[key]=section
                     listed.add(key)
+                    if key=='NAPP' and e['type'] not in schema.NEGATIVE_BASE:continue
                     if key in (('DESC','PURP') if self.kind=='PTSET' else ('DESC','GTYP','PURP')) and not expanded:continue
                     table.insert('', 'end', iid=key, values=(key, schema.meaning(e['type'],key), ('自動・編集不可：'+self.display_field_value(e,key) if schema.positive(e['type'])=='LPYR' and key=='PAAX' else self.display_field_value(e,key))))
             for key, value in e['attrs'].items():
@@ -464,8 +467,8 @@ class ConstructionEditor(ttk.Frame):
                     self.tables['main' if unified else 'extra'].insert('', 'end', iid=key, values=(key, '元データを保持', str(value)))
             note = 'PSKEY・DESC・PURP の新規値は unset。' if self.kind == 'PTSET' else 'OBST：0 対象外 / 1 ソフト / 2 ハード。'
             if e['type'] in schema.NEGATIVE_BASE:
-                note = 'NAPP：1 Attached / 2 Owner / 4 Self の組み合わせ。対象の実体は設計側の文脈に依存します。'
-                if e['type'] == 'NSRU': note += ' NSRU の固有属性は未確認です。'
+                note = ''
+                if e['type'] == 'NSRU': note += 'NSRU の固有属性は未確認です。'
         else:
             for key, value in e['attrs'].items():
                 self.attribute_sections[key]='extra'
@@ -558,10 +561,7 @@ class ConstructionEditor(ttk.Frame):
         if key == 'NUMB':
             text = 'P0 は自動生成。正の整数で、同じ PTSET 内の番号を重複させません。'
         elif key == 'LEVEL': text = '下限 上限 の 2 整数。描画フラグと REPRESENTATION の設定にも依存します。'
-        elif key == 'NAPP':
-            try:
-                val=int(expr); text='適用先：' + (' / '.join(name for bit,name in ((1,'Attached'),(2,'Owner'),(4,'Self')) if val & bit) or 'なし')
-            except ValueError: text='適用先を 0〜7 で指定してください。'
+        elif key == 'NAPP':text=''
         elif key in ('TVISI','BVISI','CLFLA','TUFLA'): text='TRUE / FALSE の描画フラグです。'
         elif key in ('PAXI','PAAX','PBAX','PCAX','PLAXI','PTCDIR','PTCPOS','PTSPOS','PTEPOS','PTS','DESC','PURP','PSKEY','GTYP','PKEY'):
             text='原文を保持。基本軸・対応する角度式を計算します。未対応の式は原文保持。' if key in ('PAXI','PAAX','PBAX','PCAX','PLAXI','PTCDIR','PTCPOS','PTSPOS','PTEPOS') else schema.meaning(e['type'],key)
@@ -833,21 +833,6 @@ class ConstructionEditor(ttk.Frame):
         except ValueError as exc: self.validation_note.configure(text=str(exc));return
         e.setdefault('expression_sources',{}).setdefault(self.field,self.expression.get())
         self.expression.set(value)
-
-    def edit_napp(self):
-        e=self.element()
-        if not e or e['type'] not in schema.NEGATIVE_BASE: self.validation_note.configure(text='ネガティブ要素を選択してください。');return
-        win=tk.Toplevel(self.host);win.title('NAPP：除去する適用先');win.transient(self.host);win.grab_set()
-        try: value=int(e['attrs'].get('NAPP','1'))
-        except ValueError: value=0
-        flags=[]
-        for bit,label in ((1,'Attached（接続先）'),(2,'Owner（所有元）'),(4,'Self（部品自身）')):
-            var=tk.BooleanVar(value=bool(value&bit));flags.append((bit,var))
-            ttk.Checkbutton(win,text=label,variable=var).pack(anchor='w',padx=20,pady=8)
-        ttk.Label(win,text='全て OFF：0 / 全て ON：7。対象の実体は設計側の文脈に依存します。',wraplength=360).pack(padx=20,pady=10)
-        def apply():
-            e['attrs']['NAPP']=str(sum(bit for bit,var in flags if var.get()));self.host.mark();win.destroy();self.refresh()
-        ttk.Button(win,text='適用',command=apply).pack(pady=12)
 
     def edit_sizes(self):
         e=self.element()

@@ -104,7 +104,7 @@ class SimpleAuthoringTests(unittest.TestCase):
         e.library.selection_set(list(schema.NEGATIVE_BASE).index('NSCY'))
         e.add_element()
         self.app.update()
-        self.assertTrue(next(button for button, match in e.helper_buttons if match == 'negative').winfo_ismapped())
+        self.assertFalse(any(match == 'negative' for button, match in e.helper_buttons))
         e.open_preview()
         self.app.update()
         preview = e.canvas

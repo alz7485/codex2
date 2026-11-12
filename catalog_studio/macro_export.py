@@ -14,6 +14,7 @@ def _name(value):
 
 
 def _attrs(attrs, kind):
+    if kind in schema.GM_TYPES:attrs=dict(attrs,NAPP='0')
     result = {}
     fields = schema.PARENT_FIELDS.get(kind, ()) if kind in schema.TYPES_BY_SET else tuple(key for section in ('main', 'detail', 'common', 'negative') for key in schema.fields(kind, section))
     for key, value in attrs.items():
@@ -27,7 +28,7 @@ def _attrs(attrs, kind):
         if key not in ('DESC', 'PURP'):
             raw = raw.strip()
         initial=editor_rules.defaults(kind).get(key)
-        if initial is not None and raw.strip().casefold()==str(initial).casefold():continue
+        if initial is not None and raw.strip().casefold()==str(initial).casefold() and not (key=='NAPP' and kind in schema.GM_TYPES):continue
         if not raw or raw.lower()=='unset':
             result[key]=''
             continue

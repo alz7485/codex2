@@ -255,7 +255,7 @@ def build_simple(editor):
     footer=ttk.Frame(right);footer.pack(side='bottom',fill='x',before=e.tabs,pady=(6,0))
     e.context_helpers = ttk.Frame(footer)
     e.context_helpers.pack(fill='x')
-    e.helper_buttons = [(ttk.Button(e.context_helpers, text=label, command=command), match) for label, command, match in [('NAPP 適用先', e.edit_napp, 'negative'), ('直径／半径', e.edit_sizes, 'LSNO'), ('LINE の点列', e.edit_points, 'LINE')]]
+    e.helper_buttons = [(ttk.Button(e.context_helpers, text=label, command=command), match) for label, command, match in [('直径／半径', e.edit_sizes, 'LSNO'), ('LINE の点列', e.edit_points, 'LINE')]]
     e.validation_note = ttk.Label(footer, text='', foreground='#bb6440', wraplength=710)
     e.validation_note.pack(anchor='w', pady=(4, 0))
     e.validation_note.bind('<Configure>',lambda event:e.validation_note.configure(wraplength=max(160,event.width-4)))

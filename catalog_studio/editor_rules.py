@@ -9,7 +9,7 @@ def defaults(kind):
     if kind in schema.PT_TYPES:return dict(PSKEY='unset',DESC='unset',PURP='unset')
     if kind in schema.GM_TYPES or kind in schema.NEGATIVE_BASE:
         result=dict(LEVEL='0 10',DESC='unset',GTYP='unset',PURP='unset',CLFLA='FALSE',
-                    TUFLA='FALSE',TVISI='TRUE',BVISI='TRUE',OBST='2',NAPP='2')
+                    TUFLA='FALSE',TVISI='TRUE',BVISI='TRUE',OBST='2',NAPP='2' if kind in schema.NEGATIVE_BASE else '0')
         if schema.positive(kind)=='LPYR':result.update(PAAX='Z',PBAX='X',PCAX='Y')
         return result
     return {}
