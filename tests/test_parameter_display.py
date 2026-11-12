@@ -84,6 +84,19 @@ class ParameterDisplayGuiTests(unittest.TestCase):
             self.assertEqual(definition['elements'][0]['attrs']['PDIS'], 'PARAM 3 / 2')
         self.assertEqual(self.errors, [])
 
+    def test_reference_context_editor_hides_and_preserves_legacy_values(self):
+        from unittest.mock import patch
+        scom=project.get(self.app.data,'scoms',self.app.scom_id)
+        scom['expression_contexts']={'APARAM':{'P3':11},'DES OPARAM':{'P1':22},'IPARAM':{'P1':3}}
+        before=copy.deepcopy(scom['expression_contexts'])
+        def dialog(host,title,initial,apply):
+            self.assertEqual(initial,{'IPARAM':{'P1':3}})
+            with self.assertRaises(ValueError):apply({'APARAM':{'P3':99}})
+            self.assertEqual(scom['expression_contexts'],before)
+            apply({'IPARAM':{'P1':4},'DES PARAM':{'P2':5}})
+        with patch('catalog_studio.companion_ui.json_dialog',side_effect=dialog):self.app.edit_contexts()
+        self.assertEqual(scom['expression_contexts'],{'APARAM':{'P3':11},'DES OPARAM':{'P1':22},'IPARAM':{'P1':4},'DES PARAM':{'P2':5}})
+
     def test_editing_shows_live_names_but_description_stays_literal(self):
         e = self.app.geometry_editor
         e.tables['main'].selection_set('PDIS')

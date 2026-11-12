@@ -539,10 +539,11 @@ class IntegratedStudio(tk.Tk):
         scom=project.get(self.data,'scoms',self.scom_id)
         if not scom:return
         def apply(value):
+            value=presets.merge_editable_references(scom.get('expression_contexts',{}),value)
             candidate=copy.deepcopy(self.data)
             project.get(candidate,'scoms',scom['id'])['expression_contexts']=value
             project.validate(candidate);scom['expression_contexts']=value
-        json_dialog(self,'確認用の参照値：例 IPARAM → P1 → 数値。自動で他の SCOM に結び付けません。',scom.get('expression_contexts',{}),apply)
+        json_dialog(self,'確認用の参照値：例 IPARAM → P1 → 数値。自動で他の SCOM に結び付けません。',presets.editable_references(scom.get('expression_contexts',{})),apply)
 
     def build_definitions(self):
         self.heading('GMSET・PTSET の共通定義','パラメータの役割を選び、式で定義します。実数値は選択 SCOM から読み取り専用で使用します。',[('定義を追加',self.add_definition),('定義情報',self.edit_definition_info)])

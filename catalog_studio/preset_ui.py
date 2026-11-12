@@ -251,5 +251,7 @@ class PresetEditor(ttk.Frame):
         if not self.can_leave():return
         from .companion_ui import json_dialog
         owner=self.record() if self.record() is not None else self.host.data
-        def apply(value):project.validate_reference_roles(value);owner['reference_roles']=value
-        json_dialog(self.host,'このプリセットの参照種類別の役割',owner.get('reference_roles',{}),apply)
+        def apply(value):
+            value=presets.merge_editable_references(owner.get('reference_roles',{}),value)
+            project.validate_reference_roles(value);owner['reference_roles']=value
+        json_dialog(self.host,'このプリセットの参照種類別の役割',presets.editable_references(owner.get('reference_roles',{})),apply)

@@ -45,10 +45,10 @@ NEGATIVE_BASE = {
     'NSRT': 'SRTO', 'NLSN': 'LSNO', 'NSSP': 'SSPH', 'NTUB': 'TUBE',
     'NSEX': 'SEXT', 'NSRE': 'SREV', 'NSRU': None,
 }
-REFERENCE_TYPES = ('PARAM', 'IPARAM', 'APARAM', 'OPARAM', 'DES PARAM', 'DES APARAM', 'DES OPARAM')
+REFERENCE_TYPES = ('PARAM', 'IPARAM', 'DES PARAM')
 REFERENCE_LABELS = {
-    'PARAM': 'Parameter', 'IPARAM': 'Insulation', 'APARAM': 'Attached', 'OPARAM': 'Owning',
-    'DES PARAM': 'Design', 'DES APARAM': 'Design Attached', 'DES OPARAM': 'Design Owning',
+    'PARAM': 'Parameter', 'IPARAM': 'Insulation',
+    'DES PARAM': 'Design',
 }
 DESCRIPTIONS = {
     'NUMB': 'ポイント番号', 'PCON': '接続形式', 'PBOR': '接続口径',
@@ -272,7 +272,7 @@ def demo_definitions():
         e = add_element(pt, kind); e['name'] = name
         e['attrs'].update(PCON='PARAM[5]', PBOR='PARAM[1]')
     pt['elements'][0]['attrs'].update(PAXI='-X', PDIS='PARAM[2] + 1.5 + DES PARAM[2]')
-    pt['elements'][1]['attrs']['PY'] = '0.5 * APARAM[3]'
+    pt['elements'][1]['attrs']['PY'] = '0.5 * PARAM[3]'
     gm = {'id': 'ui-gmset', 'kind': 'GMSET', 'name': '/UI-GEOMETRY', 'revision': '01', 'elements': []}
     for kind, name in (('SCYL', '胴部'), ('SCYL', 'フランジ'), ('SBOX', '補助形状'), ('NSCY', '切り欠き')):
         e = add_element(gm, kind); e['name'] = name

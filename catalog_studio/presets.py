@@ -166,3 +166,13 @@ def rename(data,pid,new_role,ident=''):
     for definition in data['definitions']+data.get('element_presets',[]):
         if selected_id(data,definition)==ident:_rewrite_aliases(definition,{parameter['role']:new_role})
     parameter['role']=new_role
+
+
+def editable_references(values):
+    return {k:copy.deepcopy(v) for k,v in values.items() if k in element_schema.REFERENCE_TYPES[1:]}
+
+
+def merge_editable_references(old,new):
+    if not isinstance(new,dict) or any(k not in element_schema.REFERENCE_TYPES[1:] for k in new):
+        raise ValueError('参照種類はIPARAMまたはDES PARAMを指定してください。')
+    return {**{k:copy.deepcopy(v) for k,v in old.items() if k not in element_schema.REFERENCE_TYPES[1:]},**new}

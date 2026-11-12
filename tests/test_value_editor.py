@@ -90,7 +90,7 @@ class ValueEditorTests(unittest.TestCase):
 
     def test_parameter_list_does_not_invent_roles_for_unregistered_families(self):
         dialog=self.open();dialog.insert_button.invoke();self.app.update()
-        self.assertEqual(tuple(dialog.reference_menus),schema.REFERENCE_TYPES)
+        self.assertEqual(tuple(dialog.reference_menus),('PARAM','IPARAM','DES PARAM'))
         other=dialog.reference_menus['IPARAM'];self.assertEqual(other.entrycget(0,'state'),'normal')
         dialog.dismiss_references();dialog.variable.set('IPARAM[99]');dialog.confirm_button.invoke();self.app.update()
         self.assertEqual(self.editor.element()['attrs']['PDIS'],'IPARAM[99]')
