@@ -22,12 +22,12 @@
 ```bat
 py -3 -m venv .build-venv
 .build-venv\Scripts\python.exe -m pip install -r requirements-build.txt
-.build-venv\Scripts\python.exe -m PyInstaller --noconfirm --clean --onedir --windowed --name CatalogStudio --icon "assets/catalog-studio.ico" --add-data "assets;assets" --collect-all reportlab --add-data "examples;examples" main.py
+.build-venv\Scripts\python.exe -m PyInstaller --noconfirm --clean --onedir --windowed --name CatalogStudio --icon "assets/catalog-studio.ico" --add-data "assets;assets" --collect-all reportlab --collect-all manifold3d --collect-all numpy --add-data "examples;examples" main.py
 ```
 
 Python Launcher (`py`) がない場合は、最初のコマンドを `python -m venv .build-venv` に置き換えてください。
 
-`--onedir` がフォルダー形式、`--windowed` がコンソール非表示です。PDF 用データを含めるために `--collect-all reportlab`、自作サンプルを同梱するために `--add-data` を指定しています。ビルド出力の `build/` と `dist/CatalogStudio/` は同名の既存出力を更新します。
+`--onedir` がフォルダー形式、`--windowed` がコンソール非表示です。PDF用データとくり抜き演算ライブラリを含めるために `--collect-all reportlab --collect-all manifold3d --collect-all numpy`、自作サンプルを同梱するために `--add-data` を指定しています。ビルド出力の `build/` と `dist/CatalogStudio/` は同名の既存出力を更新します。
 
 ## 動作確認
 

@@ -160,7 +160,7 @@ class PhotoUi(unittest.TestCase):
     canvas=t.napp_hint.window.winfo_children()[0]
     labels=[canvas.itemcget(i,'text') for i in canvas.find_all() if canvas.type(i)=='text']
     self.assertIn('NAPP '+value+'：負形状の適用先',labels)
-    self.assertEqual(labels.count('適用'),int(value).bit_count())
+    self.assertEqual(labels.count('適用'),(int(value)&6).bit_count())
     t.canvas.event_generate('<Leave>');app.update();self.assertIsNone(t.napp_hint.window)
    self.assertEqual(app.data,before)
   finally:app.destroy()

@@ -9,14 +9,20 @@ def draw_sample(canvas,value,family):
     for index,(bit,label) in enumerate(((1,'取付先 / Attached'),(2,'所有元 / Owner'),(4,'自身 / Self'))):
         x=14+index*118;y=57;active=bool(mask&bit)
         fill='#dbe9fb' if active else '#f1f3f6';edge=theme.ACCENT if active else '#a0acba'
-        canvas.create_polygon(x,y+12,x+21,y,x+101,y,x+80,y+12,fill=fill,outline=edge)
-        canvas.create_polygon(x+80,y+12,x+101,y,x+101,y+62,x+80,y+74,fill=fill,outline=edge)
-        canvas.create_rectangle(x,y+12,x+80,y+74,fill=fill,outline=edge,width=2 if active else 1)
-        # A circular opening illustrates removal by the same sample negative.
-        canvas.create_oval(x+24,y+29,x+57,y+61,fill='white' if active else fill,outline='#c05b52',dash=() if active else (3,2),width=2)
+        if active:
+            # Extruded L profile: the upper-right corner is physically missing.
+            canvas.create_polygon(x,y+12,x+21,y,x+65,y,x+44,y+12,fill=fill,outline=edge)
+            canvas.create_polygon(x+44,y+12,x+65,y,x+65,y+28,x+44,y+40,fill='#e8b6a9',outline='#ba514d')
+            canvas.create_polygon(x+44,y+40,x+65,y+28,x+101,y+28,x+80,y+40,fill='#f6d4cb',outline='#ba514d')
+            canvas.create_polygon(x+80,y+40,x+101,y+28,x+101,y+62,x+80,y+74,fill=fill,outline=edge)
+            canvas.create_polygon(x,y+12,x+44,y+12,x+44,y+40,x+80,y+40,x+80,y+74,x,y+74,fill=fill,outline=edge,width=2)
+        else:
+            canvas.create_polygon(x,y+12,x+21,y,x+101,y,x+80,y+12,fill=fill,outline=edge)
+            canvas.create_polygon(x+80,y+12,x+101,y,x+101,y+62,x+80,y+74,fill=fill,outline=edge)
+            canvas.create_rectangle(x,y+12,x+80,y+74,fill=fill,outline=edge)
         canvas.create_text(x+48,y+92,text=label,fill=theme.INK,font=(family,9))
-        canvas.create_text(x+48,y+112,text='適用' if active else '適用しない',fill=edge,font=(family,9,'bold'))
-    canvas.create_text(12,204,text='模式図：赤い円が負形状。対象の実体は設計文脈に依存します。',anchor='w',fill=theme.MUTED,font=(family,8))
+        canvas.create_text(x+48,y+112,text=('Design側のみ' if bit==1 else '適用') if active else '適用しない',fill=edge,font=(family,9,'bold'))
+    canvas.create_text(12,204,text='Attachedは別のDesign部品。ツール内はOwner / Selfに適用。',anchor='w',fill=theme.MUTED,font=(family,8))
 
 
 class NappHint:

@@ -63,3 +63,43 @@ def inside_polygon(x,y,points):
         bx,by=points[i-1]
         if (ay>y)!=(by>y) and x<(bx-ax)*(y-ay)/(by-ay)+ax:inside=not inside
     return inside
+
+
+def opaque_surface(size,polygons):
+    """Depth-buffered opaque triangles, including Boolean cavity surfaces."""
+    import numpy as np
+    width,height=size;depth=np.full((height,width),-np.inf,dtype=np.float32)
+    rgba=np.zeros((height,width,4),dtype=np.uint8)
+    for points,zs,color in polygons:
+        for i in range(1,len(points)-1):
+            ids=(0,i,i+1);p=[points[j] for j in ids];z=[zs[j] for j in ids]
+            left=max(0,int(math.floor(min(x for x,y in p))));right=min(width,int(math.ceil(max(x for x,y in p)))+1)
+            top=max(0,int(math.floor(min(y for x,y in p))));bottom=min(height,int(math.ceil(max(y for x,y in p)))+1)
+            if right<=left or bottom<=top:continue
+            (ax,ay),(bx,by),(cx,cy)=p
+            determinant=(by-cy)*(ax-cx)+(cx-bx)*(ay-cy)
+            if abs(determinant)<1e-10:continue
+            yy,xx=np.mgrid[top:bottom,left:right];xx=xx+.5;yy=yy+.5
+            u=((by-cy)*(xx-cx)+(cx-bx)*(yy-cy))/determinant
+            v=((cy-ay)*(xx-cx)+(ax-cx)*(yy-cy))/determinant;w=1-u-v
+            zz=u*z[0]+v*z[1]+w*z[2];target=depth[top:bottom,left:right]
+            mask=(u>=-1e-7)&(v>=-1e-7)&(w>=-1e-7)&(zz>=target)
+            target[mask]=zz[mask]
+            rgba[top:bottom,left:right][mask]=tuple(int(color[k:k+2],16) for k in (1,3,5))+(255,)
+    return Image.fromarray(rgba),depth
+
+
+def visible_segments(a,b,za,zb,depth):
+    import numpy as np
+    height,width=depth.shape;steps=max(2,int(math.hypot(b[0]-a[0],b[1]-a[1]))+1)
+    t=np.linspace(0,1,steps);xs=a[0]+(b[0]-a[0])*t;ys=a[1]+(b[1]-a[1])*t;zs=za+(zb-za)*t
+    good=(xs>=0)&(xs<width)&(ys>=0)&(ys<height);indices=np.where(good)[0]
+    good[indices]&=zs[indices]>=depth[ys[indices].astype(int),xs[indices].astype(int)]-.003
+    segments=[];start=None
+    for i,visible in enumerate(good):
+        if visible and start is None:start=i
+        if start is not None and (not visible or i==steps-1):
+            end=i if visible else i-1
+            if end>start:segments.append(((float(xs[start]),float(ys[start])),(float(xs[end]),float(ys[end]))))
+            start=None
+    return segments

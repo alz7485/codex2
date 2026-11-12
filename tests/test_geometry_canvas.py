@@ -105,6 +105,24 @@ class GeometryCanvasTests(unittest.TestCase):
                 self.canvas.event_generate('<Button-1>',x=100,y=100);self.canvas.event_generate('<B1-Motion>',x=145,y=130);self.canvas.event_generate('<ButtonRelease-1>',x=145,y=130);self.app.update()
         self.assertEqual(self.errors,[])
 
+    def test_csg_cut_surface_and_toggle_keep_catalogue_data(self):
+        from catalog_studio.boolean_preview import solid
+        self.gm['elements']=[]
+        box=schema.add_element(self.gm,'SBOX');box['attrs'].update(PXLE='100',PYLE='100',PZLE='100')
+        cut=schema.add_child(box,'NSCY');cut['attrs'].update(PAXI='Z',PDIS='-100',PHEI='200',PDIA='40',NAPP='2')
+        self.e.element_id=box['id'];self.e.refresh();self.app.update();self.actual()
+        before=copy.deepcopy(self.data)
+        for mode in ('ソリッド','面＋線','ワイヤー'):
+            self.view.render_mode.set(mode);self.view.redraw();self.app.update()
+            self.assertFalse(self.view.scene.issues,self.view.scene.issues)
+            result=next(m for m in self.view.scene.meshes if m.ident==box['id'])
+            self.assertLess(solid(result).volume(),1000000)
+            if mode!='ワイヤー':self.assertTrue(self.canvas.find_withtag('cut-surface'))
+        self.view.show_negative.set(False);self.view.redraw();self.app.update()
+        result=next(m for m in self.view.scene.meshes if m.ident==box['id'])
+        self.assertAlmostEqual(solid(result).volume(),1000000)
+        self.assertEqual(self.data,before);self.assertEqual(self.errors,[])
+
     def test_picking_shapes_and_display_toggles_select_attributes_without_mutation(self):
         other=schema.add_element(self.gm,'SBOX');other['attrs'].update(PX='0',PY='0',PZ='0',PXLE='20',PYLE='20',PZLE='20')
         negative=schema.add_element(self.gm,'NSCY');negative['attrs'].update(PAXI='P2',PDIS='0',PHEI='PARAM 3',PDIA='PARAM 1 / 2')
@@ -112,7 +130,7 @@ class GeometryCanvasTests(unittest.TestCase):
         mesh=next(m for m in self.view.scene.meshes if m.ident==other['id']);center=tuple(sum(p[i] for p in mesh.vertices)/len(mesh.vertices) for i in range(3));x,y=self.view.camera.project(center,self.canvas.winfo_width(),self.canvas.winfo_height())
         self.canvas.event_generate('<Button-1>',x=round(x),y=round(y));self.canvas.event_generate('<ButtonRelease-1>',x=round(x),y=round(y));self.app.update()
         self.assertEqual(self.e.element_id,other['id']);self.assertIn('PXLE',self.e.tables['main'].get_children())
-        before=copy.deepcopy(self.data);self.assertTrue(self.canvas.find_withtag('negative'))
+        before=copy.deepcopy(self.data);self.assertFalse(self.canvas.find_withtag('negative'))
         self.view.show_negative.set(False);self.view.show_points.set(False);self.view.redraw()
         self.assertFalse(self.canvas.find_withtag('negative'));self.assertFalse(self.canvas.find_withtag('point'))
         self.assertEqual(self.data,before);self.assertEqual(self.errors,[])

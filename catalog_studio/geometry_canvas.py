@@ -53,7 +53,7 @@ class GeometryCanvas(ttk.Frame):
         ttk.Label(details,text='透過率',style='Muted.TLabel').pack(anchor='w',pady=(8,3))
         self.transparency_scale=ttk.Scale(details,from_=0,to=100,variable=self.transparency,length=150);self.transparency_scale.pack(fill='x')
         self.transparency_label=ttk.Label(details,text='0%',style='Muted.TLabel');self.transparency_label.pack(anchor='w')
-        for label,var in (('接続点・方向',self.show_points),('負形状',self.show_negative)):
+        for label,var in (('接続点・方向',self.show_points),('負形状を適用',self.show_negative)):
             ttk.Checkbutton(details,text=label,variable=var,command=self.redraw,style='Preview.Toolbutton').pack(anchor='w',pady=2)
         self.representation_choice=ttk.Combobox(details,state='readonly',width=12,textvariable=self.representation_mode,values=('全形状','属性確認'))
         self.representation_choice.pack(fill='x',pady=6);self.representation_choice.bind('<<ComboboxSelected>>',lambda _:self.representation_changed())
@@ -169,10 +169,10 @@ class GeometryCanvas(ttk.Frame):
             definition=copy.deepcopy(definition)
             node=next((n for n in schema.walk(definition['elements']) if n['id']==self.drag['node']['id']),None)
             if node:node[geometry.SCALE_KEY]=self.drag['candidate']
-        self.scene=geometry.build_scene(e.data,definition,scom,self.actual,preview_state=self.drag.get('candidate_state') if self.drag else None,representation_settings=self.representation_settings())
+        self.scene=geometry.build_scene(e.data,definition,scom,self.actual,preview_state=self.drag.get('candidate_state') if self.drag else None,representation_settings=self.representation_settings(),apply_negative=self.show_negative.get())
         meshes=[m for m in self.scene.meshes if not m.negative or self.show_negative.get()]
         width,height=max(c.winfo_width(),100),max(c.winfo_height(),100)
-        vertices=[p for m in meshes for p in m.vertices]+([p[0] for p in self.scene.points.values()] if self.show_points.get() else [])
+        vertices=[p for m in meshes if not m.negative or m.ident==e.element_id for p in m.vertices]+([p[0] for p in self.scene.points.values()] if self.show_points.get() else [])
         if not self.drag:
             self.camera.fit(vertices,width,height,padding=getattr(self,'fit_padding',55));self.camera.zoom*=self.zoom_factor
         def xy(point):return self.camera.project(point,width,height)
@@ -207,7 +207,8 @@ class GeometryCanvas(ttk.Frame):
                 faces.append((sum(self.camera.depth(p) for p in points)/len(points),mesh,face,color,outline))
             if mesh.negative:negative.append(mesh)
         ordered=sorted(faces,key=lambda f:f[0]);mode=self.render_mode.get();opacity=1-max(0,min(100,self.transparency.get()))/100
-        polygons=[]
+        polygons=[];depth_polygons=[];depth_buffer=None
+        cut_opaque=bool(self.scene.cut_applied) and opacity==1 and mode!='ワイヤー'
         for _,mesh,face,fill,outline in ordered:
             if mesh.negative:continue
             points=[xy(mesh.vertices[i]) for i in face]
@@ -215,8 +216,14 @@ class GeometryCanvas(ttk.Frame):
             if mesh.ident in self.scene.soft:continue
             if mode=='ワイヤー':continue
             polygons.append((points,fill))
-            if opacity==1:c.create_polygon(*(v for p in points for v in p),fill=fill,outline='',width=1,tags=('mesh','element:'+mesh.ident,'surface'))
+            depth_polygons.append((points,[self.camera.depth(mesh.vertices[i]) for i in face],fill))
+            if opacity==1 and not cut_opaque:c.create_polygon(*(v for p in points for v in p),fill=fill,outline='',width=1,tags=('mesh','element:'+mesh.ident,'surface'))
             else:c.create_polygon(*(v for p in points for v in p),fill='',outline='',tags=('mesh','element:'+mesh.ident,'surface-hit'))
+        if cut_opaque and depth_polygons:
+            from .surface_render import opaque_surface
+            self.surface_bitmap,depth_buffer=opaque_surface((width,height),depth_polygons)
+            self.surface_image=ImageTk.PhotoImage(self.surface_bitmap,master=c)
+            c.create_image(0,0,anchor='nw',image=self.surface_image,tags='cut-surface')
         if mode!='ワイヤー' and 0<opacity<1 and polygons:
             self.surface_bitmap=alpha_surface((width,height),polygons,opacity)
             self.surface_image=ImageTk.PhotoImage(self.surface_bitmap,master=c)
@@ -227,12 +234,18 @@ class GeometryCanvas(ttk.Frame):
                 if mode not in ('ワイヤー','面＋線') and mesh.ident not in self.scene.soft:continue
                 color=preview_colors.get(self,'selected' if mesh.ident in e.elements.selection() or self.parent_selected(mesh.ident) else 'outline')
                 edges=feature_edges(mesh,geometry.cross(*self.camera.basis()),visible_only=(mode=='面＋線' and opacity==1))
-                for a,b in edges:c.create_line(*xy(mesh.vertices[a]),*xy(mesh.vertices[b]),fill=color,width=1,dash=(4,3) if mesh.ident in self.scene.soft else (),tags=('mesh','wireframe','element:'+mesh.ident))
+                for a,b in edges:
+                    segments=[(xy(mesh.vertices[a]),xy(mesh.vertices[b]))]
+                    if depth_buffer is not None:
+                        from .surface_render import visible_segments
+                        segments=visible_segments(*segments[0],self.camera.depth(mesh.vertices[a]),self.camera.depth(mesh.vertices[b]),depth_buffer)
+                    for start,end in segments:c.create_line(*start,*end,fill=color,width=1,dash=(4,3) if mesh.ident in self.scene.soft else (),tags=('mesh','wireframe','element:'+mesh.ident))
         for mesh in meshes:
             for line in mesh.lines:
                 c.create_line(*(v for i in line for v in xy(mesh.vertices[i])),fill=theme.ACCENT,width=2,tags=('mesh','element:'+mesh.ident))
-        # Negative volumes stay visible as orange wireframes; no Boolean cut is claimed.
+        # Only a selected cutting tool is outlined for editing; surfaces show subtraction.
         for mesh in negative:
+            if mesh.ident!=e.element_id:continue
             edges=feature_edges(mesh,geometry.cross(*self.camera.basis()))
             for a,b in edges:c.create_line(*xy(mesh.vertices[a]),*xy(mesh.vertices[b]),fill=preview_colors.get(self,'negative'),dash=(4,3),tags=('negative','element:'+mesh.ident))
         if self.show_points.get():
@@ -243,13 +256,13 @@ class GeometryCanvas(ttk.Frame):
                 c.create_line(x,y,max(12,min(width-12,end[0])),max(12,min(height-12,end[1])),fill=preview_colors.get(self,'points'),arrow='last',width=2,tags='point-direction')
                 c.create_oval(x-4,y-4,x+4,y+4,fill=preview_colors.get(self,'points'),outline='white',tags=('point','point:'+str(number)))
                 if self.show_labels.get():c.create_text(x+8,y-10,text='P'+str(number),anchor='w',fill=preview_colors.get(self,'points'),font=(e.host.ui_font,9),tags='point-label')
-        chosen=next((m for m in meshes if m.ident==e.element_id),None)
+        chosen=self.scene.source_meshes.get(e.element_id)
         if chosen and chosen.vertices and not self.actual:self.draw_handles(chosen,xy)
         if not meshes:
             c.create_text(width/2,height/2,text='表示できる形状がありません。\n属性・PTSET・SCOM を確認してください。' if (e.definition() or {}).get('elements') else '形状を追加してください。',fill=theme.MUTED,width=max(100,width-60),tags='empty')
         dimensions=''
-        if self.actual and meshes:
-            points=[p for m in meshes for p in m.vertices]
+        if self.actual and any(m.vertices for m in meshes if not m.negative):
+            points=[p for m in meshes if not m.negative for p in m.vertices]
             dimensions='\n外形：'+' / '.join('XYZ'[i]+' '+format(max(p[i] for p in points)-min(p[i] for p in points),'.5g') for i in range(3))+' mm（DB 単位）'
         self.note.configure(text=('登録寸法で確認：寸法比を保持して全体表示 / ホイールドラッグ：回転 / ホイールクリック：パン'+dimensions if self.actual else '仮配置・単位なし ｜ ホイールドラッグ：回転 / ホイールクリック：パン ｜ ホイール：ズーム')+'')
         status=('登録寸法で確認 · '+(scom['name'] if scom else '参照SCOMを選択してください')) if self.actual else '仮配置で確認 · 編集用の仮値'

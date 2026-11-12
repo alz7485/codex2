@@ -47,6 +47,8 @@ class Scene:
     points:dict=field(default_factory=dict)
     issues:list=field(default_factory=list)
     actual:bool=False
+    source_meshes:dict=field(default_factory=dict,repr=False)
+    cut_applied:set=field(default_factory=set)
     hidden:dict=field(default_factory=dict)
     soft:set=field(default_factory=set)
     preview:object=field(default=None,repr=False)
@@ -349,7 +351,7 @@ def build_mesh(node,resolver):
     return mesh
 
 
-def build_scene(data,definition,scom=None,actual=False,preview_state=None,representation_settings=None):
+def build_scene(data,definition,scom=None,actual=False,preview_state=None,representation_settings=None,apply_negative=True):
     scene=Scene(actual=actual)
     if not definition:return scene
     pt=pairing.resolve(data,definition)['pointset']
@@ -380,4 +382,8 @@ def build_scene(data,definition,scom=None,actual=False,preview_state=None,repres
         if soft:scene.soft.add(node['id'])
         try:scene.meshes.append(build_mesh(node,resolver))
         except (ValueError,OverflowError) as exc:scene.issues.append(node['name']+'：'+str(exc))
+    scene.source_meshes={m.ident:m for m in scene.meshes}
+    if apply_negative and any(m.negative for m in scene.meshes):
+        from .boolean_preview import apply
+        apply(scene,definition)
     return scene

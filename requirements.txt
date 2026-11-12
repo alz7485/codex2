@@ -5,3 +5,7 @@ reportlab>=4.0,<5.0
 
 # Excel SCOM table import (.xlsx/.xlsm).
 openpyxl>=3.1,<4.0
+
+# Solid subtraction in catalogue previews.
+manifold3d>=3.0,<4.0
+numpy>=1.26,<3.0
