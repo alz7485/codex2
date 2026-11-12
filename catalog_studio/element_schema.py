@@ -285,9 +285,9 @@ DIRECTION_FIELDS=('PAXI','PAAX','PBAX','PCAX','PLAXI','PTCDIR','PTCD')
 
 def xyz_direction(text):
     import re
-    aliases={'E':'X','W':'-X','U':'Z','D':'-Z'}
-    result=re.sub(r'(?<![A-Za-z_])([EWUD])(?![A-Za-z_])',lambda m:aliases[m[1].upper()],str(text),flags=re.I)
-    return result.replace('--X','X').replace('--Z','Z').replace('+-X','-X').replace('+-Z','-Z')
+    aliases={'E':'X','W':'-X','U':'Z','D':'-Z','N':'Y','S':'-Y'}
+    result=re.sub(r'(?<![A-Za-z_])([EWUDNS])(?![A-Za-z_])',lambda m:aliases[m[1].upper()],str(text),flags=re.I)
+    return result.replace('--X','X').replace('--Z','Z').replace('--Y','Y').replace('+-X','-X').replace('+-Z','-Z').replace('+-Y','-Y')
 
 def normalize_directions(data):
     if isinstance(data,dict):
