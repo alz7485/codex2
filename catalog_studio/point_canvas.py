@@ -138,6 +138,11 @@ class PointCanvas(ttk.Frame):
         if self.pending:
             x,y=xy(self.pending['point']);c.create_oval(x-18,y-18,x+18,y+18,outline='#dc9431',width=3)
             c.create_text(x+13,y+10,text='候補',anchor='w',fill='#b27324')
+            if self.pending.get('angle_label'):
+                label=c.create_text(w-14,55,text=self.pending['angle_label'],anchor='ne',font=(self.editor.host.ui_font,11,'bold'),fill='#174b8c',tags=('rotation-angle',))
+                bounds=c.bbox(label)
+                panel=c.create_rectangle(bounds[0]-8,bounds[1]-5,bounds[2]+8,bounds[3]+5,fill='#e8f0ff',outline='#9ebbe9',tags=('rotation-angle',))
+                c.tag_lower(panel,label)
 
 
     def cycle_plane(self,event=None):
@@ -197,6 +202,8 @@ class PointCanvas(ttk.Frame):
         self.orbit=None
         if self.dragging and self.pending:self.apply()
         self.dragging=None;self.press_position=None;self.rotation_start=None
+        if self.pending and self.pending.get('rotation_only'):
+            self.pending.pop('angle_label',None);self.redraw()
 
     def propose_rotation(self,x,y,ident):
         e=self.editor;self.error_message=''
@@ -246,7 +253,7 @@ class PointCanvas(ttk.Frame):
             preview=PointPreview(e.data,working)
             self.pending=dict(id=ident,attrs={key:axis},point=preview.location(ident),preview=preview,
                               snapshot=copy.deepcopy(e.definition()['elements']),dimensions=copy.deepcopy(e.definition().get(DIMENSIONS_KEY)),
-                              definition=e.definition_id,preset=presets.selected_id(e.data,e.definition()),rotation_only=True,rotation_layout=rotation_layout)
+                              definition=e.definition_id,preset=presets.selected_id(e.data,e.definition()),rotation_only=True,rotation_layout=rotation_layout,angle_label=f'{key} / {plane}  {math.degrees(math.atan2(rotated[b],rotated[a]))%360:.0f}°  (回転 {degrees:+d}°)')
             self.redraw()
         except (ValueError,KeyError,StopIteration) as exc:
             self.error_message=str(exc);self.pending=None;self.redraw()

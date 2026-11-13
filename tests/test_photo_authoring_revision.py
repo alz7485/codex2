@@ -52,7 +52,7 @@ class PhotoUi(unittest.TestCase):
      v.press_position=v.camera.project(pivot,v.canvas.winfo_width(),v.canvas.winfo_height())
      x,y=v.camera.project(target,v.canvas.winfo_width(),v.canvas.winfo_height())
      v.propose_rotation(x,y,n['id']);self.assertIsNotNone(v.pending,v.error_message)
-     self.assertEqual(n['attrs'],before);v.apply();app.update()
+     self.assertEqual(n['attrs'],before);self.assertTrue(v.canvas.find_withtag('rotation-angle'));v.apply();app.update();self.assertFalse(v.canvas.find_withtag('rotation-angle'))
      vector=PointPreview(e.data,e.definition()).axis(n['attrs'][key])[1]
      self.assertAlmostEqual(vector[a],math.cos(math.radians(35)),places=7)
      self.assertAlmostEqual(vector[b],math.sin(math.radians(35)),places=7)
@@ -117,7 +117,7 @@ class PhotoUi(unittest.TestCase):
     self.assertIsNone(t.editing);self.assertEqual(e.element()['attrs']['NAPP'],expected)
     for v in ('0','1','2','4','7'):
      item=t.canvas.find_withtag('toggle:NAPP:'+v)[0]
-     self.assertEqual(t.canvas.itemcget(item,'fill'),theme.ACCENT if v in active else theme.SUBTLE)
+     self.assertEqual(t.canvas.itemcget(item,'fill'),theme.ACCENT if v in active else '#c6d9fb' if expected=='7' and v in ('1','2','4') else theme.SUBTLE)
    choose('0','0',('0',));choose('1','1',('1',));choose('2','3',('1','2'))
    choose('4','7',('7',));choose('1','6',('2','4'));choose('2','4',('4',));choose('4','0',('0',))
    choose('7','7',('7',));choose('7','7',('7',));choose('0','0',('0',))

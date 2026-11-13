@@ -317,6 +317,17 @@ class ConstructionEditor(ttk.Frame):
             self.host.mark();self.draw();self.redraw_points()
         return {'value':original,'commit':commit,'report':lambda text:self.host.status.configure(text=text)}
 
+    def preview_attribute_changed(self,element,key):
+        view=getattr(self,'geometry_view',None)
+        if view is None:return
+        if key in ('TUFLA','CLFLA'):
+            view.representation_mode.set('属性確認')
+            view.rep_options['tube' if key=='TUFLA' else 'cl']=True
+            self.host.gmset_representation=view.representation_settings()
+        if key=='NAPP' and element['type'] in schema.NEGATIVE_BASE:
+            view.show_negative.set(True);view.render_mode.set('面＋線')
+            view.sync_display_controls()
+
     def inline_context(self,key,section):
         element=self.element();definition=self.definition();data=self.data
         if not element or not schema.known(element['type']) or section=='extra':return None
@@ -331,7 +342,9 @@ class ConstructionEditor(ttk.Frame):
                 raise ValueError('編集対象が変更されています。セルを選び直してください。')
             if schema.value(element,key)!=original and value!=schema.value(element,key):raise ValueError('属性が変更されています。セルを選び直してください。')
             if key=='OBST':value=schema.OBST_CHOICES.get(value,value)
-            if value==schema.value(element,key):return
+            self.preview_attribute_changed(element,key)
+            if value==schema.value(element,key):
+                self.draw();return
             self.remember_preview(definition)
             if key in ('PTCPOS','PTSPOS','PTEPOS'):
                 import re
@@ -616,6 +629,7 @@ class ConstructionEditor(ttk.Frame):
         if self.field == 'OBST': value = schema.OBST_CHOICES.get(value, value)
         self.remember_preview()
         schema.set_value(self.element(), self.field, value)
+        self.preview_attribute_changed(self.element(),self.field)
         if self.kind=='PTSET':
             from .point_preview import seed_parameter_position
             seed_parameter_position(self.data,self.definition(),self.element(),self.field)
@@ -801,6 +815,7 @@ class ConstructionEditor(ttk.Frame):
         if not e:return
         try:child=schema.add_child(e,kind)
         except ValueError as exc:self.validation_note.configure(text=str(exc));return
+        self.preview_attribute_changed(child,'NAPP')
         self.element_id=child['id'];self.field=None;self.select_first_section();self.host.mark();self.refresh()
 
     def add_child(self):

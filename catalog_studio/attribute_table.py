@@ -222,9 +222,10 @@ class AttributeTable(ttk.Frame):
                 gap=3;left=divider+5;slot=(width-divider-10-gap*(len(options)-1))/len(options)
                 for index,choice in enumerate(options):
                     x=left+index*(slot+gap);selected=choice in napp_selected(value) if attr=='NAPP' else str(value).upper()==choice
+                    hinted=attr=='NAPP' and str(value)=='7' and choice in ('1','2','4')
                     rect=(x,top+3,x+slot,top+minimum-3)
                     self.toggle_bounds[(iid,choice)]=rect
-                    c.create_rectangle(*rect,fill=theme.ACCENT if selected else theme.SUBTLE,outline=theme.ACCENT if selected else theme.BORDER,tags=('toggle:'+iid,'toggle:'+iid+':'+choice))
+                    c.create_rectangle(*rect,fill=theme.ACCENT if selected else '#c6d9fb' if hinted else theme.SUBTLE,outline=theme.ACCENT if selected else theme.BORDER,tags=('toggle:'+iid,'toggle:'+iid+':'+choice))
                     fg='white' if selected else theme.INK
                     if attr=='OBST':label={'0':'対象外','1':'ソフト','2':'ハード'}[choice]
                     elif attr=='NAPP':label={'0':'なし','1':'取付先','2':'所有元','4':'自身','7':'全対象'}[choice]

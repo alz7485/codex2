@@ -377,7 +377,7 @@ def build_scene(data,definition,scom=None,actual=False,preview_state=None,repres
     for node in schema.walk(definition['elements']):
         if node['type'] in schema.CHILD_TYPES:continue
         from .representation import visibility
-        visible,reason,soft=visibility(node,representation_settings)
+        visible,reason,soft=(True,'差し引き形状',False) if node['type'] in schema.NEGATIVE_BASE else visibility(node,representation_settings)
         if not visible:scene.hidden[node['id']]=node['name']+'：'+reason;continue
         if soft:scene.soft.add(node['id'])
         try:scene.meshes.append(build_mesh(node,resolver))

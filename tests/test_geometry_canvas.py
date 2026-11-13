@@ -105,6 +105,26 @@ class GeometryCanvasTests(unittest.TestCase):
                 self.canvas.event_generate('<Button-1>',x=100,y=100);self.canvas.event_generate('<B1-Motion>',x=145,y=130);self.canvas.event_generate('<ButtonRelease-1>',x=145,y=130);self.app.update()
         self.assertEqual(self.errors,[])
 
+    def test_flag_buttons_follow_representation_and_keep_negative_cut_active(self):
+        from catalog_studio.boolean_preview import solid
+        self.gm['elements']=[]
+        box=schema.add_element(self.gm,'SBOX');box['attrs'].update(PXLE='100',PYLE='100',PZLE='100')
+        cut=schema.add_child(box,'NSCY');cut['attrs'].update(PAXI='Z',PDIS='-100',PHEI='200',PDIA='40',NAPP='2',TUFLA='FALSE',CLFLA='FALSE')
+        self.e.element_id=box['id'];self.e.refresh();self.app.update();self.actual()
+        self.view.rep_options.update(tube=True,cl=False,obst=False)
+        for key,value,visible in [('TUFLA','TRUE',True),('TUFLA','FALSE',False),('CLFLA','TRUE',True),('CLFLA','FALSE',False)]:
+            self.e.inline_context(key,'common')['commit'](value);self.app.update()
+            self.assertEqual(self.view.representation_mode.get(),'属性確認')
+            matches=[m for m in self.view.scene.meshes if m.ident==box['id']]
+            self.assertEqual(bool(matches),visible)
+            if visible:
+                self.assertIn(cut['id'],self.view.scene.cut_applied)
+                self.assertLess(solid(matches[0]).volume(),1000000)
+        self.e.element_id=cut['id'];self.e.refresh();self.app.update()
+        self.e.inline_context('NAPP','negative')['commit']('7');self.app.update()
+        self.assertTrue(self.view.show_negative.get());self.assertEqual(self.view.render_mode.get(),'面＋線')
+        self.assertEqual(self.errors,[])
+
     def test_csg_cut_surface_and_toggle_keep_catalogue_data(self):
         from catalog_studio.boolean_preview import solid
         self.gm['elements']=[]
