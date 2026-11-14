@@ -116,9 +116,10 @@ class PointCanvasGuiTests(unittest.TestCase):
         self.view.canvas.event_generate('<Button-1>',x=x,y=y,state=4)
         self.view.canvas.event_generate('<B1-Motion>',x=tx,y=ty,state=0x104);self.app.update()
         self.assertIsNotNone(self.view.pending,self.view.error_message)
+        self.assertTrue(self.view.canvas.find_withtag('drag-help'))
         self.assertTrue(self.view.pending['move_only']);self.assertNotIn('PTCDIR',self.view.pending['attrs'])
         self.assertEqual(self.app.data,before)
-        self.view.cancel();self.app.update();self.assertEqual(self.app.data,before)
+        self.view.cancel();self.app.update();self.assertEqual(self.app.data,before);self.assertFalse(self.view.canvas.find_withtag('drag-help'))
 
     def test_click_only_selects_and_drag_commits_on_release(self):
         original=copy.deepcopy(self.point);self.click(self.view.positions[self.point['id']],button=1)

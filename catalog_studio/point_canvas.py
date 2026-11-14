@@ -47,8 +47,6 @@ class PointCanvas(ttk.Frame):
         self.canvas.bind('<MouseWheel>',lambda ev:self.zoom(1.12 if ev.delta>0 else 1/1.12));self.canvas.bind('<Button-4>',lambda _:self.zoom(1.12));self.canvas.bind('<Button-5>',lambda _:self.zoom(1/1.12))
         self.note=ttk.Label(self,text='',wraplength=280,foreground='#738499');self.note.grid(row=5,column=0,sticky='ew',pady=(6,0))
         self.note.bind('<Configure>',lambda ev:self.note.configure(wraplength=max(140,ev.width-4)))
-        hint=ttk.Label(self,text='ホイールドラッグ：回転 / ホイールクリック：パン ｜ 点ドラッグ：90° / Alt中5° / Ctrl中は移動 ｜ 右クリック：点作成 ｜ ホイール：ズーム',wraplength=280,style='Muted.TLabel');hint.grid(row=6,column=0,sticky='ew',pady=(6,0))
-        hint.bind('<Configure>',lambda ev:hint.configure(wraplength=max(140,ev.width-4)))
         for key in ('Alt_L','Alt_R'):
             self.canvas.bind('<KeyPress-'+key+'>',lambda e:self.alt_rotation(True))
             self.canvas.bind('<KeyRelease-'+key+'>',lambda e:self.alt_rotation(False))
@@ -131,7 +129,7 @@ class PointCanvas(ttk.Frame):
             if any(vector):
                 self.direction_hits[element['id']]=xy(tuple(point[i]+.3*vector[i] for i in range(3)))
                 c.create_line(x,y,*xy(tuple(point[i]+.3*vector[i] for i in range(3))),fill=color,width=3 if selected else 1.5,arrow='last')
-        message='ドラッグ：90°刻み（Alt中5°）。位置は属性値で変更（PARAMは仮値で表示）。'
+        message='仮配置・単位なし（PARAMは仮値で表示）'
         if not definition:message='左の PTSET 一覧からセットを選ぶか追加してください。'
         elif self.editor.element_id:
             try:
@@ -149,6 +147,11 @@ class PointCanvas(ttk.Frame):
                 bounds=c.bbox(label)
                 panel=c.create_rectangle(bounds[0]-8,bounds[1]-5,bounds[2]+8,bounds[3]+5,fill='#e8f0ff',outline='#9ebbe9',tags=('rotation-angle',))
                 c.tag_lower(panel,label)
+
+        if self.dragging or self.orbit:
+            help_text=('通常：90°回転 / Alt：5°回転 / Ctrl：移動\n原点で移動軸を切替 / 離す：確定 / Esc：取消' if self.dragging else 'ホイールドラッグ：視点回転 / 離す：終了')
+            item=c.create_text(18,h-40,text=help_text,anchor='sw',width=max(120,w-48),font=(self.editor.host.ui_font,9),fill='#174b8c',tags=('drag-help',))
+            box=c.bbox(item);panel=c.create_rectangle(box[0]-6,box[1]-5,box[2]+6,box[3]+5,fill='#e8f0ff',outline='#9ebbe9',tags=('drag-help',));c.tag_lower(panel,item)
 
 
     def cycle_plane(self,event=None):
@@ -230,7 +233,8 @@ class PointCanvas(ttk.Frame):
         if self.dragging and self.pending:self.apply()
         self.dragging=None;self.press_position=None;self.rotation_start=None
         if self.pending and self.pending.get('rotation_only'):
-            self.pending.pop('angle_label',None);self.redraw()
+            self.pending.pop('angle_label',None)
+        self.redraw()
 
     def propose_move(self,x,y,ident):
         e=self.editor;self.error_message=''

@@ -264,7 +264,11 @@ class GeometryCanvas(ttk.Frame):
         if self.actual and any(m.vertices for m in meshes if not m.negative):
             points=[p for m in meshes if not m.negative for p in m.vertices]
             dimensions='\n外形：'+' / '.join('XYZ'[i]+' '+format(max(p[i] for p in points)-min(p[i] for p in points),'.5g') for i in range(3))+' mm（DB 単位）'
-        self.note.configure(text=('登録寸法で確認：寸法比を保持して全体表示 / ホイールドラッグ：回転 / ホイールクリック：パン'+dimensions if self.actual else '仮配置・単位なし ｜ ホイールドラッグ：回転 / ホイールクリック：パン ｜ ホイール：ズーム')+'')
+        self.note.configure(text=('登録寸法で確認：寸法比を保持して全体表示'+dimensions if self.actual else '仮配置・単位なし')+'')
+        if self.drag or self.orbit:
+            help_text='サイズ変更 / 離す：確定 / Esc：取消' if self.drag else 'ホイールドラッグ：視点回転 / 離す：終了'
+            item=c.create_text(16,height-16,text=help_text,anchor='sw',width=max(120,width-40),fill='#174b8c',font=(e.host.ui_font,9),tags=('drag-help',))
+            box=c.bbox(item);panel=c.create_rectangle(box[0]-6,box[1]-5,box[2]+6,box[3]+5,fill='#e8f0ff',outline='#9ebbe9',tags=('drag-help',));c.tag_lower(panel,item)
         status=('登録寸法で確認 · '+(scom['name'] if scom else '参照SCOMを選択してください')) if self.actual else '仮配置で確認 · 編集用の仮値'
         c.create_text(width-12,12,text=status,anchor='ne',justify='right',fill=theme.MUTED,width=max(100,width-self.mode_overlay.winfo_reqwidth()-36),font=(e.host.ui_font,9),tags='preview-mode')
         hidden=self.scene.hidden
