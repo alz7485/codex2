@@ -92,6 +92,34 @@ class PointCanvasGuiTests(unittest.TestCase):
         if release:self.view.canvas.event_generate('<ButtonRelease-1>',x=tx,y=ty)
         self.app.update()
 
+    def test_control_move_locks_axis_until_origin_then_switches(self):
+        self.editor.definition()['elements']=[]
+        self.point=self.axial((1.4,0,0),'X','PARAM 3')
+        other=self.axial((.7,0,0),'X','PARAM 3 / 2')
+        self.editor.element_id=self.point['id'];self.editor.refresh();self.app.update()
+        before=copy.deepcopy(self.app.data);v=self.view
+        v.propose_move(*self.pixels((2,.8,0)),self.point['id'])
+        self.assertAlmostEqual(v.pending['point'][1],0)
+        v.propose_move(*self.pixels((0,0,0)),self.point['id'])
+        self.assertAlmostEqual(v.pending['point'][0],0,places=5)
+        v.propose_move(*self.pixels((.2,1.6,0)),self.point['id'])
+        self.assertEqual(v.pending['attrs']['PAXI'],'Y')
+        self.assertAlmostEqual(v.pending['point'][0],0)
+        self.assertEqual(self.app.data,before)
+        v.apply();self.app.update()
+        self.assertEqual(self.point['attrs']['PAXI'],'Y');self.assertEqual(self.point['attrs']['PDIS'],'PARAM 3')
+        self.assertAlmostEqual(v.positions[other['id']][0],v.positions[self.point['id']][1]/2,places=4)
+        self.assertEqual(self.app.data['scoms'],before['scoms'])
+
+    def test_control_move_events_and_escape_preserve_source(self):
+        before=copy.deepcopy(self.app.data);x,y=self.pixels(self.view.positions[self.point['id']]);tx,ty=self.pixels((1,.5,0))
+        self.view.canvas.event_generate('<Button-1>',x=x,y=y,state=4)
+        self.view.canvas.event_generate('<B1-Motion>',x=tx,y=ty,state=0x104);self.app.update()
+        self.assertIsNotNone(self.view.pending,self.view.error_message)
+        self.assertTrue(self.view.pending['move_only']);self.assertNotIn('PTCDIR',self.view.pending['attrs'])
+        self.assertEqual(self.app.data,before)
+        self.view.cancel();self.app.update();self.assertEqual(self.app.data,before)
+
     def test_click_only_selects_and_drag_commits_on_release(self):
         original=copy.deepcopy(self.point);self.click(self.view.positions[self.point['id']],button=1)
         self.assertEqual(self.editor.element_id,self.point['id']);self.assertEqual(self.point,original)

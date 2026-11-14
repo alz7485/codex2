@@ -13,7 +13,7 @@ class PointCanvas(ttk.Frame):
     def __init__(self,editor,parent):
         super().__init__(parent);self.editor=editor
         self.camera=Camera();self.pending=None;self.hits={};self.positions={};self.direction_hits={};self.dragging=None;self.orbit=None
-        self.error_message='';self.menu_context=None;self.press_position=None;self.rotation_start=None;self.rotation_step=90;self.last_rotation_pixel=None
+        self.error_message='';self.menu_context=None;self.press_position=None;self.rotation_start=None;self.rotation_step=90;self.last_rotation_pixel=None;self.control_down=False;self.drag_mode=None;self.move_state=None
         self.plane=tk.StringVar(value='XY');self.view=tk.StringVar(value='立体')
         self.show_grid=tk.BooleanVar(value=True);self.show_axes=tk.BooleanVar(value=True)
         self.show_labels=tk.BooleanVar(value=True);self.show_relations=tk.BooleanVar(value=True)
@@ -47,11 +47,14 @@ class PointCanvas(ttk.Frame):
         self.canvas.bind('<MouseWheel>',lambda ev:self.zoom(1.12 if ev.delta>0 else 1/1.12));self.canvas.bind('<Button-4>',lambda _:self.zoom(1.12));self.canvas.bind('<Button-5>',lambda _:self.zoom(1/1.12))
         self.note=ttk.Label(self,text='',wraplength=280,foreground='#738499');self.note.grid(row=5,column=0,sticky='ew',pady=(6,0))
         self.note.bind('<Configure>',lambda ev:self.note.configure(wraplength=max(140,ev.width-4)))
-        hint=ttk.Label(self,text='ホイールドラッグ：回転 / ホイールクリック：パン ｜ 点・方向矢印ドラッグ：90° / Alt中5° ｜ 右クリック：点作成 ｜ ホイール：ズーム',wraplength=280,style='Muted.TLabel');hint.grid(row=6,column=0,sticky='ew',pady=(6,0))
+        hint=ttk.Label(self,text='ホイールドラッグ：回転 / ホイールクリック：パン ｜ 点ドラッグ：90° / Alt中5° / Ctrl中は移動 ｜ 右クリック：点作成 ｜ ホイール：ズーム',wraplength=280,style='Muted.TLabel');hint.grid(row=6,column=0,sticky='ew',pady=(6,0))
         hint.bind('<Configure>',lambda ev:hint.configure(wraplength=max(140,ev.width-4)))
         for key in ('Alt_L','Alt_R'):
             self.canvas.bind('<KeyPress-'+key+'>',lambda e:self.alt_rotation(True))
             self.canvas.bind('<KeyRelease-'+key+'>',lambda e:self.alt_rotation(False))
+        for key in ('Control_L','Control_R'):
+            self.canvas.bind('<KeyPress-'+key+'>',lambda e:self.control_move(True))
+            self.canvas.bind('<KeyRelease-'+key+'>',lambda e:self.control_move(False))
         self.canvas.bind('<Escape>',lambda _:self.cancel());self.redraw()
         from .preview_navigation import attach as navigation
         navigation(self)
@@ -185,7 +188,7 @@ class PointCanvas(ttk.Frame):
         ident=self.pick(event.x,event.y) or next((ident for ident,p in self.direction_hits.items() if (p[0]-event.x)**2+(p[1]-event.y)**2<=225),None)
         if ident:
             self.editor.elements.selection_set(ident);self.editor.select_element()
-            self.dragging=ident;self.press_position=(event.x,event.y);self.rotation_start=None;self.last_rotation_pixel=None;self.rotation_step=5 if getattr(event,'state',0)&(0x8|0x20000) else 90;self.redraw()
+            self.dragging=ident;self.press_position=(event.x,event.y);self.rotation_start=None;self.last_rotation_pixel=None;self.rotation_step=5 if getattr(event,'state',0)&(0x8|0x20000) else 90;self.control_down=bool(getattr(event,'state',0)&4);self.redraw()
         else:self.orbit=None
 
     def create_press(self,event):
@@ -199,15 +202,28 @@ class PointCanvas(ttk.Frame):
     def alt_rotation(self,pressed):
         self.rotation_step=5 if pressed else 90
         if self.dragging and self.last_rotation_pixel:
-            self.propose_rotation(*self.last_rotation_pixel,self.dragging)
+            self.route_drag()
         return 'break'
+
+    def control_move(self,pressed):
+        self.control_down=pressed
+        if self.dragging and self.last_rotation_pixel:self.route_drag()
+        return 'break'
+
+    def route_drag(self):
+        mode='move' if self.control_down else 'rotate'
+        if mode!=self.drag_mode:
+            self.pending=None;self.rotation_start=None;self.move_state=None;self.drag_mode=mode
+        if self.control_down:self.propose_move(*self.last_rotation_pixel,self.dragging)
+        else:self.propose_rotation(*self.last_rotation_pixel,self.dragging)
 
     def move(self,event):
         if not self.dragging:self.orbit_move(event);return
         if self.dragging and self.press_position and max(abs(event.x-self.press_position[0]),abs(event.y-self.press_position[1]))>=4:
             self.rotation_step=5 if getattr(event,'state',0)&(0x8|0x20000) else 90
             self.last_rotation_pixel=(event.x,event.y)
-            self.propose_rotation(event.x,event.y,self.dragging)
+            self.control_down=bool(getattr(event,'state',0)&4)
+            self.route_drag()
 
     def release(self,event):
         self.orbit=None
@@ -215,6 +231,53 @@ class PointCanvas(ttk.Frame):
         self.dragging=None;self.press_position=None;self.rotation_start=None
         if self.pending and self.pending.get('rotation_only'):
             self.pending.pop('angle_label',None);self.redraw()
+
+    def propose_move(self,x,y,ident):
+        e=self.editor;self.error_message=''
+        try:
+            if len(e.elements.selection())>1:return
+            if not e.commit_inline():return
+            definition=e.definition();node=next(n for n in definition['elements'] if n['id']==ident)
+            model=PointPreview(e.data,definition);plane=self.plane.get();a,b=PLANES[plane]
+            normal=next(i for i in range(3) if i not in (a,b))
+            if self.move_state is None:
+                axis=node['attrs'].get('PAXI','') if node['type']=='PTAXI' else None
+                self.move_state=dict(snapshot=copy.deepcopy(definition['elements']),dimensions=copy.deepcopy(definition.get(DIMENSIONS_KEY)),axis=axis,ready=False,plane=plane)
+                if node['type']=='PTAXI':
+                    origin,vector=model.axis(axis) if not empty(axis) else ((0,0,0),(1,0,0))
+                    current=model.location(ident)
+                    self.move_state['ready']=empty(axis) or math.dist(self.camera.project(current,self.canvas.winfo_width(),self.canvas.winfo_height()),self.camera.project(origin,self.canvas.winfo_width(),self.canvas.winfo_height()))<=14
+            state=self.move_state
+            if state['snapshot']!=definition['elements'] or state['dimensions']!=definition.get(DIMENSIONS_KEY) or state['plane']!=plane:raise ValueError('属性・配置が変更されています。ドラッグをやり直してください。')
+            point=self.camera.unproject(x,y,self.canvas.winfo_width(),self.canvas.winfo_height(),plane,model.location(ident)[normal]);attrs={}
+            if node['type']=='PTAXI':
+                axis=state['axis'];origin,vector=model.axis(axis) if not empty(axis) else ((0,0,0),(1,0,0))
+                origin_pixel=self.camera.project(origin,self.canvas.winfo_width(),self.canvas.winfo_height())
+                if math.dist((x,y),origin_pixel)<=14:
+                    point=origin;state['ready']=True
+                elif state['ready'] and not any(abs(v)>1e-8 for v in origin):
+                    index=max((a,b),key=lambda i:abs(point[i]));axis=('-' if point[index]<0 else '')+'XYZ'[index]
+                    state['axis']=axis;state['ready']=False
+                    point=tuple(point[index] if i==index else 0. for i in range(3))
+                else:point=self.camera.unproject_axis(x,y,self.canvas.winfo_width(),self.canvas.winfo_height(),origin,vector)
+                if not empty(axis):attrs['PAXI']=axis
+            if node['type'] in ('PTAXI','PTCAR','PTMIX'):
+                for key,text in model.fields(node).items():
+                    try:root=expressions.parse(text,model.parameters)
+                    except ValueError:continue
+                    if root[0] not in ('number','quantity'):continue
+                    if key=='PDIS':
+                        origin,vector=model.axis(attrs.get('PAXI',node['attrs'].get('PAXI','')))
+                        distance=sum((point[i]-origin[i])*vector[i] for i in range(3))/model.scale
+                    else:distance=point['XYZ'.index(key[-1])]/model.scale
+                    attrs[key]=f'{distance:.12g}'
+            working=copy.deepcopy(definition);target=next(n for n in working['elements'] if n['id']==ident)
+            target['attrs'].update(attrs);target[LAYOUT_KEY]=list(point)
+            preview=model.moved(working,ident,plane)
+            self.pending=dict(id=ident,attrs=attrs,point=preview.location(ident),preview=preview,move_only=True,
+                              snapshot=state['snapshot'],dimensions=state['dimensions'],definition=e.definition_id,preset=presets.selected_id(e.data,definition))
+            self.redraw()
+        except (ValueError,KeyError,StopIteration) as exc:self.error_message=str(exc);self.pending=None;self.redraw()
 
     def propose_rotation(self,x,y,ident):
         e=self.editor;self.error_message=''
@@ -289,7 +352,7 @@ class PointCanvas(ttk.Frame):
         except (ValueError,KeyError) as exc:self.error_message=str(exc);self.pending=None;self.redraw()
 
     def cancel(self):
-        self.dismiss_menu();self.error_message='';self.pending=None;self.dragging=None;self.press_position=None;self.rotation_start=None;self.orbit=None;self.redraw()
+        self.dismiss_menu();self.error_message='';self.pending=None;self.dragging=None;self.press_position=None;self.rotation_start=None;self.move_state=None;self.drag_mode=None;self.last_rotation_pixel=None;self.orbit=None;self.redraw()
     def apply(self):
         if not self.pending:return
         p=self.pending;e=self.editor
@@ -298,6 +361,14 @@ class PointCanvas(ttk.Frame):
             if p['definition']!=e.definition_id or p['preset']!=presets.selected_id(e.data,e.definition()):raise ValueError('セット・プリセットが変更されています。候補を作り直してください。')
             if e.definition()['elements']!=p['snapshot']:raise ValueError('属性・配置が変更されています。候補を作り直してください。')
             if e.definition().get(DIMENSIONS_KEY)!=p['dimensions']:raise ValueError('共有仮寸法が変更されています。候補を作り直してください。')
+            if p.get('move_only'):
+                element=next(n for n in e.definition()['elements'] if n['id']==p['id'])
+                element['attrs'].update(p['attrs'])
+                for node,index in p['preview'].nodes.values():
+                    original=next(n for n in e.definition()['elements'] if n['id']==node['id'])
+                    original[LAYOUT_KEY]=list(p['preview'].location(node['id']))
+                e.definition()[DIMENSIONS_KEY]=p['preview'].snapshot()
+                e.host.mark();self.pending=None;e.refresh();self.cancel();return
             if p.get('rotation_only'):
                 element=next(r for r in e.definition()['elements'] if r['id']==p['id'])
                 element['attrs'].update(p['attrs'])
