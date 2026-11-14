@@ -1,237 +1,631 @@
-import copy
-import math
-import tkinter as tk
-import unittest
-from types import SimpleNamespace
-from unittest.mock import patch
-from catalog_studio import element_schema as s,expressions as ex,macro_export,macro_import,project
+# ユーザー要件・決定事項
 
-class PhotoRules(unittest.TestCase):
- def test_expressions_defaults_and_explicit_clear(self):
-  for source in ('PARAM 3 / 2','DIFFERENCE PARAM 3 PARAM 1','0.5 TIMES PARAM 1','DIV - PARAM 26 2'):
-   target=ex.e3d(source)
-   self.assertEqual(ex.parse(source),ex.parse(target))
-   self.assertIn('ATTRIB PARA[',target)
-  self.assertEqual(ex.e3d('PARAM[3]'),'PARAM 3')
-  self.assertEqual(ex.e3d('IPARA 1'),'(ATTRIB IPARA[1])')
-  self.assertEqual(ex.e3d_embedded('X(PARAM[3] / 2)Y'),'X(ATTRIB PARA[3] / 2)Y')
-  d={'kind':'GMSET','name':'/DEMO','elements':[]}
-  n=s.add_element(d,'SCYL');n['attrs'].update(PHEI='PARAM 1 / 2',PDIA='PARAM 2',PAXI='')
-  before=copy.deepcopy(d);text=macro_export.creation_text([d]);parsed=macro_import.parse(text).definitions[0]
-  self.assertNotIn('LEVEL',text);self.assertIn('NAPP 0',text);self.assertIn("PAXI ''",text)
-  self.assertEqual(parsed['elements'][0]['attrs']['PAXI'],'')
-  self.assertEqual(d,before)
- def test_lpy_axis_and_insulation_ratio(self):
-  from catalog_studio.editor_rules import derived_axes
-  n={'type':'LPYR','attrs':s.default_attrs('LPYR')};self.assertEqual(n['attrs']['PAAX'],'Z')
-  n['attrs'].update(PBAX='Y',PCAX='Z');derived_axes(n);self.assertEqual(n['attrs']['PAAX'],'X')
-  from catalog_studio.point_preview import preview_parse
-  self.assertEqual(ex.evaluate(ex.normalized('IPARA 1'),{'IPARAM':{'P1':2}}),2)
-  root=preview_parse('IPARA 2');self.assertEqual(root,ex.parse('0.5 * IPARA 1'))
+整理日: 2026-10-16。これは本ツールの要求仕様であり、E3D自体の仕様ではありません。過去の会話で確定・修正された内容を現行の決定として整理します。現時点の実装説明はルートREADMEとコードを参照してください。
 
-class PhotoUi(unittest.TestCase):
- def test_direction_drag_rotates_in_each_plane_without_changing_position_values(self):
-  from catalog_studio.integrated import IntegratedStudio
-  from catalog_studio.point_geometry import PLANES,DIMENSIONS_KEY
-  from catalog_studio.point_preview import PointPreview
-  try:app=IntegratedStudio()
-  except tk.TclError as exc:self.skipTest(str(exc))
-  try:
-   app.update();e=app.geometry_editor;v=e.point_canvas
-   for plane,(a,b) in PLANES.items():
-    for kind,key in [('PTAXI','PAXI'),('PTMIX','PAXI'),('PTCAR','PTCDIR'),('PTPOS','PTCDIR')]:
-     n=s.add_element(e.definition(),kind)
-     n['attrs'].update({key:'XYZ'[a]})
-     if kind=='PTAXI':n['attrs']['PDIS']='PARAM 3'
-     elif kind=='PTPOS':n['attrs']['PTCPOS']='X 0 Y 0 Z 0'
-     else:n['attrs'].update(PX='PARAM 3',PY='0',PZ='0')
-     e.element_id=n['id'];e.refresh();app.update();v.plane.set(plane);v.plane_changed();v.camera.face(plane);v.redraw()
-     before=copy.deepcopy(n['attrs']);dims=copy.deepcopy(e.definition().get(DIMENSIONS_KEY));sc=copy.deepcopy(app.data['scoms'])
-     original_model=PointPreview(e.data,e.definition());pivot=original_model.location(n['id']);original_values=copy.deepcopy(original_model.values);target=list(pivot)
-     target[a]+=math.cos(math.radians(33));target[b]+=math.sin(math.radians(33))
-     v.press_position=v.camera.project(pivot,v.canvas.winfo_width(),v.canvas.winfo_height())
-     x,y=v.camera.project(target,v.canvas.winfo_width(),v.canvas.winfo_height())
-     v.rotation_step=5;v.propose_rotation(x,y,n['id']);self.assertIsNotNone(v.pending,v.error_message)
-     self.assertEqual(n['attrs'],before);self.assertTrue(v.canvas.find_withtag('rotation-angle'));v.apply();app.update();self.assertFalse(v.canvas.find_withtag('rotation-angle'))
-     vector=PointPreview(e.data,e.definition()).axis(n['attrs'][key])[1]
-     self.assertAlmostEqual(vector[a],math.cos(math.radians(35)),places=7)
-     self.assertAlmostEqual(vector[b],math.sin(math.radians(35)),places=7)
-     self.assertEqual({k:x for k,x in n['attrs'].items() if k!=key},{k:x for k,x in before.items() if k!=key})
-     self.assertEqual(e.definition().get(DIMENSIONS_KEY),dims);self.assertEqual(app.data['scoms'],sc)
-     if kind=='PTAXI':
-      actual=PointPreview(e.data,e.definition())
-      for ref,value in original_values.items():self.assertAlmostEqual(actual.values[ref],value)
-  finally:app.destroy()
+## 1. 目的とデータの扱い
 
- def test_parameter_position_input_uses_virtual_distance_without_real_values(self):
-  from catalog_studio.integrated import IntegratedStudio
-  from catalog_studio.point_geometry import LAYOUT_KEY
-  try:app=IntegratedStudio()
-  except tk.TclError as exc:self.skipTest(str(exc))
-  try:
-   app.update();e=app.geometry_editor
-   for kind,key in [('PTAXI','PDIS'),('PTCAR','PX')]:
-    n=s.add_element(e.definition(),kind);n[LAYOUT_KEY]=[0.,0.,0.]
-    n['attrs'].update(PAXI='X')
-    if kind=='PTCAR':n['attrs'].update(PX='0',PY='0',PZ='0')
-    e.element_id=n['id'];e.refresh();app.update();before=copy.deepcopy(app.data['scoms'])
-    self.assertAlmostEqual(e.point_canvas.positions[n['id']][0],0.)
-    context=e.inline_context(key,'main');context['commit']('PARAM 29');e.refresh();app.update()
-    self.assertGreater(abs(e.point_canvas.positions[n['id']][0]),.1)
-    self.assertEqual(n['attrs'][key],'PARAM 29');self.assertEqual(app.data['scoms'],before)
-  finally:app.destroy()
+- AVEVA E3D 4.0向けのカタログ作成・管理を、Python / Tkinter のデスクトップツールで行う。
+- 主な流れは PTSET → GMSET → SCOM → SPEC。構造材、テキスト、共通表、カタログ本も管理する。
+- 定義側は式・PARAM参照、SCOM側は部品ごとの実際の数値・文字値を管理する。SCOM作成前の定義作業に実部品値を必須にしない。
+- プロジェクトをJSON保存し、編集途中の状態、プリセット、参照、表示用仮値を復元できるようにする。
+- 未知の属性・未対応式は元の表記を保持する。対応できないときは理由を示す。
+- 写真は理解・開発用。原本・原図をGitHub、ZIP、PDFへ転載しない。公開用の例・スクリーンショットは架空の自作データ。
+- 今回の指示により、写真とチャットから整理したテキスト仕様情報はGitHubへ保存し、次回以降に参照する。
 
- def test_segment_buttons_choose_exact_values_and_show_obst_meanings(self):
-  from catalog_studio.integrated import IntegratedStudio
-  from catalog_studio import theme
-  try:app=IntegratedStudio()
-  except tk.TclError as exc:self.skipTest(str(exc))
-  try:
-   app.switch('gmset');app.update();e=app.geometry_editor;t=e.tables['main']
-   for key,choices in [('CLFLA',('TRUE','FALSE')),('OBST',('0','1','2'))]:
-    for choice in choices:
-     t.see(key);app.update();a,b,c,d=t.toggle_bounds[(key,choice)]
-     y=(b+d)/2-t.canvas.canvasy(0);x=(a+c)/2
-     t.canvas.event_generate('<Button-1>',x=round(x),y=round(y));app.update()
-     self.assertEqual(e.element()['attrs'][key],choice);self.assertIsNone(t.editing)
-     selected=t.canvas.find_withtag('toggle:'+key+':'+choice)[0]
-     self.assertEqual(t.canvas.itemcget(selected,'fill'),theme.ACCENT)
-     before=copy.deepcopy(e.element()['attrs'])
-     t.canvas.event_generate('<Button-1>',x=round(x),y=round(y));app.update()
-     self.assertEqual(e.element()['attrs'],before)
-   for choice,meaning in [('0','対象外'),('1','ソフト'),('2','ハード')]:
-    self.assertEqual(t.canvas.itemcget(t.canvas.find_withtag('toggle-meaning:OBST:'+choice)[0],'text'),meaning)
-  finally:app.destroy()
+## 2. 画面構成
 
- def test_napp_buttons_normalize_all_none_and_partial_selections(self):
-  from catalog_studio.integrated import IntegratedStudio
-  from catalog_studio import theme
-  try:app=IntegratedStudio()
-  except tk.TclError as exc:self.skipTest(str(exc))
-  try:
-   app.switch('gmset');app.update();e=app.geometry_editor
-   node=s.add_element(e.definition(),'NSCY');e.element_id=node['id'];e.refresh();app.update();t=e.tables['main']
-   def choose(choice,expected,active):
-    t.see('NAPP');app.update();a,b,c,d=t.toggle_bounds[('NAPP',choice)]
-    t.click(SimpleNamespace(x=(a+c)/2,y=(b+d)/2-t.canvas.canvasy(0)));app.update()
-    self.assertIsNone(t.editing);self.assertEqual(e.element()['attrs']['NAPP'],expected)
-    for v in ('0','1','2','4','7'):
-     item=t.canvas.find_withtag('toggle:NAPP:'+v)[0]
-     self.assertEqual(t.canvas.itemcget(item,'fill'),theme.ACCENT if v in active else '#c6d9fb' if expected=='7' and v in ('1','2','4') else theme.SUBTLE)
-   choose('0','0',('0',));choose('1','1',('1',));choose('2','3',('1','2'))
-   choose('4','7',('7',));choose('1','6',('2','4'));choose('2','4',('4',));choose('4','0',('0',))
-   choose('7','7',('7',));choose('7','7',('7',));choose('0','0',('0',))
-   for value,active in [('3',('1','2')),('5',('1','4')),('6',('2','4'))]:
-    e.inline_context('NAPP','common')['commit'](value);e.refresh();app.update()
-    for v in active:self.assertEqual(t.canvas.itemcget(t.canvas.find_withtag('toggle:NAPP:'+v)[0],'fill'),theme.ACCENT)
-   for key,choice,label in [('TVISI','TRUE','表示'),('BVISI','FALSE','非表示'),('CLFLA','TRUE','描画する'),('TUFLA','FALSE','描画しない'),('NAPP','1','取付先'),('NAPP','2','所有元'),('NAPP','4','自身')]:
-    self.assertEqual(t.canvas.itemcget(t.canvas.find_withtag('toggle-meaning:'+key+':'+choice)[0],'text'),label)
-  finally:app.destroy()
+- 上部に横並びのカテゴリ。手順番号は付けない。PTSET → GMSET → SCOM → スペックを主導線にする。
+- 新規プロジェクトはPTSETから開始。「次へ」でデータを勝手に作る流れにしない。
+- 左から、選択カテゴリの登録一覧、セットの要素一覧、中央3Dプレビュー、右の狭い属性表。
+- 左端には現在のカテゴリだけを出す。PTSET画面に他カテゴリの一覧を混在させない。
+- 列幅はドラッグで調整可能。中央プレビューを広く、右属性欄はコンパクトにする。
+- 「＋追加」は各一覧の上に小さく置く。要素の追加は別窓で型と日本語の説明を選ぶ。
+- 型を選んだだけで既存要素を変更しない。作成確定で追加、キャンセルで未作成のまま戻る。
+- 濃紺ヘッダー、白い作業領域、統一したボタン・選択色・罫線。入力要求の赤枠を維持する。
 
- def test_napp_scope_defaults_export_and_hover_diagram(self):
-  from catalog_studio.integrated import IntegratedStudio
-  from catalog_studio import editor_rules
-  self.assertEqual(editor_rules.defaults('SCYL')['NAPP'],'0')
-  self.assertEqual(editor_rules.defaults('NSCY')['NAPP'],'2')
-  d={'kind':'GMSET','name':'/NAPP-DEMO','elements':[]}
-  n=s.add_element(d,'SCYL');n['attrs']['NAPP']='7'
-  before=copy.deepcopy(d);text=macro_export.creation_text([d])
-  self.assertIn('NAPP 0',text);self.assertEqual(d,before)
-  negative=s.add_child(n,'NSCY');negative['attrs']['NAPP']='6'
-  result=macro_import.parse(macro_export.creation_text([d])).definitions[0]
-  self.assertEqual(result['elements'][0]['attrs']['NAPP'],'0')
-  self.assertEqual(result['elements'][0]['children'][0]['attrs']['NAPP'],'6')
-  try:app=IntegratedStudio()
-  except tk.TclError as exc:self.skipTest(str(exc))
-  try:
-   app.switch('gmset');app.update();e=app.geometry_editor
-   positive=s.add_element(e.definition(),'SCYL');positive['attrs']['NAPP']='7'
-   e.element_id=positive['id'];e.refresh();app.update()
-   self.assertEqual(positive['attrs']['NAPP'],'0');self.assertNotIn('NAPP',e.tables['main'].get_children())
-   negative=s.add_element(e.definition(),'NSCY');e.element_id=negative['id'];e.refresh();app.update();t=e.tables['main']
-   self.assertEqual(negative['attrs']['NAPP'],'2');self.assertIn('NAPP',t.get_children())
-   self.assertFalse(any(match=='negative' for button,match in e.helper_buttons))
-   before=copy.deepcopy(app.data);t.see('NAPP');app.update()
-   for value in ('0','1','2','4','7'):
-    a,b,c,d=t.toggle_bounds[('NAPP',value)];y=(b+d)/2-t.canvas.canvasy(0)
-    t.napp_hint.motion(SimpleNamespace(x=(a+c)/2,y=y,x_root=100,y_root=100))
-    app.after(450,app.quit);app.mainloop()
-    self.assertIsNotNone(t.napp_hint.window)
-    canvas=t.napp_hint.window.winfo_children()[0]
-    labels=[canvas.itemcget(i,'text') for i in canvas.find_all() if canvas.type(i)=='text']
-    self.assertIn('NAPP '+value+'：負形状の適用先',labels)
-    self.assertEqual(labels.count('適用'),(int(value)&6).bit_count())
-    t.canvas.event_generate('<Leave>');app.update();self.assertIsNone(t.napp_hint.window)
-   self.assertEqual(app.data,before)
-  finally:app.destroy()
+## 3. 要素一覧・属性編集
 
- def test_optional_attributes_hidden_in_both_editors_without_data_loss(self):
-  from catalog_studio.integrated import IntegratedStudio
-  try:app=IntegratedStudio()
-  except tk.TclError as exc:self.skipTest(str(exc))
-  try:
-   for page,kind,hidden in [('ptset','PTAXI',('DESC','PURP')),('gmset','SCYL',('DESC','GTYP','PURP'))]:
-    app.switch(page);app.update();e=app.geometry_editor
-    node=s.add_element(e.definition(),kind);node['attrs'].update({k:'saved-'+k for k in hidden})
-    before=copy.deepcopy(node);e.element_id=node['id'];e.refresh();app.update()
-    self.assertTrue(e.optional_attrs_button.winfo_ismapped())
-    for k in hidden:self.assertNotIn(k,e.tables['main'].get_children())
-    e.optional_attrs_button.invoke();app.update()
-    for k in hidden:self.assertIn(k,e.tables['main'].get_children())
-    e.optional_attrs_button.invoke();e.refresh();app.update()
-    for k in hidden:self.assertNotIn(k,e.tables['main'].get_children())
-    self.assertEqual(node['attrs'],before['attrs'])
-  finally:app.destroy()
+- 要素一覧は番号を独立した左列にし、別列に名前、その下に小さい型名の2段表示。
+- 名前は一覧内で直接編集。Enterや移動で確定、Escで取消。右に名前・型変更欄を重ねない。
+- ツールの表示名は空欄・同じ親内の重複を防ぐ。PDMSが無名要素を許す仕様とは分け、将来の入出力で内部IDを保持する。
+- 要素の順序はドラッグ変更。右クリックで複製・削除。下部の常設操作プルダウンは不要。
+- PTSETの並べ替えはNUMBを振り直し、既知の点参照も同じ点を指すよう更新する。GMSETの表示順番号を実機NUMBとして追加しない。
+- 参照共有するGMSETを必要に応じて分離し、別PTSETの点参照を壊さない。未解析の複合参照を推測変換しない。
+- 属性は基本・詳細・共通・負形状でタブ分割せず、1つの一覧。
+- 左セルは「属性名／小さい意味」、右セルは「値・式／小さいPARAM役割名」。役割名は括弧で囲まない。
+- 属性一覧の上にPARAMプリセット選択を常設。右側の説明を選んだプリセットへ即反映する。
+- 値は小さい編集窓で入力。PARAM挿入、四則演算、÷2、式整理、確定・取消をまとめる。文字属性には不要な式補助を付けない。
+- 属性入力窓の操作ボタンは枠線と薄い青の背景を使い、押せるボタンとして識別できる見た目にする。ポイントのプルダウンもPARAMボタンと同じ背景・枠・文字色にそろえる。確定は濃い青で区別する。
+- 方角はプルダウンでなくボタンとし、演算子の下の行に並べる。方角を設定できない属性ではボタンを表示しない（ユーザーは非表示または薄色で無効を許容、実装では非表示を採用）。点参照が使える属性のプルダウンは、対応するPTSETに存在するポイントだけを候補にする。手入力の方向式も保持する。P0は自動原点、PTSET編集中の点自身は循環を防ぐため候補から除く。LINEの点列は選択した点を挿入する。
+- PARAM挿入候補には番号と意味を出し、familyはサブメニュー等で区別。番号・familyのプルダウンを常時大量に表示しない。
+- 候補選択や式挿入だけでは保存しない。確定で反映、取消・Esc・閉じる操作で破棄。
+- PSKEY・DESC・PURPは保持するが、新規時はunsetでよく必須エラーにしない。PCON/PBORは部品用途を考慮する。
+- 表示用の未入力警告と、実機で省略可能な既定値を区別する。写真で既定値を学んだからといって、保存していない値を無断で実データに追加しない。
 
- def test_sphere_uniform_resize_and_point_position_picker(self):
-  from catalog_studio.integrated import IntegratedStudio
-  from catalog_studio.geometry_scene import SCALE_KEY
-  try:app=IntegratedStudio()
-  except tk.TclError as exc:self.skipTest(str(exc))
-  try:
-   app.switch('gmset');app.update();e=app.geometry_editor
-   node=s.add_element(e.definition(),'SSPH');e.element_id=node['id'];e.refresh();app.update();v=e.geometry_view
-   h=v.handles[0];x,y=h['screen'];a,b=h['start']
-   v.press(SimpleNamespace(x=x,y=y));v.move(SimpleNamespace(x=x+(x-a)*.4,y=y+(y-b)*.4));v.release();app.update()
-   self.assertIn(SCALE_KEY,node)
-   self.assertAlmostEqual(node[SCALE_KEY][0],node[SCALE_KEY][1]);self.assertAlmostEqual(node[SCALE_KEY][1],node[SCALE_KEY][2])
-   node=s.add_element(e.definition(),'LPYR');e.element_id=node['id'];e.refresh();app.update()
-   self.assertIsNone(e.inline_context('PAAX','main'))
-   app.switch('ptset');app.update();e=app.geometry_editor
-   p=s.add_element(e.definition(),'PTPOS');e.element_id=p['id'];e.refresh();app.update()
-   table=e.tables['main'];table.begin_edit('PTCPOS');app.update();dialog=table.editing['dialog']
-   self.assertIn('P1',dialog.points)
-   dialog.point_picker.set('P1');dialog.insert_point();self.assertEqual(dialog.variable.get(),'PP 1')
-   dialog.confirm_button.invoke();app.update();self.assertEqual(p['attrs']['PTCPOS'],'PP 1')
-  finally:app.destroy()
+## 4. PARAMプリセット
 
- def test_drag_multiselect_defaults_toggles_and_navigation(self):
-  from catalog_studio.integrated import IntegratedStudio
-  from catalog_studio import preview_preferences
-  with patch.object(preview_preferences,'load',return_value=(copy.deepcopy(preview_preferences.FACTORY),'')):
-   try:app=IntegratedStudio()
-   except tk.TclError as exc:self.skipTest(str(exc))
-   try:
-    errors=[];app.report_callback_exception=lambda k,v,t:errors.append(str(v));app.update()
-    e=app.geometry_editor;d=e.definition();n=s.add_element(d,'PTAXI');e.element_id=n['id'];e.refresh();app.update()
-    self.assertEqual(n['attrs']['PAXI'],'');self.assertEqual(n['attrs']['PDIS'],'')
-    self.assertNotIn('DESC',e.tables['main'].get_children());self.assertFalse(e.element_preset_choice.winfo_ismapped())
-    e.optional_attrs_button.invoke();app.update();self.assertIn('DESC',e.tables['main'].get_children())
-    v=e.point_canvas;v.propose(v.canvas.winfo_width()*.7,v.canvas.winfo_height()*.4,n['id']);self.assertIsNotNone(v.pending)
-    v.apply();app.update();self.assertTrue(n['attrs']['PAXI']);self.assertEqual(n['attrs']['PDIS'],'')
-    ids=e.elements.get_children()[:2];e.elements.selection_set(ids);app.update()
-    self.assertEqual(len(e.elements.selection()),2);self.assertIsNone(e.element())
-    snapshot=copy.deepcopy(app.data)
-    v.press(SimpleNamespace(x=10,y=10));v.move(SimpleNamespace(x=100,y=100));v.release(SimpleNamespace(x=100,y=100))
-    self.assertEqual(app.data,snapshot)
-    with patch('catalog_studio.construction_ui.messagebox.askyesno',return_value=True):e.delete_element()
-    self.assertFalse(any(n['id'] in ids for n in d['elements']))
-    app.switch('gmset');app.update();e=app.geometry_editor;v=e.geometry_view
-    self.assertEqual(v.render_mode.get(),'ワイヤー')
-    before=copy.deepcopy(app.data);a=(v.camera.yaw,v.camera.pitch)
-    v.canvas.event_generate('<Button-2>',x=50,y=50);v.canvas.event_generate('<B2-Motion>',x=90,y=70);v.canvas.event_generate('<ButtonRelease-2>',x=90,y=70);app.update()
-    self.assertNotEqual(a,(v.camera.yaw,v.camera.pitch));self.assertEqual(app.data,before)
-    e.tables['main'].begin_edit('CLFLA');app.update();self.assertEqual(e.element()['attrs']['CLFLA'],'TRUE')
-    self.assertIsNone(e.tables['main'].editing)
-    self.assertFalse(errors,errors)
-   finally:app.destroy()
+- PARAM番号の意味は全コンポーネント共通にしない。登録時期・部品種類・用途ごとにプリセット管理。
+- 管理画面の主列は「番号／意味／STEXT」。幅の目安は60／240／300。ボタンは左寄せでコンパクトに。
+- STEXTは意味の英語名としてプリセットに保持。自動翻訳せず、未登録は空欄。
+- プリセット編集画面にCATE選択、TEXT名、生成プレビューを置かない。CATE内TEXT生成等は作成側の操作として分ける。
+- プリセット保存で既存CATE/TEXTを自動更新しない。
+- 既存規則を残して複製・新規を作れる。同一CATE内のSCOMに異なる規則があってもよい。
+- 番号やSCOM値を意味名の編集で入れ替えない。単位変更で値を無断変換しない。
+- 使用中の番号削除・再採番、値型の不整合、使用中プリセット削除を防ぐ。
+- PARAM / IPARAM / APARAM / OPARAM / DES PARAM / DES APARAM / DES OPARAMの役割を区別する。他familyへ自身の役割名・値を流用しない。
+- 表示名は注釈。保存・出力する式に日本語の役割名を混ぜない。
+- 未保存のセル・プリセット変更がある移動では保存／破棄／取消を扱う。プロジェクト保存時も編集中セルを確定する。
+
+## 5. 要素一覧プリセット
+
+- 個別要素を毎回選び直さず、要素一覧全体を1つのプリセットとして登録する。
+- 要素・属性・輪郭等の子要素・PARAM規則・仮配置状態を保存し、独立コピーとして呼び出す。
+- 登録、呼び出し、登録済み内容の別画面編集を行える。
+- PTSETは要素一覧上部から直接プリセットを選べる。
+- 空のセットにはそのまま読み込み、既存要素がある場合は置換を確認。キャンセルで一覧・属性・選択表示を元に戻す。
+- 同じ選択を押し直しただけで編集内容を上書きしない。
+- 登録プリセットの変更は、過去に呼び出した実体や発行済み冊子を遡って変更しない。
+
+## 6. PTSETの仮配置と共有仮PARAM（現行決定）
+
+- 中央3Dプレビューを常設。SCOMがなくても点を置いて定義を作れる。
+- 仮配置グリッドは無単位。mm等の実寸を意味しない。
+- 基準面XY / XZ / YZ、視点立体／正面、グリッド／軸／点番号／関係線のトグルを1行にまとめ、区切って表示。狭い場合は操作行を横スクロール。
+- 空白左クリックで点作成メニュー。既存点クリックで選択、ドラッグで移動。選択／移動モードボタンは置かない。
+- 右ドラッグで視点回転、ホイールでズーム。
+- P0は自動生成する原点で編集不可。
+- 点は見つけやすい大きさにし、選択点は青い外周・太字番号等で手前に強調。
+- 必要な距離や座標式が未入力なら右属性を赤枠にする。任意属性のunsetとは分ける。
+- **同じPARAMの仮値はPTSET内で共有する。最初に成立した仮値を保持し、後から同じPARAMを使う点はそれを使う。NUMBの大小には依存しない。**
+- **共有するどの点をドラッグしても仮値を更新し、参照する全点がそれぞれの式・軸に従って動く。** かつての「最小番号の点を基準」の要件は現在の決定ではない。
+- 半分の式と全長の式は同比率で連動。同じ式・同じ軸なら同じ位置、逆軸なら反対側。
+- PTAXIはPAXIの軸上に拘束。角度付き軸もその軸上で移動。ドラッグで方向式を書き換えない。
+- PTCAR / PTMIXは座標式、PTPOSは位置式に従う。固定された0等の座標を勝手に変更しない。
+- 複数の未定PARAMの変更量を一意に決められない場合は推測で割り振らず、理由を示す。方向式が不明な場合も推測しない。
+- ドラッグ中は候補表示、離すと確定、Escで取り消す。式・実属性・SCOM実値は変更しない。
+- 共有仮値と仮位置はJSONと要素プリセットへ保存・復元する。
+
+## 7. GMSETとPTSETの対応・共有仮サイズ
+
+- GMSETで「適用するPTSET」を選び、点と形状を重ねて確認する。
+- 手動対応は名前を変えても保持。自動対応に戻せる。
+- 将来の正式命名規則は未確定。曖昧な名前や複数候補で先頭を勝手に使わない。
+- 対応選択をSCOM新規作成の初期値へ利用する。既存SCOMの参照を自動変更しない。
+- 対応はツールの編集メタデータ。GMSETの架空の実機属性として出力しない。
+- **GMSETの寸法も共有仮PARAMで評価する。どの形状のハンドルからでも共有値を更新し、他形状・対応PTSETの点を式どおりに連動させる。**
+- 同じPARAMプリセットを使う対応PTSETが共有元。未対応GMSETは独立した仮値を持つ。異なる規則を無断共有しない。
+- 候補ドラッグ・キャンセル・古い編集状態を安全に扱い、キャンセル中の値を永続化しない。
+- PARAMを持たない形状には個別の仮スケールを使える。PARAMを初めて設定した際は、それまでの調整済み仮サイズを考慮する。
+- 実際のPARAM寸法が使える形状では、過去の個別仮倍率より共有式を優先する。
+
+## 8. GMSETの見た目・実寸確認
+
+- 仮サイズ表示とSCOM実寸表示を切り替える。
+- SCOM実寸は登録済み値と参照コンテキストで評価。仮値への黙ったフォールバックをしない。
+- 寸法比を保ち、大小どちらの部品も全体が表示枠へ収まるよう自動フィット。
+- 視点は立体／XY／XZ／YZ。点と負形状の表示を個別切替。
+- ソリッド、簡略ワイヤー、面＋線を選択。円筒の細分線や平面の対角線を大量に見せない。
+- 透過を調整し、内部・奥の形状を見られるようにする。線・点・ハンドルは見える状態を保つ。
+- 描画用メッシュによる可視化と厳密CAD演算を区別する。負形状の重ね表示を穴あけ完了と呼ばない。
+- 表示トグルは定義・SCOMのデータを書き換えない。PARAGONの旧表示仕様は別途検証して取り込む。
+
+## 9. 管理・保存・PDF
+
+- 構造材PTSSET / GMSSET、NAREF、輪郭・頂点を管理する。
+- 説明SDTE・材質SMTEを独立管理し、SPEC行からSCOMと別に参照する。
+- 共通テーブルは階層とレコードを保持し、未確定属性も失わない。
+- カタログ本は選択したSCOM・SPECと参照先・PARAM規則・コンテキストを発行時点で固定する。
+- 発行後の定義・プリセット・説明変更が既存冊子に波及しない。
+- PDFに寸法表、式、意味を掲載し、異なるPARAMプリセットを混ぜて同じ列として扱わない。
+- Ctrl+S / Ctrl+Oで保存・読込。旧データの追加属性や未対応要素を破壊しない。
+- E3Dで実行するマクロの正しい生成・取込は最終目的に含むが、現時点で全構文対応済みとはしない。
+
+## 10. 開発・配布と継続参照
+
+- GitHubの `alz7485/codex2` を使用。必要な変更をコミットしmainへ保存する流れがこれまでに承認されている。
+- WindowsのEXEは `build_onedir.bat` を使用する。クラウドでの動作確認をWindows実機ビルド成功と読み替えない。
+- 配布用ZIPの別名は catalog-studio-integrated.zip / catalog-studio-python.zip / catalog-studio-ui.zip。
+- 写真や私的な調査原本を配布物へ混ぜない。package_python.pyの明示したファイルだけで梱包する。
+- 今回の文書作成前のコード基準点は `eacf351`。共有仮値の実装済み範囲と制限はREADMEとテストで照合する。
+- 新たに学んだ仕様の全件が実装済みとは報告しない。対象を絞って検証し、必要な実機確認を残す。
+- 将来の作業ではAGENTS.mdからこの記録を読み返し、ユーザーの訂正や新しい証拠を追記する。
+
+## 11. 写真から提案した修正の実装依頼（2026-10-16）
+
+ユーザーは修正案提示後「反映して」と指示。符号付きSCYL高さ、未入力時の実寸評価、属性に従う表示確認、PSKEY、NAREF、設計値・追加関数・明示単位と次元検査、NSDS・子の負形状を対象とした。共有仮PARAMと実部品値の分離は維持する。資料に矛盾する表示規則は比較可能な設定とし、実機確認済みとは扱わない。
+
+## 12. 設計継続の依頼（2026-10-16）
+
+修正反映後、ユーザーは「設計を続けて」と指示。次の開発を具体化するため、[出力前確認と出力の設計](../design/export-workflow.md)および[実機確認ケース](../design/e3d-verification.md)を整理した。段階A/B/C、診断形式、所有先の別JSON等は開発側の設計案であり、ユーザーが個別に確定した操作やE3Dの公式仕様とは区別する。この継続作業ではアプリの実装は変更していない。
+
+## 13. 方角ボタンとポイント候補（2026-10-16）
+
+ユーザーは「方角はプルダウンではなくボタン」「演算子の下の行に並べる」「P1等を設定できる属性では存在するポイントだけをプルダウンで選ぶ」と指定。属性入力窓へ反映。方向ボタンと点候補は挿入操作とする。候補の変更だけでは確定せず、取消で元データを維持する。
+
+続けて、方角を設定できない属性ではボタン非表示か薄色で無効にするよう指定。非表示を採用し、寸法・距離・口径・接続・説明・点列などに方角ボタンを出さない。
+
+さらに、ボタンには枠または色を付けるよう指定。属性入力窓のPARAM挿入・演算子・方角・式整理・取消に、薄い青の背景と枠線を採用した。
+
+最新の配置指定は「PARAMのとなりにP1のプルダウン」。単一の点参照とLINE点列の両方で、PARAM挿入ボタンの隣に実在ポイントのプルダウンを置く。上部の値・式の入力欄からは点候補を分離する。
+
+続けて、ポイントのプルダウンもPARAMと同じ色にするよう指定。専用スタイルで背景・枠・文字・矢印をそろえ、通常の入力欄や他のプルダウンには適用しない。
+
+## 14. 入力窓の改善後の設計継続（2026-10-16〜17）
+
+ユーザーは再び「設計を続けて」と指示。[段階Aの詳細設計](../design/scoped-diagnostics.md)と、架空データを使う単体HTMLの設計モックを追加した。対象別確認、診断からの移動、取消、結果が古くなった場合の扱いを開発設計として具体化する。今回の文書・モック追加を、Pythonアプリの機能実装やE3D実機確認済みの結果とは扱わない。
+
+続けて、参照先IDが曖昧な枝を推測でたどらないこと、式の失敗を表示文章に依存せず分類すること、未確定入力や古い検査結果を保持する手順と受入条件を整理した。これらは開発上の設計案であり、新しいユーザー指定やE3D公式仕様ではない。モックの状態遷移はNodeで検査し、ブラウザ実表示は環境ポリシーにより未確認と記録した。
+
+## 15. 既存の作成マクロの読込（2026-10-18）
+
+ユーザーは「既存のptset、gmsetを読み込む機能を追加」と依頼。形式の確認に対し「E3D／PDMSから出力したテキスト・マクロ（.mac／.txt）」、続けて「new ptset /名前 のように作成するときのマクロを読み込みます」と明示した。プロジェクトJSONの置換読込とは別の、NEW形式の定義の追加読込である。
+
+ファイル選択・貼り付け・解析・セットの複数選択・追加を実装。上書きせず同名を別名にし、未対応命令は行番号で停止する。式・符号・点参照・追加属性を保持し、マクロを実行しない。空の専用PARAM規則を作り、意味・単位・値型を推定しない。これらは実装上の取込方針。一般PML全構文やE3D実機検証済みとは扱わない。詳しい操作と制限はルートREADMEを参照。
+
+## 16. カタログ作成とSPECの3参照（2026-10-18）
+
+ユーザーは上部メニュー「SCOM登録」を「カタログ作成」に変更し、CATEと配下のSDTE・TEXT・SCOM、付随するDETAIL・PROPを一緒に作成するよう指定。続けて「DETAILとPROPはスペック登録に使用します。この3つの組み合わせでスペックは登録します」と明示した。3つはSCOM・DETAIL・PROPを指す。
+
+一式作成と個別編集、SPEC行の3参照を実装。SDTE/TEXTは従来のtexts内でCATEに所属し、DETAIL/PROPは別の管理配列catalog_details/catalog_propsでCATEと関連付ける。DETAILからSDTEを任意に関連付けられる。これらの内部形式と関連付けはツールの実装判断であり、正式なE3D要素型・所有階層・出力属性の確定ではない。SCOMの実属性へDETAIL/PROPを推測追加しない。
+
+一式作成は失敗時に部分登録せず、既存レコードを更新しない。SPECはdetail_id/prop_idで参照し、旧SDTE/SMTE参照は保持する。新しい未設定参照は下書きとして保存し、検査と冊子発行時に確認する。参照中の関連データ・SDTEの削除を防ぎ、発行済み冊子には関連データを固定する。
+
+## 17. PTSET・GMSETのMAC出力（2026-10-18）
+
+ユーザーは「ptsetとgmsetにmacデータへの出力する機能」と依頼し、続けてサンプルを1つ求めた。各画面に選択中セットの作成マクロを確認・保存する操作を追加。読込時に指定されたNEW形式を使用する。元の式・点参照・符号・子要素順序を保持し、仮値やSCOM・SPECは含めない。セット名は明示的な /名前が必要で、無名要素の画面ラベルを実機名へ変換しない。未入力・unsetは省略し、未対応型・保持できない値は停止する。最新のユーザー指定「SJISで出力します」によりShift-JIS（CP932）で保存する。CRLF保存と既存ファイルを壊さない置換は実装判断であり、E3D公式仕様ではない。表現できない文字は黙って置換せず、保存を中止して文字を案内する。自作サンプルcreation-export-sample.macを公開する。E3D 4.0実行検証とは区別する。
+
+## 18. E3D ALP FILE形式の読込・作成（2026-10-19）
+
+ユーザーはE3DからALP FILEで出力したGMSETの写真を提示し、「これを読み取ります。また作成もこの形にします」と指定。INPUT BEGIN、NEW/END、長形式の要素名、属性・式、OLD/LOCK、INPUT END 型 /名前、INPUT FINISHに対応する。SJIS（CP932）指定は継続。従来のNEWだけの入力も保持する。
+
+観測できた型別名・属性別名と式表記を採用する。ALP読込はロック有無をmacro_lockedとして保存し、再出力時に現在の名前・型別順番号からOLDを再生成する。新規またはロック情報のない従来定義は写真の形に合わせ全要素をLOCKする実装判断。ツール上の編集禁止にはしない。外部DBへのOLD参照は解決せず停止する。未知属性は原文保持、PARAMの意味や所有階層は推測しない。原写真・固有名・マクロ一式は公開せず、別の自作サンプルで検証する。
+
+## 19. カタログとディテールテキストの作成例の提示（2026-10-19）
+
+ユーザーは「ptsetの例です。続きがあります」として2枚を提示。内容にはCATEGORY、SDTEXT、TEXT、SCOMPONENT、PARAの$行継続、PTRE/GMREによる別PTSET/GMSET参照とOLD/LOCKがあり、PTSET本体の定義は含まれていないことを説明した。
+
+続けて「ディテールテキストの作成データです」と別の写真を提示。SDTEXT単独を作りSKEYとRTEXを設定するINPUT形式を確認。仕様メモ§14へ観測事実として保存する。既存の独立DETAILレコードやPROP・SPEC参照の全対応を推測で確定せず、実装範囲は別途明示する。この記録追加ではアプリと配布ZIPは変更しない。
+
+## 20. PROPのCMPTYPE・CMPDATA作成例（2026-10-19）
+
+ユーザーは「PROPの作成データです」と写真を提示。CMPTYPE配下にCMPDATAを作成しCWEIを設定するINPUT形式である。OLD/LOCKはない。仕様メモ§15へ記録し、以前は根拠不足だったPROPの作成構造について、この具体例を今後の対応の基準とする。SPECからの参照属性・対象、所有先、CWEI単位は別途確認事項として残す。今回も仕様メモの更新のみで、アプリやZIPは変更しない。
+
+## 21. PTSET本体の作成例の訂正・追加（2026-10-19）
+
+ユーザーは「こちらがptsetの作成データでした」とPTSET本体の写真を提示。PTAXIS、NUMB、PCON/PBORのPARAM参照、PDISのATTRIB式、正負X、INPUT/OLD/LOCKが観測できる。PTAXISの読込と出力へ反映し、元の式・ロック情報を保持する。従来の短い型名入力とSJIS（CP932）出力は継続する。仕様メモ§16を今後の参照元とする。PTSET写真が未提示だった以前の記録は、この追加により更新された。
+
+## 22. ALP模倣をやめて出力を簡潔にする（2026-10-20・現行優先）
+
+ユーザーは、名前だけを入力して対象を選択できOLDは必須でないこと、親配下の一括ロックを使う案を説明。その後「マクロとして出力するときはalp fileの書き方の模倣をせず不要なものは省きまとめれるものはまとめるようにして簡潔にします」と明示した。この最新指示により、§18・§21当時のALP外枠・OLD/LOCKを再現する出力方針を更新する。ALPの入力対応・既存JSON内のロック情報は維持する。
+
+出力はNEW・属性代入・必要なENDを主体とし、INPUT外枠・OLD・説明用コメントを省く。同一要素の既知属性は長すぎない範囲で同一行へまとめ、未知属性と自由文字列は独立行にする。式・数値・階層・子の順序は保持し、既定値を推定して入力値を落とさない。
+
+ロックは出力画面の任意チェックとし既定オフ。選択時は現在要素を利用し、子の作成とロックを終えてから親のEND直前にLOCKする。配下一括ロックの実機構文はまだ確認できていないため推測生成しない。この具体的な画面・既定値は開発上の判断。入力時のmacro_lockedは資料情報として保存したまま、出力選択でデータを書き換えない。SJIS（CP932）・CRLFと変換不能文字で保存を止める動作は継続する。
+
+## 23. PTSET・GMSETそれぞれの登録先（2026-10-20）
+
+ユーザーは登録場所が決まっているため、PTSET/GMSET別にテキストボックスを用意し、入力値を出力マクロの冒頭へ置いて登録先を現在要素にするよう指定。先頭に/がなければ自動で付ける。
+
+各画面の出力ボタン上へ常設の登録先欄を追加。プロジェクト共通・種別ごとに独立したmacro_destinationsの文字列として保存する方式は実装判断。入力完了・保存・出力で/を補完し、先頭には名前だけの行を出す。親フォルダのNEWは生成しない。空欄は従来どおり現在要素からの作成とし、旧JSONに設定がなくても利用できる。
+
+登録先付きの自作マクロを再読込できるよう、作成前の単独/名前行を記録する。読込元の登録先は定義のmacro_destinationに保持・表示し、固定登録先の設定は自動上書きしない。これらはツールのメタデータであり、PTSET/GMSETの実属性として代入しない。空白や改行・命令区切りを含む無効な名前は出力を止める。登録先の実在・実機で適切な所有型かどうかは、DBへ接続しない本ツールでは検証しない。
+
+## 24. マクロ操作のアイコンボタンと配置（2026-10-20）
+
+ユーザーは「マクロ読み込み、出力をアイコン付きのボタンにする」、続けて「ボタン配置も見直して」と指定。PTSET/GMSET編集画面の「マクロ」枠内へ読込・出力を横並びの等幅ボタンとしてまとめ、その下に各種別の登録先入力欄を置く。書類と下向き矢印（青）が読込、書類と上向き矢印（緑）が出力。短い文字ラベルを残し、薄青の背景と枠でボタンと分かる見た目にする。
+
+Tk画像を使って環境の記号フォントに依存せず表示し、ボタンの既存コールバックとSJIS出力・登録先保存は維持する。配置・色・図柄は開発上の選択でありE3Dの属性仕様ではない。自作サンプルを使った画面図をREADMEへ追加する。
+
+## 25. PTSET・GMSETの弁サンプル（2026-10-24）
+
+ユーザーは「ptset、gmsetに弁のサンプルを登録しておいて」と依頼。起動時のサンプル一覧へ自作の手動弁PTSET/GMSETを登録する。2配管接続点と1補助点、球状本体・接続管・フランジ2個・ボンネット・弁棒・円盤で簡略化したハンドルを持つ形状、専用PARAM規則、両セットの明示対応、確認用SCOM/CATEを追加する。これらの種類・寸法・構成はツール用の自作例で、ユーザー写真の原図・原マクロを再配布せず、メーカー仕様や規格適合を主張しない。
+
+既存のPARAM規則や定義・SCOMを変更せず、追加処理は候補コピーを検証してから適用する。起動時の初期データ以外では「その他の管理 → 手動弁サンプルを追加」を用意し、同名は番号で回避する。既存JSONを開いたときの自動追加や、空の新規プロジェクトへの強制追加はしない。サンプル単体JSONも配布する。既存データ保護・面間/高さ・仮表示と実寸・マクロ往復を自作データで検証し、E3D実機確認と区別する。
+
+## 26. アプリ本体のアイコン（2026-10-24）
+
+ユーザーはマクロ操作ボタンではなくアプリ本体のアイコンを希望し、4案から「C」を選択した。開いたカタログと青・水色の立方体、紺色の角丸背景を採用。自作生成画像をPNGと複数サイズICOで収録し、メインウィンドウ・子ウィンドウの既定アイコン・画面左上のロゴ・Windows EXEビルドへ適用する。PNG/ICOを明示リストで配布ZIPへ同梱する。E3Dの仕様変更ではない。Windows EXEの生成・OS上の表示確認はWindows側で行う。
+
+## 27. GMSETプレビューのボタンをPTSETと統一（2026-10-25）
+
+ユーザーは弁サンプルの両画面を確認後、「gmsetのプレビュー表示用ボタンをptsetのものと合わせる」と指定。上段を同じ枠・余白・選択色の「基準面」「視点」「表示」に統一する。基準面XY/XZ/YZ、視点立体/正面、グリッド・座標軸・点番号の切替を配置し、正面は選択中の基準面を向く。点番号の非表示でも点と方向矢印は残す。GMSETのグリッドは既存の画面上の補助格子であり、実寸・作図平面の距離目盛ではない。SCOM実寸/仮サイズ、点・負形状、描画方式・透過・表示条件・設計値は下段で維持する。画面幅不足時は操作行を横スクロールできる。表示切替で形状属性・PARAM・SCOMを書き換えない。E3D実機のREPRESENTATIONコマンド仕様とは区別する。
+
+## 28. プレビュー操作の分かりやすさ（2026-10-25）
+
+改善案への「修正します」を受け、直前に優先推奨した②表示モードの明確化・③基準面の反応・④詳細操作の整理を実装する。GMSETの画面ラベルを「仮配置で確認」「登録寸法で確認」とし、プレビュー内にもモードと参照SCOMまたは未選択の案内を表示する。内部のモード値は既存処理との互換性を維持する。PTSET/GMSETとも基準面を押すと直ちに正面へ切り替え、立体ボタンで戻る。前節の「正面表示中だけ基準面で視点が変わる」動作を更新する。
+
+GMSETで常用する描画方式は常設し、透過率・描画対象・表示条件・設計値・接続点/負形状の切替は「詳細表示…」から開く別ウィンドウへ移す。閉じても設定を戻さず、再度開ける。モード・視点・表示の切替では形状属性やPARAMを変更しない。「設計値」は従来どおり確認用model_settingsを編集する。提案①作業順序の案内・⑤属性説明の改善・⑥出力状態の集約は今回未実装で、実装済みと混同しない。
+
+## 29. 画像提案を採用した共通プレビュー（2026-10-25）
+
+コードを変更しない画像提案を提示後、ユーザーが「提案を採用」と指示。ここから実装へ進む。PTSET/GMSETの視点を立体・XY・XZ・YZに一本化し、PTSETの作図面は独立した選択に変更する。前節の作図面から自動的に正面へ切り替える動作を置き換える。全体表示・ズーム・選択要素名・拡大/復帰を追加し、選択色を青へ統一。拡大は要素/属性ペインを一時的に隠して同じプレビューを広げ、復帰時に幅を戻す。
+
+表示設定は別ウィンドウから描画領域の横に開くパネルへ変更。図とパネルは領域を分け、重ならない。狭い画面では自動的にプレビューを拡大し、閉じると復帰する。設定は閉じても保持する。GMSETの設計値編集は表示操作と区別して外へ置く。点/形状の選択、属性編集、表示条件、マクロ処理は維持する。これらはアプリのUI要件であり、E3Dの実機仕様ではない。
+
+## 30. フォルダ管理とカタログ・SPEC一覧の統合（2026-10-25）
+
+ユーザーは左リストをフォルダ管理にし、カタログ作成の2つ目のリストを左へ統合するよう指定。続けてスペック登録も統合するよう指定した。画面別の整理フォルダをbrowser_folders、配置をbrowser_placementsとしてJSONへ保存する。フォルダの追加・名前変更・階層移動・最上位へ戻す操作・空フォルダ削除を用意し、循環・別画面への移動・同じ場所の同名を拒否する。検索は一致項目の祖先も残す。旧JSONに設定がなくても利用可能とする。
+
+カタログはCATEと配下SCOM・SDTE・TEXT、関連DETAIL/PROPを左ツリーへ統合。SPECは重複するSPEC一覧を左へ統合し、中央は登録行表を残す。SCOMの寸法表・関連レコード編集表も残す。CATE編集・削除、SPEC編集・複製・削除は中央上部へ配置する。整理によってE3Dの要素名・所有先・参照・マクロ登録先は変えず、カタログのフォルダ移動はCATE単位に限る。これらはアプリ独自の整理機能でE3Dのフォルダ要素型ではない。
+
+## 31. プレビュー表示設定の初期値保存（2026-10-25）
+
+ユーザーは表示設定へ「現在の設定を初期値にする」ボタンを追加し、全てに適用・次回起動後も維持するよう指定。共通のグリッド・座標軸・点番号はPTSET/GMSET、関係線は全PTSET、描画方式・透過率・接続点・負形状・表示条件は全GMSETへ適用する。開いているプリセット編集プレビューにも適用し、新しく開くセット・別プロジェクトでも使う。形状データやPARAM、参照SCOM、視点・作図面・ズームは保存対象外とする。
+
+WindowsはAPPDATA/CatalogStudio/preview-defaults.json、他OSはユーザー設定ディレクトリへ保存し、プロジェクトJSONには含めない。保存後に全プレビューを更新し、失敗時は以前の初期値を残してパネル内へ理由を表示する。設定ファイル破損時は標準値で起動し案内を表示する。アプリ独自の表示初期値であり、E3Dの実機REPRESENTATION既定値を変更する機能ではない。
+
+## 32. 作図面・視点のアイコンボタンとF5（2026-10-25）
+
+ユーザーはPTSETの作図面をプルダウンではなくアイコン付きボタンへ変更し、視点もアイコン付きにし、F5で作図面を切り替えるよう指定。PTSETのXY・XZ・YZをアイコン付きラジオボタンへ変更し、PTSET/GMSET共通の立体・XY・XZ・YZ視点にも同じ面アイコンと立方体アイコンを付ける。ラベルは残し選択中の色をそろえる。Tk画像で記号フォントへの依存を避ける。
+
+F5はXY → XZ → YZ → XYの循環とし、ボタンと同じ処理で仮の操作候補を取り消して作図面のみ変更する。視点・属性・PARAM・SCOMは変更しない。PTSETが見えているウィンドウで有効とし、他の入力ダイアログのグラブ中は抑止、画面破棄時には自身のキー割当だけ解除する。初期値保存の対象には追加しない。
+
+## 33. 面アイコンを立体ボックスとグリッドで表現（2026-10-26）
+
+ユーザーはXZアイコンが正面になっていることを指摘し、立体表示時のグリッドの形にそろえるよう指定。続けて「立体のボックスとその面を表示するグリッドの⬜︎」「今の絵に立体の本体を真ん中に追加」と明確化した。XY／XZ／YZすべて、中央の小さい立体ボックスとその中心を通る四角いグリッドを重ねる。PTSETプレビューの標準立体カメラと同じ投影を使い、XZも斜めに表示する。PTSETの作図面とPTSET/GMSETの視点ボタンで同じアイコンを使う。ボタンの選択・F5の挙動とデータは変更しない。E3D実機の属性仕様ではなく、本ツールのUI要件である。
+
+
+## 34. 画面全体の画像案を採用（2026-10-27）
+
+ユーザーはコードを変更しないPTSET・GMSETの画像提案を求め、配置・操作を修正した画像を確認後「修正して」と実装を指定した。§24・§27〜29・§30の配置を更新し、4列構成の上部にセット名・マクロ読込/出力・登録先をまとめる。GMSETの適用PTSET・参照SCOM・設計値編集もこの上部へ置く。要素一覧は最上段に要素プリセット選択と追加ボタン、属性一覧は最上段にPARAMプリセット選択、その直下から一覧にする。GMSETにも同種の要素プリセット選択を用意する。
+
+左の追加・フォルダ追加を横並びにし、整理ボタンを廃止。右クリックで移動先選択・名前変更・削除を行う。PTSET/GMSET画面のセットとフォルダは切り取り・コピー・貼り付けにも対応する。切り取りは貼り付け成功時に配置だけ移す。コピーは子フォルダ・要素・式・参照を保持して別IDと重複しない名前で作る。点番号の変更や既存SCOMの参照先変更はしない。同じプロジェクト・同じ種別の範囲に限り、循環移動や不正なコピーは元データを残して止める。クリップボードはアプリ内の一時状態とする。
+
+プレビュー操作は視点と表示操作を1行目、作図面または確認モードを2行目にする。狭い画面では1行目を横スクロールする。選択名は図の下へ表示する。立体の標準矢視を＋Xが右上、＋Yが左上、＋Zが上になる向きへ変更し、面アイコンも同じ投影へ更新する。視点変更で点座標・属性・PARAM・SCOMは変更しない。F5と表示初期値保存を維持する。E3Dの仕様変更ではなくアプリのUI要件である。
+
+
+## 35. アプリタイトル欄の廃止とファイル操作アイコン（2026-10-27）
+
+ユーザーはアプリタイトル欄をなくし、右上のボタンをアイコンにして「PTSET作成」等と同じ行の右端へ置くよう指定。画面内のロゴ・アプリ名・説明のヘッダーを取り除き、カテゴリ行の右端へ新規プロジェクト・開く・保存の3アイコンをこの順で配置する。アイコン上のマウス・キーボードフォーカスで操作名とショートカットを表示する。既存の新規・読込・保存処理、未保存の確認、Ctrl+N/O/S、OSのウィンドウタイトルとアプリアイコンは維持する。E3Dの属性・マクロ仕様には影響しない。
+
+
+## 36. セット登録先の枠内を1行へ集約（2026-10-27）
+
+ユーザーはPTSET登録先・GMSET登録先の枠内配置を1行へまとめるよう指定。セット名、種別ごとの登録先ラベルと入力欄、SJIS表示、マクロ読込・出力を上部カードの同じ行に並べる。GMSETの適用PTSET・参照SCOM・設計値は下の参照行にまとめる。登録先の正規化、保存、マクロ冒頭への出力は維持する。
+
+
+## 37. 左右の一覧の行間を少し圧縮（2026-10-27）
+
+ユーザーは左右のリストの縦幅を少し詰めるよう指定。一覧全体は画面に合わせて伸縮し、各行の上下余白を少し削る。登録一覧は34pxから30px、要素と属性の2段表示はフォントの行高に足す余白を18pxから10pxへ変更する。文字サイズと2段表示を維持し、属性値・PARAM役割名が折り返す行は内容に合わせて伸ばす。
+
+
+## 38. 左の登録一覧の操作順・選択位置への追加（2026-10-27）
+
+ユーザーはPTSET(件数)・GMSET(件数)の直下にアイテム追加・フォルダ追加のアイコン、その下に虫眼鏡と検索テキストボックス、その下にリストを置くよう指定。アイコンには操作名のヒントを付ける。追加用の別窓は項目数に合わせてコンパクトにする。
+
+「選択しているところの下」は、フォルダ選択時はその中の先頭、アイテム選択時は同じ階層の直後、選択なしは最上位の末尾として実装する。新規セットとフォルダに共通の動作。追加時点の選択先とプロジェクトを保持し、取消や追加先消失時に余分なデータを作らない。検索中の追加が成功した場合は検索を解除し、新しい行を選択して表示する。
+
+フォルダとセットを混在させた表示順はbrowser_orderというツール用メタデータで保存する。E3Dの所有階層・点番号・要素順序・式は変更しない。設定のない旧JSONも開ける。フォルダコピーでは、保存済みの子の表示順も別IDに写して保持する。
+
+
+## 39. 登録先・参照行の集約とプレビュー内の切替（2026-10-27）
+
+ユーザーは中央上部の現在のセット名を要素一覧の最上段へ移し、PTSET登録先・GMSET登録先のラベルを「登録先」に短縮するよう指定。PTSETは左詰めとし、登録先の入力幅をGMSETとそろえる。GMSETは登録先・適用PTSET・参照SCOM・マクロ読込/出力の2ボタンを1行に収める。これに伴い「設計値を編集」はプレビュー下部の右端へ移す。§34・§36の上部配置を更新する。登録先の正規化・保存・出力と参照選択の処理は維持する。
+
+続けて、PTSETの作図面ボタンを描画領域内の左上へ移し、GMSETも「仮配置」「登録寸法」に短縮した切替ボタンを同じ位置へ置くよう指定。プレビュー上部は共通の視点・全体表示・表示設定・拡大の1行にする。§34の2行構成を更新する。作図面アイコン・F5・モード切替・表示設定パネルを維持する。GMSETの確認状態と参照SCOMの案内は描画領域の右上、描画方式は左下に表示する。PTSETの全体表示には切替ボタンと点ラベルが重なりにくい余白を取る。実画面検証で見つかった拡大復帰時の幅ずれも修正し、要素一覧と属性欄の区切り位置を復元する。これらはアプリの表示配置であり、属性・PARAM・マクロ構文を変えるものではない。
+
+
+## 40. 登録先とマクロ操作を両画面で右揃え（2026-10-27）
+
+ユーザーは登録先・マクロ読込・マクロ出力を右揃えにし、PTSETとGMSETの配置を同じにするよう指定。上部右端へこの順で並べ、登録先入力幅・ボタン幅・余白と位置を共通にする。GMSETの適用PTSET・参照SCOMは同じ行の左側で伸縮させる。§39のPTSET登録先左詰めとGMSETの並び順を更新する。登録先保存・正規化、参照選択、読込・出力処理は維持する。
+
+
+## 41. 属性値の下の説明を1行へ（2026-10-27）
+
+ユーザーは右の属性リストで、値の下にある説明を1行にし、長いものを省略するよう指定。値欄の幅に合わせて説明の末尾を「…」で省略し、改行を含む説明も1行で表示する。値・式そのものの折り返しと編集時の原文、PARAM役割名・説明の元データは保持する。
+
+
+## 42. GMSET立体表示のXYグリッド（2026-10-27）
+
+ユーザーはGMSETの立体表示でグリッドをXY平面へ置くよう指定。Z=0のXY平面の格子を形状と同じカメラで投影し、回転・ズームへ追従させる。正面の各視点は従来の補助格子を維持する。格子間隔は表示範囲に合わせた補助表示であり、距離目盛や形状属性として保存しない。
+
+
+## 43. 左リストのマクロメニューと登録先リスト（2026-10-27）
+
+ユーザーは左リストの追加・フォルダ追加の右に「マクロ▼」を置き、読込・出力・登録先編集をまとめるよう指定。登録先編集は小窓で開き、＋で入力欄を追加する。出力時は登録先の一覧から選択する。GMSETの適用PTSET・参照SCOMはプレビュー下へ移し、上部枠を廃止する。§39・§40の常設登録先入力とマクロボタン配置を更新する。
+
+登録先リストはmacro_destination_listsに種別別で保存し、旧macro_destinationsの単一値は候補として引き継ぐ。編集は保存時に正規化・空欄除外・重複除外を行い、取消・不正入力時は元データを残す。出力確認で候補を選び直しても保存データや形状を変えず、プレビューと保存マクロへ選択先を反映する。候補がない場合は従来の現在要素で作成する動作を明示する。追加数が増えても小窓内をスクロールして編集できる。読込元の登録先はリストを自動上書きしない。
+
+
+## 44. マクロメニューのアイコンと高さ（2026-10-27）
+
+ユーザーはマクロボタンにもアイコンを付け、隣の追加・フォルダ追加とボタン高さをそろえるよう指定。書類にコード記号を重ねた24pxアイコンを付け、文字とドロップダウン表示を維持する。
+
+
+## 45. 一覧からの即時追加・行内リネーム（2026-10-28）
+
+PTSET・GMSETのアイテム追加・フォルダ追加は名前入力窓を開かず即時作成する。初期名は「新しいアイテム(1)」「新しいフォルダ(1)」から重複しない番号を付ける。選択アイテムの同階層の直後、フォルダ選択時はその中の先頭、選択なしは最上位末尾へ追加し、新しい行を選択する。右クリックの名前変更・F2・ダブルクリックで行上の入力欄を開く。Enterまたはフォーカス移動で確定、Escapeで取消。不正・重複名は適用せず理由を表示する。ID・参照・式は変えない。左リストを220pxから260pxへ広げる。§38の追加用別窓を更新する。
+
+
+## 46. メイン画面の一覧とウィンドウを拡幅（2026-10-28）
+
+左右の一覧を広げた分、メインウィンドウも大きくするようユーザーが指定。初期ウィンドウを1440×960から1580×960へ広げる。登録リストは260pxから300px（カタログは280pxから320px）、PTSET・GMSETの要素リストは最大230pxから270px、属性ペインは330pxから390pxへ広げ、標準幅で中央プレビューの広さを保つ。最小幅も1120pxから1260pxへ広げ、参照欄がつぶれないようにする。区切りの調整は維持する。
+
+
+## 47. 要素リストをさらに拡幅（2026-10-28）
+
+ユーザーは要素リストをもう少し広げるよう指定。PTSET・GMSETの要素ペインを最大270pxから310pxへ広げる。中央プレビューを保つため初期ウィンドウを1620×960px、最小幅を1300pxとする。登録一覧と属性欄は前節の幅を維持する。
+
+
+## 48. カタログ左リストの追加アイコン（2026-10-28）
+
+ユーザーはフォルダ追加の右へSDTE追加・TEXT追加・SCOM追加のアイコンボタンをこの順に置くよう指定。24pxの種類別アイコンと操作名のヒントを使い、フォルダ追加と同じ高さで横並びにする。カタログ画面だけに表示し、選択中CATEに対する既存の作成画面を開く。CATE未選択時は無効とする。上部や関連データ側の既存の作成操作は維持する。
+
+
+## 49. カタログ中央のタブを廃止（2026-10-28）
+
+ユーザーは中央画面のタブを不要とし、選択項目に応じた内容切替を指定。SCOM・CATE選択時はSCOMの寸法・文字列、SDTE・TEXT・DETAIL・PROP選択時は該当レコードの情報を表示する。中央のNotebookをフレームへ変更し、左リストの選択で表示領域を切り替える。既存の作成・編集・参照データと選択レコードのIDは維持する。
+
+
+## 50. CATE属性編集リストとプリセットTEXT一括作成（2026-10-28）
+
+ユーザーは中央を属性／値の2列の編集リストへ変更し、値セルクリックで編集するよう指定。CATE選択時はCATEと配下SDTE・TEXT・SCOMの属性、子レコード選択時はその項目を表示する。中央の追加ボタンと横長のレコード表を表示しない。属性一覧は後日追加指定を受けるため、現在のJSONで確認できる名前・改訂・説明、SDTE既知テキスト属性、TEXTのSTEXT、SCOMの参照先・PARAM値・ANGL、および既存の追加属性を扱う。ID・参照を維持して候補コピーを検証後に編集内容を反映し、不正値・重複名・古い編集状態では元データを残す。Enterまたはフォーカス移動で確定、Escapeで取消。参照先は既存の同種要素を選択する。既存の作成・表貼付等の処理は互換のため保持するが中央には表示しない。
+
+左のTEXT追加は▼付きメニューにし、「プリセットから作成」「TEXT作成」を選ぶ。プリセットの各PARAMのenglish_name（既存UIでのSTEXT）から、CATE名/PARAM番号という名前のTEXTを生成する。選択プリセットによる候補名とSTEXTを事前表示し、一括作成で反映する。未入力STEXT・同名・不正値・作成前のデータ変更があれば停止し、既存レコードは上書きしない。取消でデータを変更しない。プリセット全体の属性がTEXTのE3D属性であるとはみなさず、確認済みのSTEXT対応のみ使う。
+
+
+## 51. カタログの即時追加とマクロメニュー（2026-10-29）
+
+フォルダ追加の右へCATE追加を置き、SDTE・TEXT▼・SCOM・マクロ▼の順にする。カタログのフォルダ・CATE・SDTE・TEXT・SCOM追加は入力窓なしで即時作成し、重複しない仮名で選択する。値は中央の属性／値リストで編集。TEXTのプリセット一括作成は選択・確認が必要なため従来の確認窓を維持する。CATE未選択でもCATE追加は有効、配下要素の追加は無効。左幅はボタンが収まる390px。
+
+マクロ▼には読込・出力・登録先編集を追加。CATE登録先を種別別リストとして保存し、出力時に選択する。出力対象は選択CATEとSDTE・TEXT・SCOM。簡潔なNEW/END形式・CP932/CRLFを使い、INPUT/OLD/LOCKは付けない。既知のテキスト属性、PARA、ANGL、GMRE/PTREに対応。アプリ用の改訂・説明・プリセットIDはE3D属性と推測して出力しない。DETAIL/PROPは対象外と明示、SIZE・構造材参照・未知属性は黙って失わず出力を拒否。読込は対応する宣言形式を解析するだけで実行せず、未知命令・重複名・不明参照・不正値は全体を取り消す。ALPのOLD/LOCKや継続行など全構文対応ではなく、E3D実行確認は未実施。
+
+
+## 52. カタログ画面の説明枠を廃止（2026-10-29）
+
+ユーザーは上部の「カタログ作成」の説明枠を不要と指定。画面内の見出し・説明カードを削除し、中央の属性編集と右の概略表示を上へ広げる。最上部の画面切替メニューと左の追加・マクロ操作は維持する。
+
+
+## 53. E3D出力CATE・PROP・DETAILの読込（2026-10-29）
+
+新たな3枚を根拠にカタログMAC読込を拡張。CATEGORY→SDTEXT/TEXT/SCOMPONENT、単独SDTEXT、CMPTYPE→CMPDATAを扱う。INPUT外枠のルート型・名前を照合し、NEW/END階層とOLD再選択を分離。OLDは当該ファイル内で作成した同型同名要素に限定。LOCKはmacro_lockedとして保存するだけで実行しない。行末$継続、PURP・GTYP、引用符内の空白を含む各テキスト、TEXTのSTEX→内部STEXT、数値/WORD混在PARA、後段のPTRE PTSET/GMRE GMSET、数値CWEIに対応。既存データの変更は候補全体検証後。未対応命令・重複名・不正値では全体取消。
+
+単独DETAILはcatalog_detailsにe3d_type=SDTEと属性を保存。PROPはcatalog_propsにe3d_type=CMPTYPEとCMPDATA childrenを保存し、子名とCWEIを中央で編集。選択中CATEへの関連はツール内の整理用であり、実機の所有関係やSPEC参照を推測しない。CATE未選択でも未関連グループに表示する。未読込PT/GMは外部名として参照欄へ残し、存在する場合はIDで参照する。PARAM専用プリセットは型のみを設定し、意味・単位を推測しない。CATEの既知属性と外部参照は簡潔な再出力でも保持する。DETAIL/PROP出力の追加やCWEIの一般式対応は今回の範囲外。
+
+
+## 54. 左リストで改名・選択項目の実機属性だけを中央編集（2026-10-29）
+
+カタログ左の通常追加は即時作成のまま、CATE・SDTE・TEXT・SCOM・DETAIL・PROPの名前変更をF2／ダブルクリック／右クリックから行内入力する。ID・参照を保ち、重複名は拒否。中央は選択した項目のみを編集し、CATE選択で配下全件は表示しない。CATEはPURP、SDTEはSKEY/TTEX/RTEX、TEXTはSTEX（内部STEXT）、SCOMはGTYP・PARA各値・PTRE/GMRE、DETAILはSKEY/RTEX、PROPはCMPDATAのCWEIを表示。未設定でも既知属性欄を表示する。NAME・REVISION・DESCRIPTION・SIZE・ANGL・構造材参照やPARAMプリセット選択は中央の属性欄から除くが、保存済み値を削除しない。過去の編集APIは既存フォーム互換用に維持する。TEXTプリセット一括作成は従来どおり選択確認後に作成。
+
+
+## 55. CATE追加メニューとプリセットによる一式作成（2026-10-29）
+
+左のCATE追加をアイコン＋▼のメニューに変更。「CATE一式作成」「CATE作成」の2択。一式はPARAMプリセット選択窓で確認し、CATE 1件、配下SDTE 1件、プリセットの各PARAMのSTEXT（english_name）を使うTEXT群、SCOM 1件を原子的に作成する。DETAIL/PROPは今回の一式には含めない。SCOMには選択プリセットを割り当て、PTSET/GMSET参照とPARAM値は未設定にする。名前は重複しない仮名とし、左リストで変更する。選択フォルダ内先頭／選択CATEの直後へ配置し、子要素選択中はそのCATEを基準にする。取消・STEXT不足・不正プリセット・データ変更時は一部作成を残さない。「CATE作成」は入力窓なしの即時追加を維持。
+
+
+## 56. 中央プレビュー・右側の日本語説明付き属性リスト（2026-10-29）
+
+ユーザーはカタログも中央プレビュー、右属性リストとして他画面との統一を指定。左の登録一覧は維持し、中央のプレビューを拡幅、右に既存の選択項目編集を配置する。属性表はPTSET/GMSETと共通のAttributeTableを使い、属性名を太字、その下に小さい日本語の意味、右列に値を表示。PARAは番号を主表示し、プリセットの日本語の意味を下段へ表示する。GTYP・PURP・各テキスト属性・GMRE/PTRE・CWEIにも意味を添える。既存のセル編集、Enter確定・Escape取消・参照候補選択を維持する。プレビュー下のPARAM値の重複列挙は省き、選択名とプリセット名を短く表示する。既存の概略描画の対応範囲・式・データ・マクロ入出力を変える仕様ではない。
+
+
+## 57. カタログのGMSET共通プレビューと一式作成の連動選択（2026-10-29）
+
+カタログのプレビューをGMSETと同じGeometryCanvasへ変更。視点・全体表示・設定・描画方式・透過・グリッド・登録寸法／仮配置・表示初期値を共通化。選択中SCOMを参照元とし、形状・PTSET/PARAM式・寸法の描画を共通エンジンで行う。カタログの左クリックは形状編集には使わず、回転の開始とする。右の属性編集は維持。カタログの拡大は右属性ペインを一時的に隠して復帰する。
+
+CATE一式作成にPTSET・GMSET・PARAMプリセットの3選択欄を追加。PTSET選択時は既存pairing.users、GMSET選択時はpairing.resolveを使い、対応セットと同じPARAMプリセットを自動選択。既存の手動対応・SCOM参照・作成下書き・命名規則を優先し、対応情報なしでは同じPARAMの候補が一つだけなら選ぶ。複数候補は現在の選択が有効なら保持、それ以外は未確定とし先頭を勝手に選ばない。セット一覧は別プリセットへの切替も可能にする。PARAMの手動変更で不適合なセットを解除。作成前に種別とPARAM一致・既知対応を検証し、生成SCOMへPTRE/GMRE相当のIDとPARAMプリセットを保存。既存セットの対応やプリセット自体は変更しない。§55の参照未設定という旧動作を更新する。
+
+## 58. プレビュー回転とPTSET点作成のマウス割当（2026-10-29）
+
+ユーザー指定で、PTSET・GMSET・カタログの回転を右ドラッグから左ドラッグへ変更。PTSETの空白左クリックによる作成メニューを廃止し、右クリックで点作成メニューを開く。既存点の左クリック選択と点ドラッグ移動、GMSETの左クリック選択と寸法ハンドルのドラッグは保持し、通常の左ドラッグを回転に使う。回転は離した時点で終了し、点・形状・SCOM値を変更しない。右ドラッグでは回転しない。画面内の操作説明も更新する。
+
+
+## 59. CATE内の名前一覧とプレビュー文脈の保持（2026-10-29）
+
+カタログのプレビュー下から適用PTSET・参照SCOMの表示行を取り除く。左でCATEを選択した場合、右はCATE内のSDTE/TEXT/SCOMと関連DETAIL/PROPの名前を変更する一覧にする。「アイテム／種類」「名前」の列で値セルから改名し、重複名は拒否、IDと参照を保ち、左リストにも反映する。CATE自体の改名は左の行内編集。CATE以外の選択項目の属性表示は維持する。
+
+同じCATE内でCATEまたはSCOM以外を選択しても、そのCATEで最後に表示したSCOMを維持。プレビューのウィジェットを再作成せず、カメラ・ズーム・描画方式も保持する。SCOMを明示選択した場合はそのSCOMへ切り替える。別CATEやその非SCOM項目へ切り替えた場合は、選択先CATEの先頭SCOM（保存順）を表示し、以前そのCATEで表示していた非先頭SCOMへは戻さない。SCOMのないCATEは空のプレビューとし、前のCATEの形状を残さない。選択変更自体はプロジェクトを変更しない。
+
+
+## 60. カタログプレビュー下の説明を省略し描画領域を拡大（2026-10-29）
+
+ユーザーはプレビュー下のPTSET/PARAM関連ラベルを不要とし、プレビュー領域を広げるよう指定。カタログ画面のSCOM名・PARAMプリセット名、寸法の注意文、操作・外形説明、選択なしの行を表示せず、その高さを描画領域へ戻す。設計値編集は表示設定パネル内へ移す。描画できない理由がある場合のエラー表示は保持し、問題がない場合は空のエラー行も確保しない。GMSET/PTSET画面の配置や、形状・参照・PARAMデータは変えない。
+
+
+## 61. カタログの実寸寸法線と引き出し位置のドラッグ（2026-10-29）
+
+ユーザーはカタログプレビューで寸法線と実数値をモデル上へ表示し、ドラッグで引き出し位置を変更できることを指定。登録寸法モードで表示モデルのXYZ外形と接続点間距離（P1–P2、P0–P3以降）をmm表示。値は計算済みのモデル座標から求め、画面距離からは求めない。外形は負形状以外の表示メッシュに基づく「表示外形」と明記し、加工図上の公称寸法・配管中心線長と混同しない。投影上縮退する方向の寸法線は描かない。仮配置・空形状では実寸ラベルを出さない。表示設定で寸法線全体・接続点寸法を切り替える。
+
+寸法線／数値を左ドラッグすると引き出し位置だけを調整し、通常のモデル上の左ドラッグ回転と区別する。ドラッグ中は候補のみ、離すとSCOM別のcatalog_dimension_layouts（画面比率のオフセット）をプロジェクトへ保存。Escape・SCOM切替・モード変更で未確定配置を取り消す。ドラッグ中にモデルやSCOMの値が変わった場合も確定しない。モデル属性・点・PARAM値・MAC出力へ寸法線の位置を流用しない。視点・ズーム変更時にモデルの測定元へ追従し、次回読込後も配置を再利用する。
+
+寸法ラベルは2行表示とし、1行目は実寸値と単位、2行目は値の日本語説明を表示する（例: `240 mm`／`表示外形 X`、`240 mm`／`P1–P2 接続点間距離`）。
+
+プレビュー内の左上にアイコン付き寸法表示トグルと日本語説明／STEXTトグルを置く。STEXTは同CATE・同PARAMプリセットの生成元情報と寸法の参照PARAMが一致するTEXTから取得し、値の数値一致では推測しない。対応未確定の場合は日本語説明に「対応STEXTなし」を添える。
+
+TEXT選択時はそのTEXTに対応する寸法のみ表示する。対応なしは寸法なし。TEXT以外は全寸法を表示する。寸法表示OFFを最優先とし、選択操作で再表示しない。表示対象変更でモデル・視点は変えず未確定の寸法ドラッグは取り消す。
+
+
+## 62. 寸法の表示名・式の訂正（2026-10-29、§61のTEXT選択絞り込み等を置換）
+
+ユーザー訂正：日本語名はGMSETの式が参照するPARAMの日本語名。寸法は直径と距離を区別し、直径には⌀を付ける。1行目は評価済み実寸と単位、2行目はGMSETの式を表示し、最新の追記により各PARAMをPA1（日本語名）またはPA1（STEXT）の形で表す。トグルは式そのもののON/OFFではなく、式の中のPARAM部分を「PARAM日本語名／TEXTのSTEXT」で切り替える。数値と演算子は維持し、保存式は変更しない。対応が明確な同CATE・同プリセットのTEXT生成元情報を使い、未対応・曖昧なら元PARAM参照を残す。TEXT選択での寸法絞り込みと、外形値をPARAM名と数値一致で結び付ける処理は使用しない。寸法OFFは最優先。
+
+実装は表示中の正形状の属性式から実寸・線の端点を算出。SBOXのXYZ寸法、SCYL等の直径・高さ・位置距離、LCYLの上下位置差が対象。対応形状はREADME記載。複合式では各PARAMを個別に置換し、複合式全体に単独PARAMの意味を誤って付けない。従来の外形・点間寸法の保存配置キーは読込互換用に受理するが新表示には使わない。
+
+寸法式内のPARAM番号は点番号P1との混同を避け、PA1・PA2…と表示する。STEXT切替時と名前未登録時も同じ表記。表示専用であり内部ID・保存式・マクロ構文は変更しない。
+
+2026-10-30：寸法ラベルの枠内は塗りつぶさず透明にし、モデルを透かす。文字は暗い赤系（#873b42）とする。寸法線・枠線の色、式・値・ドラッグ操作は維持する。
+
+2026-10-30：カタログプレビューの形状を左クリックで要素選択し、選択中はその要素の寸法のみ表示。空白クリックで解除し全寸法へ戻す。寸法OFFは優先。左ドラッグは回転し選択変更しない。寸法の引き出しドラッグを優先。選択は表示専用で保存データや右のSCOM属性編集対象を変えない。同SCOMの再表示では保持、SCOM・プロジェクト切替では解除。
+
+2026-10-30：ユーザーからX軸LSNOが仮配置では表示されSCOM実寸では消える報告。POFF=0でもPBAX未設定を実寸側だけ拒否するケースを再現し、同心LSNOでは形状に影響しない偏心軸を要求しないよう修正。非ゼロ偏心では有効な直交PBAXが必要。報告データとの完全一致は属性値・エラー文の回答待ち。
+
+2026-10-30：他の正形状・負形状を実寸／仮配置で横断検証。LSNO/NLSNで直径欄がunset、半径欄が設定済みの場合に直径を優先して消える不具合を修正。対応済み全型のPARAM実寸メッシュと負形状フラグ、軸方向6種類、同心と半径モードをテスト。SDSH/NSDS・TUBE/NTUB・BOXI/NBOX・NSRUは従来の未対応理由を維持し、架空の形状へ置換しない。負形状はブーリアン穴あけではなくワイヤー表示のまま。
+
+2026-10-30：上部メニュー「カタログ作成」を「CATE作成」に改名し、その右隣に「SDTE/CMPT作成」を追加。新画面では既存関連CATEを選び、DETAILとして管理していたSDTEとPROPとして管理していたCMPT（CMPTYPE）・配下CMPDATAを追加／属性編集する。内部ID・既存SPEC参照を維持し、CATE作成画面の従来データは削除しない。SDTEはSKEY/RTEX、CMPDATAはCWEIを編集。画面切替・保存前には入力を確定し、不正入力では切替を止める。
+
+2026-10-31：PTSET/GMSETの要素リストの追加ボタンを他の属性操作と同じ淡いトーンにする。プリセット呼出し・現在の要素一覧の登録ボタンを直接配置する。追加ダイアログは左に種類一覧、右に自作の説明図と説明文を表示し、選択と同時に切り替える。PTSETは位置・方向、GMSETは形状の立体図、ネガティヴは破線の赤系図で区別。説明図は概念図でSCOMの実寸やユーザーデータを変更しない。未確認のNSRUは形状を推測せず準備未対応を明示。
+
+2026-10-31：「暗黙チューブ」は分かりにくい直訳のため、UIではBOXI＝矩形チューブ（長さ自動）、TUBE＝円形チューブ（長さ自動）へ訂正。長さは設計側の前後の接続位置から決まり、独立した高さ入力はないと説明する。E3Dの型名・保存マクロは変えない。仕様メモの旧訳は資料の用語として残す。
+
+2026-10-31：GMSETの要素追加画面は通常形状／ネガティヴ形状のタブで切替。チェックボックスは廃止し、一覧の縦スクロールバーを出さず全種類を見渡せるよう追加画面の幅・高さを拡大する。左右の種類一覧／説明図の構成は維持。
+
+2026-10-31：GMSETの形状切替タブは選択で高さ・幅・位置を変えない固定サイズにする。通常／ネガティヴを同幅・同高とし、選択は色だけで示す。OSテーマの選択タブの拡大に依存しない描画とする。
+
+2026-10-31：要素追加の説明図にP1/P2等の参照点例と軸を表示する。点番号は必須固定番号ではないことを図内に明記する。PTSETは同じ点の立体図とXY平面図を横に並べ、P0/P1・座標・方向が対応するよう同じ座標から投影する。図は説明用でユーザーの点や形状を追加変更しない。
+
+2026-10-31：GMSET追加画面の説明図ではメッシュの分割線を表示しない。面の陰影と外周・形状の稜線のみで示し、参照点・軸ラベルは維持する。負形状の概念図も分割線を除き外周・稜線を破線表示する。実際のGMSETプレビューの表示設定は変更しない。
+
+2026-10-31：SDTE/CMPT作成にアイコン付きマクロ▼（読込／出力／登録先編集）を追加し、追加ボタンもAttributeToolのトーン・アイコンへ統一。単独SDTEXTとCMPTYPE/CMPDATAをALP・簡潔NEW/END形式で読み、既知属性を保持して個別出力する。CMPDATA選択時は親CMPTYPE全体を出力。登録先リストはSDTE/CMPT別、出力冒頭に選択先を記述。Shift-JIS（CP932）・CRLFで保存し、読込済LOCKを保持、追加LOCKも選べる。未対応属性や不正文字は黙って落とさず出力を止める。CATEを含む読込は既存のCATE作成へ案内し、途中適用しない。
+
+2026-11-04：11月3日に提示・保留した寸法UI修正を実装する。文字色は通常の赤#ff0000。初期引き出し距離と寸法間隔を少し広げ、モデル周囲に余白を増やす。選択要素に参照されるPARAMを式から抽出し、右のSCOM属性リストの関連行を赤字と赤い左マーカーで強調する。選択解除・SCOM切替・要素削除で強調を解除し、属性値・保存式は変更しない。
+
+2026-11-04：CATE左リストの削除メニューを有効にしDeleteキーも対応。既存の参照保護（SPEC使用中、子を持つCATE等）は維持する。プレビュー上部にSCOM表・Excel読込ボタンを追加し、同CATEのSCOMを表でセル編集・行追加・一括確定する。既存行のIDとSPEC参照は保持。新行は選択SCOMの参照・PARAMプリセットを継承。Excelは.xlsx/.xlsm、1行目にNAME/GTYP/PTRE/GMRE/SIZE/P1…、PA1/PARAM1も受理。複数シートは選択し、同名行は表内更新、新規名は追加。不正値・数式・重複名は一括拒否し元データは変えない。従来.xlsは対象外。PTSETのXY/XZ/YZ視点変更で作図面も同じ面へ連動し、立体を選んだ場合は作図面をXYへ変更する（同日の追加指示）。
+
+2026-11-04追加：SCOM表にPARAMプリセット選択を置く。表示列は名前＋対応TEXTのSTEXT（ユーザー訂正によりTEXT要素名ではない）。プリセット選択時にTEXT作成を確認する。TEXT作成と表登録は同時確定で、取消時は両方保存しない。対応TEXTがなければ選択プリセットの英語名をSTEXTとして作成し、未設定ならPA番号と未設定表示を使う。同一STEXT列はPA番号を添えて区別。ExcelはSTEXT見出しもPARAMへ対応付ける。参照定義やGTYP等は表の表示列から外すが保持する。
+
+2026-11-04追記：SCOM表のPARAM列は幅120pxを基本とし、見出しを1行目PA番号／2行目STEXTの2行表示にする。長いSTEXTは省略記号を付け、見出しホバーのツールチップで全文を表示する。名前列は180px。保存されるSTEXTやExcelの見出し対応付けは省略しない全文を使う。
+
+2026-11-05：SCOM表の本文にも縦横の罫線を追加し、スクロール時にセルと同期させる。窓は画面に収まる範囲で最大1440×820に拡大。PARAM列は120→108px、名前列は180→170pxに少し縮める。PA番号/STEXTの2行見出しと全文ツールチップは維持する。
+
+2026-11-05：提示されたPARAM一覧写真から「弁用PARAM参考表（29項目）」を初期サンプルへ追加。PA1〜3 NOM BORE、4〜6 CONN TYPE、7〜9 LAY LENGTH、10〜11 FLAN THICKNESS、12〜13 FLAN DIA、14 CENTER TO TOP、15 PIPE OD、16 BODY DIA、17 INSERTION DEPTH、18 INSERTION DIA、19 BONNET DIA、20 BONNET HIGHT、21 BONNET THICKNESS、22 OP LENGTH、23 OP WIDTH、24 OP HEIGHT、25 SPACE、26 MAINT SP XLEN、27 MAINT SP YLEN、28 MAINT SP DOWN、29 MAINT SP HEIGHT。英語は写真の綴りを保持。重複英語名は日本語側に連番を付けて区別。接続形式のみword、他はnumber。寸法mmはツールの仮初期設定で出典に単位指定なし。OPの仮訳とSPACEの用途は要確認。30番は追加パラメータの案内で固定項目ではない。写真自体は保存・配布しない。既存のSCOM・定義へのプリセット割当は変更しない。
+
+
+## 提示資料の永続化と今後の参照（2026-11-04）
+
+ユーザーはSPEC／PROPCON資料の理解内容をGitHub内のテキストへまとめ、今後のツール設計で利用するよう指定。[整理文書](spec-propcon-notes.md)を関連する設計・実装前に参照する。今回の依頼は知識の保存であり、アプリ機能の変更指示ではない。
+
+## SPEC登録表の初回反映（2026-11-05）
+
+ユーザーはUI案を基に一度反映するよう指定。プレビューは別窓で選択行に連動し、メイン画面は登録表を広く使う。ANGLE・HEIGHT・TEXT列を追加し、今後の列追加を見越して列定義を一元化する。列表示・非表示と幅はプロジェクトへ保存する。文字列・範囲・明示単位を勝手に数値変換しない。今回HEIGHT/TEXTの追加はツールの編集項目であり、実機での意味・出力構文を確定したものではない。
+
+SPEC登録表は行・列の両方向に薄い罫線を表示する（2026-11-05追記）。横・縦スクロール、列幅変更、表示列変更でもセル境界に追従する。
+
+SPEC登録表の列見出しクリックで昇順／降順を切り替える（2026-11-05）。見出しに▲／▼を表示。数値だけの値は数値順、文字を含む値は自然順、空欄は末尾。選択行を保持し、編集・絞り込み後も選んだ整列を適用する。既定候補選択に関わる登録順を意図せず変えないため、表示順のみとし実データ順は維持する。
+
+
+## SPEC表の直接編集とコンパクト表示（2026-11-06）
+
+ユーザー指定により、小さい編集窓は開かずセル上で直接編集する。参照は表内プルダウン。Enter・セル移動で確定、Escで取消、Tabで次列へ移動。保存・画面切替でも編集中値を確定する。文字サイズ・余白・列幅を少し縮めて同時表示列数を増やす。長い値はホバーで全文表示。並び替え・罫線・別窓のモデルプレビューは維持する。
+
+## 各画面のトーン統一（2026-11-06）
+
+ユーザーは画面比較で提示した改善案を採用。通常操作は淡い青・細い枠、保存・確定は濃い青を基本にする。SPEC・GMSETの文字だけに見える操作を共通ボタンへ変更。画像アイコンとテキストボタンが同じ操作列に並ぶ場合は高さを合わせる。PARAM行追加は通常操作色。冊子作成・出力ボタンは内容に合う幅へ縮める。
+
+大きな常設説明枠はコンパクトな見出しとⓘの補足へ整理。管理表・冊子一覧も共通の薄い罫線を使う。SPECの9pt・26px行高と直接編集は維持。左一覧の表記はSPEC、ドロップダウンは▼、表・プレビュー・プリセット呼出には共通の画像アイコンを用いる。
+
+SDTE/CMPTは左に見出し→追加アイコン・マクロ→検索→一覧、右に関連CATEと属性表を配置。検索は親または子の名前に一致するグループを表示し、解除で復元する。ここはSDTE/CMPTの既存所有階層を維持し、新たな整理フォルダ機能は追加していない。構造材は一覧→構成プレビュー→属性の順に寄せ、既存の属性タブ・模式図としての制限は維持する。
+
+
+## 構造材・NGMSETのメニュー非表示（2026-11-06）
+
+ユーザーは使用しないため「構造材・NGMSET」の項目をなくすよう指定。画面ナビゲーションと「その他の管理」の公開項目から外す。既存プロジェクト内の構造材定義・参照・読込互換は保持し、データ削除は行わない。過去の同画面の配置要件より本指定を優先する。
+
+## プレビューの表示色（2026-11-06）
+
+表示設定から背景・グリッド・モデル・輪郭線・ポイント・選択中・負形状・寸法文字の色を指定できる。PTSETでは背景・グリッド・ポイント・選択中の色を表示する。色見本付きボタンから選択し即時反映、取消時は変更しない。「標準色に戻す」と既存の「現在の設定を初期値にする」に対応し、後者は全プレビューへの適用と次回起動時の復元を行う。色はプレビュー専用で、カタログ属性・PARAM・出力マクロへ混入させない。
+
+
+## SPECタイプ別ヘッダーと全タイプTEXT（追加指示）
+
+提示SPEC実例の14タイプのヘッダーと列順を採用し、すべてにTEXTを含める。例にTEXTがないタイプではSHOP直前に追加。登録表はタイプ選択で対応列へ切替、「すべて」は登録タイプの列を統合表示する。TEXTは列設定でも外さない。タイプ別列表示設定を保存し、非表示の値・旧データの呼び径を削除・自動変換しない。追加参照列を未確認の内部IDへ推測変換しない。詳細はspec-propcon-notes.md §12とspec_headers.pyを参照。
+
+
+## PTSET・GMSET編集の追加写真2枚による改訂
+
+今回の写真と空欄構文への回答を現行要件とする。過去の左ドラッグ回転、初期ソリッド表示、既定値全行出力の説明より本節を優先する。
+
+- 新規PTAXIのPAXI・PDISは空欄。原点基準のXYドラッグを離すとPAXIだけ自動設定し、PDISは赤い必須表示のまま手入力する。
+- PTAXIはPAXI、PTCARはPX/PY/PZ/PTCDIR、PTMIXはPX/PY/PZ/PAXI、PTPOSはPTCPOS/PTCDIRを必須とする。PDISの入力要求も維持する。PTSETのPSKEY/DESC/PURP初期値はunset。DESC/PURPは三角ボタンで展開する。
+- 要素一覧はタイプごとの表示順連番（SCTO 1等）を表示。Ctrl/Shift複数選択と一括削除に対応。複数時は右属性欄に説明し、プレビューは全選択要素を強調し編集を止める。
+- 要素一覧上部は名前、次行に追加・呼出し・現在を登録のアイコン。常設プリセットプルダウンは表示しない。追加ダイアログは形状アイコン・型名・日本語名を列揃えし、右の見本は回転とワイヤー切替ができる。
+- ホイールドラッグで回転、ホイールクリックでカーソル位置を中心へ移動。左ドラッグ回転は廃止。F11でワイヤー/ソリッド切替、初期表示はワイヤー。保存済みユーザー表示設定は尊重する。
+- SSPHは一軸のサイズ変更を全軸に適用。LINEのPTSは3欄でP番号またはTOを選び、P1 TO P2等を扱う。
+- GMSET初期値はLEVEL 0 10、DESC/GTYP/PURP unset、CLFLA/TUFLA FALSE、TVISI/BVISI TRUE、OBST 2、NAPP 2。真偽値とOBSTは属性表内で切替。NAPPは0〜7で、1と2の組合せは3、全適用は7。
+- PTCPOS/PTSPOS/PTEPOSの選択候補はP1表示、属性値と出力はPP 1（半角空白あり）。LPYRのPAAXはPBAX×PCAXから自動決定し編集不可。初期軸はPBAX X、PCAX Y、PAAX Z。
+- 単一参照はPARAM 3のまま読込・出力。演算時は(ATTRIB PARA[3] / 2)等を出力し、旧PARAM表記とSUM/TIMES/DIFFERENCE/DIVも読込時に扱う。括弧内の空白は必須にしない。解釈できない式は原文を保持する。
+- IPARAは1/2のみ候補にし保温厚と表示。IPARA 1はIPARA 2の2倍。実寸は設定せず、仮表示だけに関係を適用する。出力は(ATTRIB IPARA[1])等。
+- (ATTRIB HEIG)はDesign HEIGHT、(ATTRIB ANGL)はANGLE、(ATTRIB DESP[n])はDESPARAM。DESP 1〜3はP1〜P3のネック、4〜6はP1〜P3の溶接隙間補正として候補に説明する。
+- マクロは変更していない初期値を省略する。明示した空欄/unsetはユーザー回答どおり **PAXI ''** のように出力する。省略と明示解除を区別する。
+
+上記はツール要件とユーザー提示構文を反映したもの。E3D実機でのマクロ再実行は未実施。LPYRの定数軸は出力時にも導出し、動的な式はプレビューで評価可能な範囲で計算する。未解釈の軸構文は推測変換しない。
+
+
+### 右属性リストの折畳み修正（2026-11-11）
+
+DESC等が隠れないという指摘を受け、PTSETのDESC/PURPに加え、GMSETのDESC/GTYP/PURPも初期状態で非表示にする。両画面の右上の三角ボタンで展開・折畳みを切り替える。値の有無に関係なく折り畳み、保存済み属性値とマクロ出力は保持する。PSKEYは従来どおり表示する。
+
+
+### PTAXIの初回配置をXY軸上に制限（2026-11-11）
+
+PAXI未設定の初回ドラッグはXY平面内の自由角度ではなく、原点を通るX軸またはY軸へスナップする。絶対値の大きい座標の軸を採用し、符号に応じてX/-X/Y/-Yを自動設定する。PDISは空欄のまま。軸設定後のドラッグは設定済みPAXIに沿って移動し、任意角度の既存PAXIを上書きしない。
+
+
+### 方向ドラッグと属性による移動へ変更（2026-11-11・最新指定）
+
+直前の「初回配置をX/Y軸へスナップ」は取り消す。既存点・方向矢印の左ドラッグは、PTAXI/PTMIXのPAXIとPTCAR/PTPOSのPTCDIRを、選択中の作図面（XY/XZ/YZ）に対して5度刻みで回転する。視点回転とは独立し、作図面法線成分は保持する。移動用のドラッグは廃止し、位置はPDIS/PX/PY/PZ/PTCPOS等の属性入力で変更する。右クリックの新規点作成は従来操作を維持する。
+
+PARAMを位置属性へ設定したときは実値の設定を要求せず、ツール内の仮値で適当に位置を動かす。原点でゼロになる新規PARAM位置には見える仮距離を与える。共有PARAMは引き続き同じ仮値を参照し、SCOM実値を設定・変更しない。方向ドラッグは位置式・PDIS・共有仮寸法値を直接書き換えない。PAXIで定義されるPTAXI位置は、その向きと既存距離に従って表示される。未解釈方向、参照原点を持つ方向、作図面に垂直な方向は推測せず属性編集または作図面切替を案内する。
+
+
+### 形状追加のアイコン（2026-11-12）
+
+形状追加一覧のアイコンは実際の形状の違いが分かるようにする。円錐・斜切円筒・球・皿・円環断面/矩形断面のトーラス・角錐台等は説明プレビューと同じ自作サンプル形状から描画する。BOXI/TUBEは中空の開口を描き、SEXTはL字輪郭の押出し、SREVは輪郭の回転で区別する。負形状は対応形状にマイナス記号を付ける。未確認の形状には推測の立体図を与えない。行高・型名・日本語名の列揃えは維持する。
+
+
+### 右リストの選択ボタン（2026-11-12）
+
+TRUE/FALSEは2つ、OBSTは0/1/2の3つのボタンを属性表内に並べ、選択中だけ濃い青と白文字、未選択は淡色とする。クリックした値を直接選び、同じ選択肢を再クリックしても値は変えない。OBST各ボタンの2行目に0=対象外、1=ソフト、2=ハードを表示する。別の入力窓は出さない。
+
+
+### NAPPの複数選択トグル（2026-11-12）
+
+NAPPは0/1/2/4/7の5ボタンを並べる。0または7を押すと、そのボタンだけを選択表示する。1/2/4はそれぞれオン・オフでき、組合せの和を属性値へ保存する（1+2=3、1+4=5、2+4=6）。3つすべてオンなら7だけを選択表示し、すべてオフなら0だけを選択表示する。7から1/2/4を押す場合はそのビットを解除する（例：7から1を押すと2+4=6）。既存の3/5/6も対応する複数ボタンを着色して表示する。
+
+TRUE/FALSEとNAPPの各ボタンにも2行目の説明を付ける。TVISI/BVISIは表示/非表示、CLFLA/TUFLAは描画する/描画しない。NAPPは0=なし、1=取付先（Attached）、2=所有元（Owner）、4=自身（Self）、7=全対象とする。NAPPの具体的な対象は設計文脈に依存し、UI上の説明だけで実機の参照先を推測しない。
+
+
+### NAPPは負形状に限定（2026-11-12・最新指定）
+
+通常形状のNAPPはこのツールでは0に固定し、属性リストから常に隠す。通常形状の作成マクロは初期値省略の例外として必ずNAPP 0を出力する。旧データに別の値があっても通常形状の出力は0で、画面選択時にも0へ正規化する。マクロ書出し自体は元データを書き換えない。
+
+負形状はNAPPを隠さず、初期値2とする。既存の負形状の選択値は維持し、0/1/2/4/7のリスト内トグルと複数選択ルールを使う。下部のNAPP専用ボタン・別窓の編集UI・重複説明は削除する。
+
+NAPP各リストボタンへホバーすると、その値でAttached/Owner/Selfのどこに負形状を適用するかを示す自作サンプル図を表示する。0では適用なし、7では全対象。図は操作説明の模式図であり、設計データの実形状や実機での参照関係を推測しない。ホバーは編集・選択・実値変更を行わず、カーソル移動・スクロール・画面切替時に閉じる。
+
+
+### SPEC表の編集開始操作（2026-11-12）
+
+SPEC登録表は単クリックでは行選択のみとし、セルのダブルクリックで表内編集を開始する。参照セルもダブルクリックで表内プルダウンを開く。以前の単クリック編集要件より本指示を優先する。編集済み値の確定・Esc取消・Tab移動、見出しのクリックによる整列は維持する。
+
+
+### くり抜き表示とNAPP適用の暫定実装（2026-11-12）
+
+ユーザーは対象の説明について推測で自信がないと明示したうえで「一度このまま実装」と指定した。従って、以下をツールの暫定ルールとして実装する。マニュアル確認済み・E3D実機確認済みと扱わない。
+
+- Self (4)：同じGMSET内の正形状全体から差し引く。
+- Owner (2)：負形状を直接の子として持つ正形状だけから差し引く。親のない負形状では対象なし。
+- Attached (1)：Design上の別部品が対象。このツールでは対象がないため差し引かない。
+- ビットの組合せは対象の和集合。0は差し引かず、7はこのツール内では2+4の対象となる。
+
+負形状の輪郭を重ねる表示から、Manifoldメッシュ差分で穴・内壁を持つ形状へ変更する。仮表示・SCOM実寸表示の共通シーンに適用。表示設定「負形状を適用」で差分をオン・オフする。負形状を選択した場合だけ、編集用にその輪郭と元形状のハンドルを表示する。くり抜き結果から元の属性・PARAM・マクロを変更しない。
+
+不透明な差分表示では奥行きバッファで面と線の前後を判定する。透過時は既存の面順アルファ合成の制限を持つ。閉じていないメッシュ等で差分を作れない場合は理由を表示し、成功と扱わない。manifold3d/numpyを依存へ追加しWindowsビルドにも同梱する。
+
+ツールチップのサンプルは、対象外を傷のない箱、適用先を大きなL字の切り欠きと赤茶色の内壁で描く。Attachedは「Design側のみ」と表示して、このツールの適用先と区別する。
+
+
+### 参照種類の整理（2026-11-12）
+
+ユーザー指示によりAPARAM/OPARAM/DES APARAM/DES OPARAMを使用する参照候補から外す。新規の参照挿入・参照選択はPARAM/IPARAM/DES PARAMのみ。確認用参照コンテキストと参照種類別役割の編集画面もIPARAM/DES PARAMだけを表示する。起動サンプルのAPARAM式はPARAMを使う自作例へ変更する。
+
+過去のプロジェクト・プリセット・マクロ中の該当式や参照値を削除・別種類へ自動変換はしない。パーサー、読込・出力、保存済み値の保持には互換対応を残す。これはツールの使用項目の削減であり、E3Dで当該参照が無効という仕様変更ではない。
+
+
+### 方位別名の整理（2026-11-12）
+入力UIのE/W/U/Dを削除し、方向候補はX/-X/Y/-Y/Z/-Zとする。読込は互換対応し、方向属性のE→X、W→-X、U→Z、D→-Zへ正規化する。PARAM等の識別子や説明文は置換しない。
+
+追加指示によりN/Sも方向属性の読込時にN→Y、S→-Yへ正規化する。入力候補は引き続きXYZのみ。
+
+
+### 角度・NAPP・描画属性のプレビュー連動（2026-11-13）
+
+PAXI/PTCDIRのドラッグ中はプレビュー内に属性名、作図面、現在の面内角度（0〜360度）、ドラッグ開始からの回転角を表示する。ドロップ・Esc取消・画面切替で消す。角度表示だけでは属性や位置を変更しない。
+
+NAPP=7では7を濃い青の選択表示にし、内包する1/2/4も薄い青で補助表示する。クリック時のビット解除規則は維持する。
+
+TUFLA/CLFLAのリスト操作時は「全形状」の編集表示から「属性確認」へ切り替え、操作したフラグに対応するTUBE/CLの描画経路を有効にして表示を確認する。これは既存のOR条件（他の有効経路があれば表示）を維持する。既存のLEVELとOBSTの表示条件も維持する。既存のFALSEボタンを押しても表示確認へ切り替える。
+
+負形状のNAPP操作または子の負形状追加時は、くり抜きを有効にして面＋線表示で確認する。負形状は描画フラグによる正形状の可視性とは分け、負形状自身のTUFLA/CLFLAがFALSEでも表示中の対象正形状から差し引く。Self/Owner/Attachedの適用先は引き続き暫定ルール。
+
+
+### 回転刻みの切替（追加指示）
+PAXI/PTCDIRのドラッグ回転は通常90度刻みとする。Altを押している間だけ5度刻みにし、ドラッグ中のAlt押下・解除で同じカーソル位置の候補を再計算する。角度表示に現在の刻みを併記する。以前の通常5度指定より本指示を優先する。
