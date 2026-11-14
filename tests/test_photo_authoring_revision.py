@@ -51,7 +51,11 @@ class PhotoUi(unittest.TestCase):
      target[a]+=math.cos(math.radians(33));target[b]+=math.sin(math.radians(33))
      v.press_position=v.camera.project(pivot,v.canvas.winfo_width(),v.canvas.winfo_height())
      x,y=v.camera.project(target,v.canvas.winfo_width(),v.canvas.winfo_height())
-     v.propose_rotation(x,y,n['id']);self.assertIsNotNone(v.pending,v.error_message)
+     v.dragging=n['id'];v.last_rotation_pixel=(x,y);v.rotation_step=90;v.propose_rotation(x,y,n['id'])
+     self.assertIn('90°刻み',v.pending['angle_label']);v.alt_rotation(True)
+     self.assertIn('5°刻み',v.pending['angle_label']);v.alt_rotation(False)
+     self.assertIn('90°刻み',v.pending['angle_label']);v.alt_rotation(True)
+     self.assertIsNotNone(v.pending,v.error_message)
      self.assertEqual(n['attrs'],before);self.assertTrue(v.canvas.find_withtag('rotation-angle'));v.apply();app.update();self.assertFalse(v.canvas.find_withtag('rotation-angle'))
      vector=PointPreview(e.data,e.definition()).axis(n['attrs'][key])[1]
      self.assertAlmostEqual(vector[a],math.cos(math.radians(35)),places=7)

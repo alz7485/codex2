@@ -13,7 +13,7 @@ class PointCanvas(ttk.Frame):
     def __init__(self,editor,parent):
         super().__init__(parent);self.editor=editor
         self.camera=Camera();self.pending=None;self.hits={};self.positions={};self.direction_hits={};self.dragging=None;self.orbit=None
-        self.error_message='';self.menu_context=None;self.press_position=None;self.rotation_start=None
+        self.error_message='';self.menu_context=None;self.press_position=None;self.rotation_start=None;self.rotation_step=90;self.last_rotation_pixel=None
         self.plane=tk.StringVar(value='XY');self.view=tk.StringVar(value='立体')
         self.show_grid=tk.BooleanVar(value=True);self.show_axes=tk.BooleanVar(value=True)
         self.show_labels=tk.BooleanVar(value=True);self.show_relations=tk.BooleanVar(value=True)
@@ -47,8 +47,11 @@ class PointCanvas(ttk.Frame):
         self.canvas.bind('<MouseWheel>',lambda ev:self.zoom(1.12 if ev.delta>0 else 1/1.12));self.canvas.bind('<Button-4>',lambda _:self.zoom(1.12));self.canvas.bind('<Button-5>',lambda _:self.zoom(1/1.12))
         self.note=ttk.Label(self,text='',wraplength=280,foreground='#738499');self.note.grid(row=5,column=0,sticky='ew',pady=(6,0))
         self.note.bind('<Configure>',lambda ev:self.note.configure(wraplength=max(140,ev.width-4)))
-        hint=ttk.Label(self,text='ホイールドラッグ：回転 / ホイールクリック：パン ｜ 点・方向矢印ドラッグ：5°回転 ｜ 右クリック：点作成 ｜ ホイール：ズーム',wraplength=280,style='Muted.TLabel');hint.grid(row=6,column=0,sticky='ew',pady=(6,0))
+        hint=ttk.Label(self,text='ホイールドラッグ：回転 / ホイールクリック：パン ｜ 点・方向矢印ドラッグ：90° / Alt中5° ｜ 右クリック：点作成 ｜ ホイール：ズーム',wraplength=280,style='Muted.TLabel');hint.grid(row=6,column=0,sticky='ew',pady=(6,0))
         hint.bind('<Configure>',lambda ev:hint.configure(wraplength=max(140,ev.width-4)))
+        for key in ('Alt_L','Alt_R'):
+            self.canvas.bind('<KeyPress-'+key+'>',lambda e:self.alt_rotation(True))
+            self.canvas.bind('<KeyRelease-'+key+'>',lambda e:self.alt_rotation(False))
         self.canvas.bind('<Escape>',lambda _:self.cancel());self.redraw()
         from .preview_navigation import attach as navigation
         navigation(self)
@@ -125,7 +128,7 @@ class PointCanvas(ttk.Frame):
             if any(vector):
                 self.direction_hits[element['id']]=xy(tuple(point[i]+.3*vector[i] for i in range(3)))
                 c.create_line(x,y,*xy(tuple(point[i]+.3*vector[i] for i in range(3))),fill=color,width=3 if selected else 1.5,arrow='last')
-        message='ドラッグ：作図面で方向を5°回転。位置は属性値で変更（PARAMは仮値で表示）。'
+        message='ドラッグ：90°刻み（Alt中5°）。位置は属性値で変更（PARAMは仮値で表示）。'
         if not definition:message='左の PTSET 一覧からセットを選ぶか追加してください。'
         elif self.editor.element_id:
             try:
@@ -182,7 +185,7 @@ class PointCanvas(ttk.Frame):
         ident=self.pick(event.x,event.y) or next((ident for ident,p in self.direction_hits.items() if (p[0]-event.x)**2+(p[1]-event.y)**2<=225),None)
         if ident:
             self.editor.elements.selection_set(ident);self.editor.select_element()
-            self.dragging=ident;self.press_position=(event.x,event.y);self.rotation_start=None;self.redraw()
+            self.dragging=ident;self.press_position=(event.x,event.y);self.rotation_start=None;self.last_rotation_pixel=None;self.rotation_step=5 if getattr(event,'state',0)&(0x8|0x20000) else 90;self.redraw()
         else:self.orbit=None
 
     def create_press(self,event):
@@ -193,9 +196,17 @@ class PointCanvas(ttk.Frame):
         try:self.context_menu.tk_popup(self.canvas.winfo_rootx()+event.x,self.canvas.winfo_rooty()+event.y)
         finally:self.context_menu.grab_release()
 
+    def alt_rotation(self,pressed):
+        self.rotation_step=5 if pressed else 90
+        if self.dragging and self.last_rotation_pixel:
+            self.propose_rotation(*self.last_rotation_pixel,self.dragging)
+        return 'break'
+
     def move(self,event):
         if not self.dragging:self.orbit_move(event);return
         if self.dragging and self.press_position and max(abs(event.x-self.press_position[0]),abs(event.y-self.press_position[1]))>=4:
+            self.rotation_step=5 if getattr(event,'state',0)&(0x8|0x20000) else 90
+            self.last_rotation_pixel=(event.x,event.y)
             self.propose_rotation(event.x,event.y,self.dragging)
 
     def release(self,event):
@@ -232,7 +243,7 @@ class PointCanvas(ttk.Frame):
             end=self.camera.unproject(x,y,self.canvas.winfo_width(),self.canvas.winfo_height(),plane,pivot[normal])
             if math.hypot(end[a]-pivot[a],end[b]-pivot[b])<1e-8:return
             delta=math.atan2(end[b]-pivot[b],end[a]-pivot[a])-start_angle
-            degrees=round(math.degrees(delta)/5)*5
+            degrees=round(math.degrees(delta)/self.rotation_step)*self.rotation_step
             theta=math.radians(degrees);rotated=list(vector)
             rotated[a]=vector[a]*math.cos(theta)-vector[b]*math.sin(theta)
             rotated[b]=vector[a]*math.sin(theta)+vector[b]*math.cos(theta)
@@ -253,7 +264,7 @@ class PointCanvas(ttk.Frame):
             preview=PointPreview(e.data,working)
             self.pending=dict(id=ident,attrs={key:axis},point=preview.location(ident),preview=preview,
                               snapshot=copy.deepcopy(e.definition()['elements']),dimensions=copy.deepcopy(e.definition().get(DIMENSIONS_KEY)),
-                              definition=e.definition_id,preset=presets.selected_id(e.data,e.definition()),rotation_only=True,rotation_layout=rotation_layout,angle_label=f'{key} / {plane}  {math.degrees(math.atan2(rotated[b],rotated[a]))%360:.0f}°  (回転 {degrees:+d}°)')
+                              definition=e.definition_id,preset=presets.selected_id(e.data,e.definition()),rotation_only=True,rotation_layout=rotation_layout,angle_label=f'{key} / {plane}  {math.degrees(math.atan2(rotated[b],rotated[a]))%360:.0f}°  (回転 {degrees:+d}° / {self.rotation_step}°刻み)')
             self.redraw()
         except (ValueError,KeyError,StopIteration) as exc:
             self.error_message=str(exc);self.pending=None;self.redraw()
