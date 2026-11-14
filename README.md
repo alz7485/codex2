@@ -6,7 +6,7 @@ Python / Tkinter で、CATE・SCOM、ポイント・形状定義、SPEC、説明
 
 くり抜き表示に`manifold3d`と`numpy`を追加しました。既存環境は`install.bat`を再実行し、EXE版は再ビルドしてください。
 
-[最新版 ZIP をダウンロード](https://github.com/alz7485/codex2/raw/refs/heads/main/catalog-studio-integrated.zip)
+[CatalogStadio ver0.1.0 をダウンロード](https://github.com/alz7485/codex2/raw/refs/heads/main/CatalogStadio_ver0.1.0.zip)
 
 [開発用の仕様・ユーザー要件・未確認事項](https://github.com/alz7485/codex2/blob/main/docs/knowledge/README.md)を継続参照用に保存しています。ユーザー提示の資料と会話の整理であり、E3D 4.0 実機で全項目を確認した仕様書や、全機能の実装済み一覧ではありません。写真原本は含みません。
 
