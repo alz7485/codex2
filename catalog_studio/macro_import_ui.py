@@ -1,4 +1,5 @@
 """Preview/select catalogue creation text before appending independent definitions."""
+from pathlib import Path
 import tkinter as tk
 from tkinter import filedialog, ttk
 
@@ -10,6 +11,7 @@ class MacroImportDialog(tk.Toplevel):
         super().__init__(host)
         self.host = host
         self.parsed = None
+        self.file_sources=[];self.file_text=None
         self.analyzed_text = None
         self.title('PTSET・GMSET の作成マクロを読み込む')
         self.geometry('920x760'); self.minsize(680, 640)
@@ -21,7 +23,7 @@ class MacroImportDialog(tk.Toplevel):
         description = ttk.Label(body, text='ALP FILE形式（INPUT BEGIN〜INPUT FINISH）またはNEW PTSET /名前・NEW GMSET /名前 の作成マクロを開くか、貼り付けて解析します。', wraplength=820)
         description.grid(row=1, column=0, sticky='ew', pady=(6,8))
         top = ttk.Frame(body); top.grid(row=2, column=0, sticky='ew', pady=(0,8))
-        self.file_button = ttk.Button(top, text='ファイルを開く (.mac / .txt / .alp)', command=self.open_file)
+        self.file_button = ttk.Button(top, text='ファイルを開く（複数選択可）', command=self.open_file)
         self.file_button.pack(side='left')
         ttk.Button(top, text='テキストを解析', command=self.analyze, style='Primary.TButton').pack(side='left', padx=8)
         self.source_label = ttk.Label(top, text='貼り付け入力', style='Muted.TLabel', wraplength=220); self.source_label.pack(side='left')
@@ -76,22 +78,34 @@ class MacroImportDialog(tk.Toplevel):
         self.details.insert('1.0', text); self.details.configure(state='disabled')
 
     def open_file(self):
-        path = filedialog.askopenfilename(parent=self, title='作成マクロを開く',
-                                          filetypes=[('作成マクロ・テキスト','*.mac *.txt *.alp'), ('すべてのファイル','*.*')])
-        if not path: return
-        try: text, encoding = macro_import.read_text(path)
-        except (OSError, ValueError) as exc:
-            self.notice.configure(text='ファイルを開けません：' + str(exc)); return
-        self.source.delete('1.0', 'end'); self.source.insert('1.0', text)
-        self.source.edit_modified(False)
-        self.source_label.configure(text=path.rsplit('/', 1)[-1].rsplit('\\', 1)[-1] + ' / ' + encoding)
+        paths=filedialog.askopenfilenames(parent=self,title='作成マクロを開く（複数選択可）',filetypes=[('作成マクロ・テキスト','*.mac *.txt *.alp'),('すべてのファイル','*.*')])
+        if not paths:return
+        sources=[]
+        try:
+            for path in paths:
+                text,encoding=macro_import.read_text(path);sources.append((path,text))
+        except (OSError,ValueError) as exc:
+            self.parsed=None;self.apply_button.configure(state='disabled');self.records.delete(*self.records.get_children())
+            self.notice.configure(text='ファイルを開けません：'+Path(path).name+'：'+str(exc));return
+        text='\n\n'.join(source for path,source in sources)
+        self.source.delete('1.0','end');self.source.insert('1.0',text);self.source.edit_modified(False)
+        self.file_sources=sources;self.file_text=text
+        self.source_label.configure(text=f'{len(sources)}ファイル：'+', '.join(Path(path).name for path,source in sources))
         self.analyze()
 
     def analyze(self):
         self.parsed = None; self.apply_button.configure(state='disabled')
         self.records.delete(*self.records.get_children())
         text = self.text()
-        try: parsed = macro_import.parse(text)
+        try:
+            if self.file_sources and text==self.file_text:
+                definitions=[];warnings=[]
+                for path,source in self.file_sources:
+                    try:part=macro_import.parse(source)
+                    except (ValueError,RecursionError) as exc:raise ValueError(Path(path).name+'：'+str(exc)) from exc
+                    definitions.extend(part.definitions);warnings.extend(Path(path).name+'：'+warning for warning in part.warnings)
+                parsed=macro_import.ParsedMacro(definitions,warnings)
+            else:parsed=macro_import.parse(text)
         except (ValueError, RecursionError) as exc:
             self.notice.configure(text='解析できません：' + str(exc)); self.show_details('取り込みは行っていません。該当行を確認してください。'); return
         self.parsed, self.analyzed_text = parsed, text

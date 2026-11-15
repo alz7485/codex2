@@ -66,3 +66,16 @@ def creation_text(data,cate_id,destination=''):
 def import_text(data,text,cate_id=''):
     from .catalog_macro_reader import import_text as read
     return read(data,text,cate_id)
+
+
+def import_files(data,paths,cate_id=''):
+    from pathlib import Path
+    from . import macro_import
+    candidate=data;added=[]
+    for path in paths:
+        try:
+            text,encoding=macro_import.read_text(path)
+            candidate,ids=import_text(candidate,text,cate_id)
+            added.extend(ids)
+        except (OSError,ValueError) as exc:raise ValueError(Path(path).name+'：'+str(exc)) from exc
+    return candidate,added

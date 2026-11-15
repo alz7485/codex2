@@ -77,13 +77,28 @@ class MacroImportGuiTests(unittest.TestCase):
         window.destroy()
         self.assertEqual(self.errors, [])
 
+    def test_multiple_files_merge_independent_blocks_and_reject_partial_import(self):
+        before=copy.deepcopy(self.app.data)
+        with tempfile.TemporaryDirectory() as temp:
+            a=Path(temp)/'first.mac';b=Path(temp)/'second.alp';bad=Path(temp)/'bad.mac'
+            a.write_text(SAMPLE.read_text());b.write_text(SAMPLE.with_name('alp-creation-sample.mac').read_text());bad.write_text('INVALID')
+            window=self.dialog()
+            with patch('catalog_studio.macro_import_ui.filedialog.askopenfilenames',return_value=(str(a),str(bad))):window.open_file()
+            self.app.update();self.assertIsNone(window.parsed);self.assertIn('bad.mac',window.notice['text'])
+            self.assertEqual(self.app.data,before)
+            with patch('catalog_studio.macro_import_ui.filedialog.askopenfilenames',return_value=(str(a),str(b))):window.open_file()
+            self.app.update();self.assertEqual(len(window.parsed.definitions),3)
+            self.assertEqual(len(window.records.selection()),3);self.assertEqual(self.app.data,before)
+            window.apply();self.app.update()
+            self.assertEqual(len(self.app.data['definitions']),len(before['definitions'])+3)
+
     def test_file_import_subset_and_save_reload(self):
         app = self.app; app.switch('gmset'); app.update()
         before = copy.deepcopy(app.data)
         with tempfile.TemporaryDirectory() as folder:
             saved = Path(folder)/'project.json'; app.path = str(saved)
             window = self.dialog()
-            with patch('catalog_studio.macro_import_ui.filedialog.askopenfilename', return_value=str(SAMPLE)):
+            with patch('catalog_studio.macro_import_ui.filedialog.askopenfilenames', return_value=(str(SAMPLE),)):
                 window.file_button.invoke()
             app.update()
             gm = next(record for record in window.parsed.definitions if record['kind'] == 'GMSET')
@@ -136,7 +151,7 @@ class MacroImportGuiTests(unittest.TestCase):
     def test_decode_failure_keeps_current_text_and_project(self):
         app = self.app; window = self.dialog(SAMPLE.read_text())
         before = copy.deepcopy(app.data); text = window.text()
-        with patch('catalog_studio.macro_import_ui.filedialog.askopenfilename', return_value='bad.mac'), patch('catalog_studio.macro_import_ui.macro_import.read_text', side_effect=ValueError('文字コード不正')):
+        with patch('catalog_studio.macro_import_ui.filedialog.askopenfilenames', return_value=('bad.mac',)), patch('catalog_studio.macro_import_ui.macro_import.read_text', side_effect=ValueError('文字コード不正')):
             window.open_file()
         self.assertEqual(window.text(), text)
         self.assertEqual(app.data, before)

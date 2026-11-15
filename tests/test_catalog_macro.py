@@ -21,6 +21,19 @@ class CatalogMacroTests(unittest.TestCase):
         project.validate(target)
         self.assertEqual(macro_destinations.options(target,'CATE'),['/DEST','/OTHER'])
 
+    def test_multiple_catalog_files_are_atomic(self):
+        import tempfile
+        from pathlib import Path
+        data=project.sample();before=copy.deepcopy(data)
+        with tempfile.TemporaryDirectory() as temp:
+            a=Path(temp)/'a.mac';b=Path(temp)/'b.mac';bad=Path(temp)/'bad.mac'
+            a.write_text('NEW CATE /BATCH-A\nEND');b.write_text('NEW CATE /BATCH-B\nEND');bad.write_text('INVALID')
+            result,ids=catalog_macro.import_files(data,[a,b])
+            self.assertEqual(len(ids),2);self.assertEqual([project.get(result,'cates',i)['name'] for i in ids],['/BATCH-A','/BATCH-B'])
+            self.assertEqual(data,before)
+            with self.assertRaisesRegex(ValueError,'bad.mac'):catalog_macro.import_files(data,[a,bad])
+            self.assertEqual(data,before)
+
     def test_gui_macro_export_import_and_destinations(self):
         import tkinter as tk
         import tempfile
@@ -44,7 +57,7 @@ class CatalogMacroTests(unittest.TestCase):
             with tempfile.TemporaryDirectory() as temp:
                 path=Path(temp)/'sample.mac'
                 path.write_bytes(catalog_macro.creation_text(app.data,cate['id']).replace('/GUI-MAC','/NEW-GUI-MAC').encode('cp932'))
-                with patch('catalog_studio.catalog_macro_ui.filedialog.askopenfilename',return_value=str(path)):
+                with patch('catalog_studio.catalog_macro_ui.filedialog.askopenfilenames',return_value=(str(path),)):
                     catalog_macro_ui.import_macro(app);app.update()
                 self.assertEqual(project.get(app.data,'cates',app.cate_id)['name'],'/NEW-GUI-MAC-CATE')
             app.registered_browser.edit_macro_destinations();app.update();app.grab_current().destroy()

@@ -5,11 +5,10 @@ from . import catalog_macro,macro_import,macro_export,macro_destinations
 
 
 def import_macro(host):
-    path=filedialog.askopenfilename(parent=host,title='カタログマクロ読込',filetypes=[('E3D macro','*.mac *.txt'),('All','*')])
-    if not path:return
+    paths=filedialog.askopenfilenames(parent=host,title='カタログマクロ読込（複数選択可）',filetypes=[('E3D macro','*.mac *.txt *.alp'),('All','*')])
+    if not paths:return
     try:
-        text,_=macro_import.read_text(path)
-        candidate,ids=catalog_macro.import_text(host.data,text,host.cate_id or '')
+        candidate,ids=catalog_macro.import_files(host.data,paths,host.cate_id or '')
     except (ValueError,OSError) as exc:messagebox.showerror('読込エラー',str(exc),parent=host);return
     host.data=candidate
     ident=ids[0]
@@ -20,7 +19,7 @@ def import_macro(host):
     key=collection+':'+ident
     host.registered_browser.catalog_target=key
     if collection!='cates':host.catalog_member_key=key
-    host.render_page();host.mark('カタログマクロを読み込みました。外部参照は名前を保持します。')
+    host.render_page();host.mark(f'{len(paths)}ファイルから{len(ids)}件のカタログデータを読み込みました。外部参照は名前を保持します。')
 
 
 
