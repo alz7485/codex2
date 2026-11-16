@@ -6,7 +6,7 @@ Python / Tkinter で、CATE・SCOM、ポイント・形状定義、SPEC、説明
 
 くり抜き表示に`manifold3d`と`numpy`を追加しました。既存環境は`install.bat`を再実行し、EXE版は再ビルドしてください。
 
-[CatalogStadio ver0.1.1 をダウンロード](https://github.com/alz7485/codex2/raw/refs/heads/main/CatalogStadio_ver0.1.1.zip)
+[CatalogStadio ver0.1.2 をダウンロード](https://github.com/alz7485/codex2/raw/refs/heads/main/CatalogStadio_ver0.1.2.zip)
 
 [開発用の仕様・ユーザー要件・未確認事項](https://github.com/alz7485/codex2/blob/main/docs/knowledge/README.md)を継続参照用に保存しています。ユーザー提示の資料と会話の整理であり、E3D 4.0 実機で全項目を確認した仕様書や、全機能の実装済み一覧ではありません。写真原本は含みません。
 
@@ -443,7 +443,7 @@ GUI は表示環境、PDF 内容の検証は pypdf が必要です。クラウ�
 
 カタログもGMSETと同じプレビューを使います。ソリッド／ワイヤー／面＋線、透過、視点、全体表示、拡大、仮配置／登録寸法を切り替えられます。CATE一式作成ではPTSET・GMSET・PARAMプリセットを選びます。どちらのセットを選んでも対応セットとPARAMが連動し、生成SCOMに設定します。対応候補が複数ある場合は自動確定しません。既存のセット設定は変更しません。
 
-視点回転はホイールドラッグ、PTSETの点作成は右クリックです。点・方向矢印の左ドラッグは通常90度/Alt中5度の回転、Ctrl中は移動です。原点で移動軸を切り替えられます。GMSETの寸法ハンドル操作は維持します。
+視点回転はホイールドラッグ、PTSETの点作成は右クリックです。点・方向矢印の左ドラッグは通常90度/Alt中5度の回転、Ctrl中は移動です。原点では現在の向きと、それに直角な軸を切り替えられます。GMSETの寸法ハンドル操作は維持します。
 
 ### CATEの名前一覧とプレビュー保持
 

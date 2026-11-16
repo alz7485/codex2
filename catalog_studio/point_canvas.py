@@ -13,7 +13,7 @@ class PointCanvas(ttk.Frame):
     def __init__(self,editor,parent):
         super().__init__(parent);self.editor=editor
         self.camera=Camera();self.pending=None;self.hits={};self.positions={};self.direction_hits={};self.dragging=None;self.orbit=None
-        self.error_message='';self.menu_context=None;self.press_position=None;self.rotation_start=None;self.rotation_step=90;self.last_rotation_pixel=None;self.control_down=False;self.drag_mode=None;self.move_state=None
+        self.error_message='';self.menu_context=None;self.press_position=None;self.rotation_start=None;self.rotation_step=90;self.alt_override=None;self.last_rotation_pixel=None;self.control_down=False;self.drag_mode=None;self.move_state=None
         self.plane=tk.StringVar(value='XY');self.view=tk.StringVar(value='立体')
         self.show_grid=tk.BooleanVar(value=True);self.show_axes=tk.BooleanVar(value=True)
         self.show_labels=tk.BooleanVar(value=True);self.show_relations=tk.BooleanVar(value=True)
@@ -191,7 +191,7 @@ class PointCanvas(ttk.Frame):
         ident=self.pick(event.x,event.y) or next((ident for ident,p in self.direction_hits.items() if (p[0]-event.x)**2+(p[1]-event.y)**2<=225),None)
         if ident:
             self.editor.elements.selection_set(ident);self.editor.select_element()
-            self.dragging=ident;self.press_position=(event.x,event.y);self.rotation_start=None;self.last_rotation_pixel=None;self.rotation_step=5 if getattr(event,'state',0)&(0x8|0x20000) else 90;self.control_down=bool(getattr(event,'state',0)&4);self.redraw()
+            self.dragging=ident;self.press_position=(event.x,event.y);self.rotation_start=None;self.last_rotation_pixel=None;self.alt_override=None;self.rotation_step=self.event_rotation_step(event);self.control_down=bool(getattr(event,'state',0)&4);self.redraw()
         else:self.orbit=None
 
     def create_press(self,event):
@@ -202,7 +202,14 @@ class PointCanvas(ttk.Frame):
         try:self.context_menu.tk_popup(self.canvas.winfo_rootx()+event.x,self.canvas.winfo_rooty()+event.y)
         finally:self.context_menu.grab_release()
 
+    def event_rotation_step(self,event):
+        state=getattr(event,'state',0)
+        mask=0x8 | (0x20000 if self.tk.call('tk','windowingsystem')=='win32' else 0)
+        alt=bool(state&mask) if self.alt_override is None else self.alt_override
+        return 5 if alt else 90
+
     def alt_rotation(self,pressed):
+        self.alt_override=pressed
         self.rotation_step=5 if pressed else 90
         if self.dragging and self.last_rotation_pixel:
             self.route_drag()
@@ -223,7 +230,7 @@ class PointCanvas(ttk.Frame):
     def move(self,event):
         if not self.dragging:self.orbit_move(event);return
         if self.dragging and self.press_position and max(abs(event.x-self.press_position[0]),abs(event.y-self.press_position[1]))>=4:
-            self.rotation_step=5 if getattr(event,'state',0)&(0x8|0x20000) else 90
+            self.rotation_step=self.event_rotation_step(event)
             self.last_rotation_pixel=(event.x,event.y)
             self.control_down=bool(getattr(event,'state',0)&4)
             self.route_drag()
@@ -250,6 +257,7 @@ class PointCanvas(ttk.Frame):
                 if node['type']=='PTAXI':
                     origin,vector=model.axis(axis) if not empty(axis) else ((0,0,0),(1,0,0))
                     current=model.location(ident)
+                    self.move_state['basis']=vector
                     self.move_state['ready']=empty(axis) or math.dist(self.camera.project(current,self.canvas.winfo_width(),self.canvas.winfo_height()),self.camera.project(origin,self.canvas.winfo_width(),self.canvas.winfo_height()))<=14
             state=self.move_state
             if state['snapshot']!=definition['elements'] or state['dimensions']!=definition.get(DIMENSIONS_KEY) or state['plane']!=plane:raise ValueError('属性・配置が変更されています。ドラッグをやり直してください。')
@@ -260,9 +268,26 @@ class PointCanvas(ttk.Frame):
                 if math.dist((x,y),origin_pixel)<=14:
                     point=origin;state['ready']=True
                 elif state['ready'] and not any(abs(v)>1e-8 for v in origin):
-                    index=max((a,b),key=lambda i:abs(point[i]));axis=('-' if point[index]<0 else '')+'XYZ'[index]
+                    base=state['basis'];perp=[0.,0.,0.];perp[a]=-base[b];perp[b]=base[a]
+                    length=math.hypot(*perp)
+                    if length<1e-8:raise ValueError('現在の向きが作図面に垂直です。作図面を変更してください。')
+                    perp=tuple(v/length for v in perp)
+                    candidates=[]
+                    for direction in (base,perp):
+                        try:
+                            projected=self.camera.unproject_axis(x,y,self.canvas.winfo_width(),self.canvas.winfo_height(),origin,direction)
+                        except ValueError:continue
+                        pixel=self.camera.project(projected,self.canvas.winfo_width(),self.canvas.winfo_height())
+                        candidates.append((math.dist((x,y),pixel),projected,direction))
+                    if not candidates:raise ValueError('移動軸が視線と重なっています。視点を変更してください。')
+                    error,point,direction=min(candidates,key=lambda c:c[0])
+                    sign=1 if sum((point[i]-origin[i])*direction[i] for i in range(3))>=0 else -1
+                    direction=tuple(sign*v for v in direction)
+                    axis=next((('-' if direction[i]<0 else '')+'XYZ'[i] for i in range(3) if abs(abs(direction[i])-1)<1e-8),None)
+                    if axis is None:
+                        if abs(direction[normal])<1e-8:axis=f'{"XYZ"[a]}{math.degrees(math.atan2(direction[b],direction[a])):.10g}{"XYZ"[b]}'
+                        else:axis=f'X{math.degrees(math.atan2(direction[1],direction[0])):.10g}Y{math.degrees(math.asin(max(-1,min(1,direction[2])))):.10g}Z'
                     state['axis']=axis;state['ready']=False
-                    point=tuple(point[index] if i==index else 0. for i in range(3))
                 else:point=self.camera.unproject_axis(x,y,self.canvas.winfo_width(),self.canvas.winfo_height(),origin,vector)
                 if not empty(axis):attrs['PAXI']=axis
             if node['type'] in ('PTAXI','PTCAR','PTMIX'):
@@ -310,7 +335,10 @@ class PointCanvas(ttk.Frame):
             end=self.camera.unproject(x,y,self.canvas.winfo_width(),self.canvas.winfo_height(),plane,pivot[normal])
             if math.hypot(end[a]-pivot[a],end[b]-pivot[b])<1e-8:return
             delta=math.atan2(end[b]-pivot[b],end[a]-pivot[a])-start_angle
-            degrees=round(math.degrees(delta)/self.rotation_step)*self.rotation_step
+            base_angle=math.atan2(vector[b],vector[a])
+            absolute=math.degrees(base_angle+delta)
+            snapped=round(absolute/self.rotation_step)*self.rotation_step
+            degrees=snapped-math.degrees(base_angle)
             theta=math.radians(degrees);rotated=list(vector)
             rotated[a]=vector[a]*math.cos(theta)-vector[b]*math.sin(theta)
             rotated[b]=vector[a]*math.sin(theta)+vector[b]*math.cos(theta)
@@ -331,7 +359,7 @@ class PointCanvas(ttk.Frame):
             preview=PointPreview(e.data,working)
             self.pending=dict(id=ident,attrs={key:axis},point=preview.location(ident),preview=preview,
                               snapshot=copy.deepcopy(e.definition()['elements']),dimensions=copy.deepcopy(e.definition().get(DIMENSIONS_KEY)),
-                              definition=e.definition_id,preset=presets.selected_id(e.data,e.definition()),rotation_only=True,rotation_layout=rotation_layout,angle_label=f'{key} / {plane}  {math.degrees(math.atan2(rotated[b],rotated[a]))%360:.0f}°  (回転 {degrees:+d}° / {self.rotation_step}°刻み)')
+                              definition=e.definition_id,preset=presets.selected_id(e.data,e.definition()),rotation_only=True,rotation_layout=rotation_layout,angle_label=f'{key} / {plane}  {math.degrees(math.atan2(rotated[b],rotated[a]))%360:.0f}°  (回転 {degrees:+.0f}° / {self.rotation_step}°刻み)')
             self.redraw()
         except (ValueError,KeyError,StopIteration) as exc:
             self.error_message=str(exc);self.pending=None;self.redraw()

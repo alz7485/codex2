@@ -1,4 +1,5 @@
 import copy
+import math
 import tempfile
 import tkinter as tk
 import unittest
@@ -91,6 +92,36 @@ class PointCanvasGuiTests(unittest.TestCase):
         self.view.canvas.event_generate('<Button-1>',x=x,y=y);self.view.canvas.event_generate('<B1-Motion>',x=tx,y=ty)
         if release:self.view.canvas.event_generate('<ButtonRelease-1>',x=tx,y=ty)
         self.app.update()
+
+    def test_oblique_rotation_snaps_absolute_angle_and_alt_releases(self):
+        from types import SimpleNamespace
+        self.point['attrs']['PTCDIR']='X35Y';self.editor.refresh();self.app.update();v=self.view
+        pivot=v.positions[self.point['id']];x,y=self.pixels(pivot)
+        target=(pivot[0]+math.cos(math.radians(52)),pivot[1]+math.sin(math.radians(52)),pivot[2])
+        tx,ty=self.pixels(target);v.press(SimpleNamespace(x=x,y=y,state=0))
+        v.move(SimpleNamespace(x=tx,y=ty,state=0x100))
+        self.assertEqual(v.rotation_step,90);self.assertEqual(v.pending['attrs']['PTCDIR'],'Y')
+        v.alt_rotation(True)
+        direction=v.pending['preview'].axis(v.pending['attrs']['PTCDIR'])[1]
+        self.assertAlmostEqual(math.degrees(math.atan2(direction[1],direction[0])),50,places=5)
+        v.alt_rotation(False);v.move(SimpleNamespace(x=tx,y=ty,state=0x108))
+        self.assertEqual(v.rotation_step,90);self.assertEqual(v.pending['attrs']['PTCDIR'],'Y')
+        v.cancel()
+
+    def test_control_origin_switch_uses_perpendicular_oblique_axes(self):
+        from catalog_studio.point_preview import PointPreview
+        self.editor.definition()['elements']=[]
+        self.point=self.axial((1,1,0),'X45Y','PARAM 3')
+        self.editor.element_id=self.point['id'];self.editor.refresh();self.app.update();v=self.view
+        before=copy.deepcopy(self.app.data);v.propose_move(*self.pixels((0,0,0)),self.point['id'])
+        v.propose_move(*self.pixels((-1,1,0)),self.point['id'])
+        self.assertIsNotNone(v.pending,v.error_message)
+        vector=v.pending['preview'].axis(v.pending['attrs']['PAXI'])[1]
+        self.assertAlmostEqual(vector[0]+vector[1],0,places=6)
+        self.assertGreater(vector[1],0);self.assertLess(vector[0],0)
+        self.assertEqual(self.app.data,before)
+        v.apply();self.app.update();self.assertEqual(self.point['attrs']['PDIS'],'PARAM 3')
+        self.assertEqual(self.app.data['scoms'],before['scoms'])
 
     def test_control_move_locks_axis_until_origin_then_switches(self):
         self.editor.definition()['elements']=[]
