@@ -48,6 +48,9 @@ class PointGeometryTests(unittest.TestCase):
 
 class PointCanvasGuiTests(unittest.TestCase):
     def setUp(self):
+        from unittest.mock import patch
+        native=patch('catalog_studio.point_canvas.physical_alt_down',return_value=None)
+        native.start();self.addCleanup(native.stop)
         try:self.app=IntegratedStudio()
         except tk.TclError as exc:self.skipTest('GUI display unavailable: '+str(exc))
         self.errors=[];self.app.report_callback_exception=lambda k,v,t:self.errors.append(str(v));self.app.update()
@@ -92,6 +95,26 @@ class PointCanvasGuiTests(unittest.TestCase):
         self.view.canvas.event_generate('<Button-1>',x=x,y=y);self.view.canvas.event_generate('<B1-Motion>',x=tx,y=ty)
         if release:self.view.canvas.event_generate('<ButtonRelease-1>',x=tx,y=ty)
         self.app.update()
+
+    def test_physical_alt_overrides_stale_motion_flags_and_release_resnaps(self):
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        pressed=[False]
+        self.point['attrs']['PTCDIR']='X';self.editor.refresh();self.app.update();v=self.view
+        pivot=v.positions[self.point['id']];x,y=self.pixels(pivot)
+        tx,ty=self.pixels((pivot[0]+math.cos(math.radians(52)),pivot[1]+math.sin(math.radians(52)),pivot[2]))
+        with patch('catalog_studio.point_canvas.physical_alt_down',side_effect=lambda:pressed[0]):
+            v.press(SimpleNamespace(x=x,y=y,state=0x20008))
+            v.move(SimpleNamespace(x=tx,y=ty,state=0x20108))
+            self.assertEqual(v.rotation_step,90);self.assertEqual(v.pending['attrs']['PTCDIR'],'Y')
+            pressed[0]=True;v.move(SimpleNamespace(x=tx,y=ty,state=0x100))
+            self.assertEqual(v.rotation_step,5)
+            self.assertEqual(v.pending['attrs']['PTCDIR'],'X50Y')
+            # Simulate losing the Alt key-up event: physical state still wins on drop.
+            pressed[0]=False;v.release(SimpleNamespace(x=tx,y=ty,state=0x20008))
+            self.app.update();self.assertEqual(self.point['attrs']['PTCDIR'],'Y')
+        version=(Path(__file__).parents[1]/'VERSION').read_text().strip()
+        self.assertIn('ver'+version,self.app.title())
 
     def test_oblique_rotation_snaps_absolute_angle_and_alt_releases(self):
         from types import SimpleNamespace

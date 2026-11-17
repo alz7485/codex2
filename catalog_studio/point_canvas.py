@@ -1,6 +1,7 @@
 """Point direction rotation and attribute-driven unitless PARAM preview."""
 import copy
 import math
+from .input_modifiers import physical_alt_down
 import tkinter as tk
 from tkinter import ttk
 from . import element_schema as schema, presets, expressions
@@ -203,6 +204,8 @@ class PointCanvas(ttk.Frame):
         finally:self.context_menu.grab_release()
 
     def event_rotation_step(self,event):
+        physical=physical_alt_down()
+        if physical is not None:return 5 if physical else 90
         state=getattr(event,'state',0)
         mask=0x8 | (0x20000 if self.tk.call('tk','windowingsystem')=='win32' else 0)
         alt=bool(state&mask) if self.alt_override is None else self.alt_override
@@ -210,7 +213,8 @@ class PointCanvas(ttk.Frame):
 
     def alt_rotation(self,pressed):
         self.alt_override=pressed
-        self.rotation_step=5 if pressed else 90
+        physical=physical_alt_down()
+        self.rotation_step=5 if (pressed if physical is None else physical) else 90
         if self.dragging and self.last_rotation_pixel:
             self.route_drag()
         return 'break'
@@ -236,6 +240,10 @@ class PointCanvas(ttk.Frame):
             self.route_drag()
 
     def release(self,event):
+        if self.dragging and self.pending and self.pending.get('rotation_only') and self.last_rotation_pixel:
+            step=self.event_rotation_step(event)
+            if step!=self.rotation_step:
+                self.rotation_step=step;self.propose_rotation(*self.last_rotation_pixel,self.dragging)
         self.orbit=None
         if self.dragging and self.pending:self.apply()
         self.dragging=None;self.press_position=None;self.rotation_start=None

@@ -73,7 +73,9 @@ class Preview:
 class IntegratedStudio(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title('Catalog Studio — カタログ編集')
+        from .app_version import application_title
+        self.app_title=application_title()
+        self.title(self.app_title+' — カタログ編集')
         from .app_icon import install as install_app_icon
         install_app_icon(self)
         self.geometry('1620x960'); self.minsize(1300,780); self.configure(bg=BG)
@@ -123,7 +125,7 @@ class IntegratedStudio(tk.Tk):
         self.content=ttk.Frame(body,padding=(10,12,12,0),style='Workspace.TFrame');self.content.pack(side='left',fill='both',expand=True)
 
     def mark(self,text='変更しました。Ctrl+S でプロジェクトを保存できます。'):
-        self.dirty=True;self.title('Catalog Studio — '+self.data['name']+' *');self.status.configure(text=text)
+        self.dirty=True;self.title(self.app_title+' — '+self.data['name']+' *');self.status.configure(text=text)
         self.registered_browser.refresh()
 
     def switch(self,page):
@@ -928,7 +930,7 @@ class IntegratedStudio(tk.Tk):
         if not path:return False
         try:project.save(self.data,path)
         except (OSError,ValueError) as exc:messagebox.showerror('保存できません',str(exc),parent=self);return False
-        self.path=path;self.dirty=False;self.title('Catalog Studio — '+self.data['name']);self.status.configure(text='保存済み：'+str(path));return True
+        self.path=path;self.dirty=False;self.title(self.app_title+' — '+self.data['name']);self.status.configure(text='保存済み：'+str(path));return True
     def reset_selection(self):
         for collection,attr in [('cates','cate_id'),('scoms','scom_id'),('definitions','definition_id'),('specs','spec_id')]:setattr(self,attr,next((x['id'] for x in self.data[collection]),None))
         self.element_id=None;self.field=None;self.selected_book=None
@@ -965,7 +967,7 @@ class IntegratedStudio(tk.Tk):
         if not path:return
         try:data=project.load(path)
         except (OSError,ValueError,RecursionError) as exc:messagebox.showerror('読み込みできません',str(exc),parent=self);return
-        self.data=data;self.path=path;self.dirty=False;self.reset_selection();self.render_page();self.title('Catalog Studio — '+data['name']);self.status.configure(text='読み込み済み：'+path)
+        self.data=data;self.path=path;self.dirty=False;self.reset_selection();self.render_page();self.title(self.app_title+' — '+data['name']);self.status.configure(text='読み込み済み：'+path)
     def new_project(self):
         if not self.guard():return
         def apply(v):

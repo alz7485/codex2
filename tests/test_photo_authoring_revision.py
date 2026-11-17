@@ -30,6 +30,9 @@ class PhotoRules(unittest.TestCase):
   root=preview_parse('IPARA 2');self.assertEqual(root,ex.parse('0.5 * IPARA 1'))
 
 class PhotoUi(unittest.TestCase):
+ def setUp(self):
+  native=patch('catalog_studio.point_canvas.physical_alt_down',return_value=None)
+  native.start();self.addCleanup(native.stop)
  def test_direction_drag_rotates_in_each_plane_without_changing_position_values(self):
   from catalog_studio.integrated import IntegratedStudio
   from catalog_studio.point_geometry import PLANES,DIMENSIONS_KEY
