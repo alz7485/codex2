@@ -6,7 +6,7 @@ Python / Tkinter で、CATE・SCOM、ポイント・形状定義、SPEC、説明
 
 くり抜き表示に`manifold3d`と`numpy`を追加しました。既存環境は`install.bat`を再実行し、EXE版は再ビルドしてください。
 
-[CatalogStadio ver0.1.5 をダウンロード](https://github.com/alz7485/codex2/raw/refs/heads/main/CatalogStadio_ver0.1.5.zip)
+[CatalogStadio ver0.1.6 をダウンロード](https://github.com/alz7485/codex2/raw/refs/heads/main/CatalogStadio_ver0.1.6.zip)
 
 [開発用の仕様・ユーザー要件・未確認事項](https://github.com/alz7485/codex2/blob/main/docs/knowledge/README.md)を継続参照用に保存しています。ユーザー提示の資料と会話の整理であり、E3D 4.0 実機で全項目を確認した仕様書や、全機能の実装済み一覧ではありません。写真原本は含みません。
 
@@ -35,7 +35,7 @@ Python / Tkinter で、CATE・SCOM、ポイント・形状定義、SPEC、説明
 
 PTSET・GMSET・CATEのマクロ読込では複数ファイルを一度に選択できます。PTSET・GMSETはファイルごとに解析した定義をまとめて選択し追加します。CATEは選択順に解析し、全ファイルが成功してから反映します。途中でエラーが出た場合はプロジェクトを変更せず、ファイル名と原因を表示します。
 
-起動中の版はタイトルの`Catalog Studio ver0.1.5`で確認できます。WindowsのAlt判定はキーの実押下状態を使い、ドロップ直前にも再確認します。ZIPを展開しても既存EXEは更新されないため、EXE使用時は`build_onedir.bat`を再実行してください。
+起動中の版はタイトルの`Catalog Studio ver0.1.6`で確認できます。WindowsのAlt判定はキーの実押下状態を使い、ドロップ直前にも再確認します。ZIPを展開しても既存EXEは更新されないため、EXE使用時は`build_onedir.bat`を再実行してください。
 
 ## 左側のフォルダ管理と統合一覧
 
@@ -502,3 +502,5 @@ SPEC登録表は提示例の14タイプに対応するヘッダーへ切り替�
 配管プリセット：PTSETは標準 PIPE・WELD・BEND、GMSETは標準 BENDのみ。新規プロジェクトに登録済みで、既存プロジェクトはメニュー「配管PTSET・GMSETプリセットを追加」から追加できます。各セットのプリセット呼出しで選択してください。BENDのTANF式は保持しますがプレビュー計算は未対応です。
 
 PTSET・GMSETの新規作成は小窓で名称と要素プリセットを選択できます。両方空欄なら従来どおり自動名の空セットを作成します。
+
+GMSET作成の小窓では参照PTSETも任意選択できます。選択時はPARAM定義を継承し、要素プリセットと定義が異なる場合は作成前にエラーを表示します。

@@ -15,12 +15,14 @@ class SetCreationDialogTests(unittest.TestCase):
         for child in w.winfo_children():
             yield child
             yield from self.descendants(child)
-    def submit(self,kind,name='',preset=''):
+    def submit(self,kind,name='',preset='',pointset=''):
         win=self.app.set_creation_dialog(kind);self.app.update()
         widgets=list(self.descendants(win))
         entry=next(w for w in widgets if isinstance(w,ttk.Entry) and not isinstance(w,ttk.Combobox))
         entry.insert(0,name)
-        next(w for w in widgets if isinstance(w,ttk.Combobox)).set(preset)
+        choices=[w for w in widgets if isinstance(w,ttk.Combobox)]
+        choices[0].set(preset)
+        if kind=='GMSET':choices[1].set(pointset)
         next(w for w in widgets if isinstance(w,ttk.Button) and w.cget('text')=='作成').invoke()
         self.app.update();return win
     def test_blank_and_named_presets_for_both_kinds(self):
@@ -46,3 +48,22 @@ class SetCreationDialogTests(unittest.TestCase):
         win=self.app.set_creation_dialog('GMSET')
         choice=next(w for w in self.descendants(win) if isinstance(w,ttk.Combobox))
         self.assertEqual(tuple(choice['values']),('','標準 BEND'))
+
+    def test_pointset_binding_and_parameter_inheritance(self):
+        point=next(d for d in self.app.data['definitions'] if d['kind']=='PTSET')
+        self.submit('GMSET','/PAIRED',pointset=point['name'])
+        record=self.app.definition()
+        self.assertEqual(record['paired_ptset_id'],point['id'])
+        self.assertEqual(record['parameter_preset_id'],point.get('parameter_preset_id',''))
+        self.assertEqual(self.app.data['creation_draft'],{'ptset_id':point['id'],'gmset_id':record['id']})
+        self.submit('PTSET','/BEND-POINT','標準 BEND')
+        point=self.app.definition()
+        self.submit('GMSET','/BEND-GEOMETRY','標準 BEND',point['name'])
+        self.assertEqual(self.app.definition()['paired_ptset_id'],point['id'])
+        self.assertEqual(len(self.app.definition()['elements']),2)
+
+    def test_incompatible_parameter_presets_are_atomic(self):
+        point=next(d for d in self.app.data['definitions'] if d['kind']=='PTSET')
+        before=copy.deepcopy(self.app.data)
+        win=self.submit('GMSET','/INCOMPATIBLE','標準 BEND',point['name'])
+        self.assertTrue(win.winfo_exists());self.assertEqual(self.app.data,before)

@@ -186,10 +186,10 @@ class IntegratedStudio(tk.Tk):
         panes.bind('<Configure>',apply,add='+')
         self.after_idle(apply)
 
-    def form(self,title,fields,apply,*,submit_label='適用'):
+    def form(self,title,fields,apply,*,submit_label='適用',compact=False):
         """Fields: key, label, initial text, optional display choices."""
         win=tk.Toplevel(self);win.title(title);win.transient(self);win.grab_set()
-        win.geometry('440x'+str(190+60*len(fields)) if len(fields)<=2 else '540x650')
+        win.geometry('440x'+str(190+60*len(fields)) if compact or len(fields)<=2 else '540x650')
         container=ttk.Frame(win,padding=14 if len(fields)<=2 else 18);container.pack(fill='both',expand=True)
         ttk.Label(container,text=title,style='Heading.TLabel').pack(anchor='w',pady=(0,6 if len(fields)<=2 else 10))
         canvas=tk.Canvas(container,highlightthickness=0,bg='white');canvas.pack(side='left',fill='both',expand=True)
@@ -448,6 +448,8 @@ class IntegratedStudio(tk.Tk):
         data=self.data
         options={'':None}
         options.update({r['name']:r['id'] for r in data.get('element_presets',[]) if r['kind']==kind})
+        pointsets={'':None}
+        if kind=='GMSET':pointsets.update({d['name']:d['id'] for d in data['definitions'] if d['kind']=='PTSET'})
         def apply(values):
             if self.data is not data:raise ValueError('プロジェクトが変更されています。作成をやり直してください。')
             candidate=copy.deepcopy(data)
@@ -458,18 +460,29 @@ class IntegratedStudio(tk.Tk):
             record=dict(id=uuid.uuid4().hex,name=name,kind=kind,revision='01',elements=[],parameter_preset_id=presets.selected_id(candidate))
             ident=options[values['element_preset']]
             if ident:element_library.recall(candidate,record,ident,replace=True)
+            point_id=pointsets[values.get('pointset','')]
+            if point_id:
+                pointset=project.get(candidate,'definitions',point_id)
+                if not pointset or pointset['kind']!='PTSET':raise ValueError('指定した PTSET が見つかりません。')
+                profile=presets.selected_id(candidate,pointset)
+                if ident and presets.selected_id(candidate,record)!=profile:
+                    raise ValueError('PTSET と要素プリセットの PARAM 定義が異なります。同じ定義の組合せを選択してください。')
+                record['parameter_preset_id']=profile
+                pairing.assign(candidate,record,point_id)
             key='definitions:'+record['id']
             browser_folders.place_created(candidate,kind.lower(),key,insert_after or '')
             candidate['definitions'].append(record)
             if kind=='PTSET':candidate['creation_draft']={'ptset_id':record['id']}
+            elif point_id:candidate['creation_draft']={'ptset_id':point_id,'gmset_id':record['id']}
             project.validate(candidate)
             data.clear();data.update(candidate)
             self.definition_id=record['id'];self.element_id=None
             self.page=kind.lower()
             self.registered_browser.search.set('')
-        return self.form('新しい '+kind+' を作成',[
-            ('name',kind+' 名（省略可）','',None),
-            ('element_preset','要素プリセット（省略可）','',list(options))],apply,submit_label='作成')
+        fields=[('name',kind+' 名（省略可）','',None),
+                ('element_preset','要素プリセット（省略可）','',list(options))]
+        if kind=='GMSET':fields.append(('pointset','参照する PTSET（省略可）','',list(pointsets)))
+        return self.form('新しい '+kind+' を作成',fields,apply,submit_label='作成',compact=True)
 
     def definition_form(self,kind,*,preset_id=None,ptset_id=None,insert_after=None):
         """Create an empty set; numerical component data is entered later."""
