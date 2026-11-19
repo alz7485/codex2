@@ -87,6 +87,8 @@ class IntegratedStudio(tk.Tk):
         self.data['definitions'].extend(demo_definitions())
         from .valve_sample import prepare as prepare_valve_sample
         self.data,_=prepare_valve_sample(self.data)
+        from .piping_samples import add_samples
+        add_samples(self.data)
         self.path=None;self.dirty=False;self.page='ptset';self.busy=False
         self.cate_id=self.data['cates'][0]['id'];self.scom_id=self.data['scoms'][0]['id']
         self.definition_id='ui-ptset';self.spec_id=self.data['specs'][0]['id']
@@ -115,7 +117,7 @@ class IntegratedStudio(tk.Tk):
         self.more_nav_menu.add_command(label='PTSET・GMSET の作成マクロを読み込む',command=self.import_creation_macro)
         self.more_nav_menu.add_command(label='手動弁サンプルを追加',command=self.add_valve_sample)
         self.more_nav_menu.add_command(label='弁用PARAM参考表サンプルを追加',command=self.add_reference_parameters)
-        self.more_nav_menu.add_command(label='配管PTSET・GMSETプリセットを追加',command=self.add_piping_presets)
+        self.more_nav_menu.add_command(label='配管サンプル・プリセットを追加',command=self.add_piping_presets)
         self.more_nav_button.pack(side='left')
         footer=ttk.Frame(self,padding=(18,7),style='Status.TFrame');footer.pack(side='bottom',fill='x')
         ttk.Label(footer,text='Ctrl+S 保存    Ctrl+O 開く',style='Status.TLabel').pack(side='right')
@@ -1008,12 +1010,12 @@ class IntegratedStudio(tk.Tk):
     def add_piping_presets(self):
         if self.page=='rules' and not self.preset_editor.can_leave():return
         if self.commit_definition_name() is False:return
-        from .piping_presets import add_presets
-        try:count=add_presets(self.data)
+        from .piping_samples import add_samples
+        try:count=add_samples(self.data)
         except ValueError as exc:self.status.configure(text=str(exc));return
         if count:
             self.render_page()
-            self.mark('配管プリセットを追加しました。PTSET：PIPE・WELD・BEND、GMSET：BENDのみ。')
+            self.mark('PIPE・WELD・BENDのサンプルCATE・TEXT・SCOMとセット・プリセットを追加しました。')
         else:self.status.configure(text='配管プリセットは既に登録されています。')
 
     def add_reference_parameters(self):
@@ -1054,6 +1056,8 @@ class IntegratedStudio(tk.Tk):
         def apply(v):
             self.required(v['name'],'プロジェクト名');self.data=project.sample();self.data['name']=v['name']
             for key in ('cates','scoms','definitions','specs','books','texts','tables'):self.data[key]=[]
+            from .piping_samples import add_samples
+            add_samples(self.data)
             self.path=None;self.reset_selection();self.page='ptset'
         self.form('新規プロジェクト',[('name','プロジェクト名','新規カタログ',None)],apply)
     def destroy(self):

@@ -23,7 +23,7 @@ def add_presets(data):
         if not any(r['id']==ident for r in records):
             if len(records)>=1000:raise ValueError('PARAMプリセット数の上限です。')
             records.append({'id':ident,'name':unique(records,'標準 '+component+' PARAM'),'period':'','component':component,
-                            'description':'配管用プリセットのPARAM定義。寸法単位mmはツール設定。','reference_roles':{},
+                            'description':'各CATEのTEXTに記載されたPARAM説明に基づく定義。寸法単位mmはツール設定。','reference_roles':{},
                             'parameters':[{'id':'P'+str(i),'role':jp,'meaning':jp,'english_name':en,
                                            'unit':'mm' if kind=='number' else '', 'value_type':kind,'description':''}
                                           for i,(jp,en,kind) in enumerate(items,1)]})
