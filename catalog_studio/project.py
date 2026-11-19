@@ -23,7 +23,7 @@ LIMITS = {'parameters': 100, 'cates': 1000, 'definitions': 1000,
 def sample():
     """A shared reducer definition with three numerical SCOM sizes."""
     from .sample_parameter_presets import valve_reference_preset
-    return {
+    data = {
         'format': FORMAT, 'version': VERSION, 'name': '配管カタログ管理',
         'parameters': [
             {'id': 'P1', 'role': '大径側外径', 'unit': 'mm'},
@@ -65,6 +65,9 @@ def sample():
                        {'id': 'entry-100-65', 'type': 'REDU', 'bore1': '100', 'bore2': '65',
                         'scom_id': 'scom-100-65', 'description': '同心レデューサー'}]}],
         'books': [], 'texts': [], 'tables': [], 'parameter_presets':[valve_reference_preset()]}
+    from .piping_presets import add_presets
+    add_presets(data)
+    return data
 
 
 def _finite(value):

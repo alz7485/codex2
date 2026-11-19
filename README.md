@@ -6,7 +6,7 @@ Python / Tkinter で、CATE・SCOM、ポイント・形状定義、SPEC、説明
 
 くり抜き表示に`manifold3d`と`numpy`を追加しました。既存環境は`install.bat`を再実行し、EXE版は再ビルドしてください。
 
-[CatalogStadio ver0.1.3 をダウンロード](https://github.com/alz7485/codex2/raw/refs/heads/main/CatalogStadio_ver0.1.3.zip)
+[CatalogStadio ver0.1.4 をダウンロード](https://github.com/alz7485/codex2/raw/refs/heads/main/CatalogStadio_ver0.1.4.zip)
 
 [開発用の仕様・ユーザー要件・未確認事項](https://github.com/alz7485/codex2/blob/main/docs/knowledge/README.md)を継続参照用に保存しています。ユーザー提示の資料と会話の整理であり、E3D 4.0 実機で全項目を確認した仕様書や、全機能の実装済み一覧ではありません。写真原本は含みません。
 
@@ -35,7 +35,7 @@ Python / Tkinter で、CATE・SCOM、ポイント・形状定義、SPEC、説明
 
 PTSET・GMSET・CATEのマクロ読込では複数ファイルを一度に選択できます。PTSET・GMSETはファイルごとに解析した定義をまとめて選択し追加します。CATEは選択順に解析し、全ファイルが成功してから反映します。途中でエラーが出た場合はプロジェクトを変更せず、ファイル名と原因を表示します。
 
-起動中の版はタイトルの`Catalog Studio ver0.1.3`で確認できます。WindowsのAlt判定はキーの実押下状態を使い、ドロップ直前にも再確認します。ZIPを展開しても既存EXEは更新されないため、EXE使用時は`build_onedir.bat`を再実行してください。
+起動中の版はタイトルの`Catalog Studio ver0.1.4`で確認できます。WindowsのAlt判定はキーの実押下状態を使い、ドロップ直前にも再確認します。ZIPを展開しても既存EXEは更新されないため、EXE使用時は`build_onedir.bat`を再実行してください。
 
 ## 左側のフォルダ管理と統合一覧
 
@@ -498,3 +498,5 @@ SDTE/CMPTは追加・マクロ・検索を左一覧上部へ集約し、関連CA
 プレビューの「表示設定」から表示色を選択できます。GMSET・CATE・SPEC別窓では背景／グリッド／モデル／輪郭線／ポイント／選択中／負形状／寸法文字、PTSETでは背景／グリッド／ポイント／選択中に対応します。選択は即時反映し、「標準色に戻す」も利用できます。「現在の設定を初期値にする」で全プレビューに適用し、次回起動にも保持します。実機のCOLOUR属性やマクロは変更しません。
 
 SPEC登録表は提示例の14タイプに対応するヘッダーへ切り替わります。すべてのタイプにTEXTを含め、PBOR0/1/2/3、RADI、EDGE、ALLO、HEIG、ANGLと共通参照列をタイプに応じて表示します。非表示列の値は保持します。これは登録表の更新であり、SPEC実行マクロ入出力の追加ではありません。
+
+配管プリセット：PTSETは標準 PIPE・WELD・BEND、GMSETは標準 BENDのみ。新規プロジェクトに登録済みで、既存プロジェクトはメニュー「配管PTSET・GMSETプリセットを追加」から追加できます。各セットのプリセット呼出しで選択してください。BENDのTANF式は保持しますがプレビュー計算は未対応です。
