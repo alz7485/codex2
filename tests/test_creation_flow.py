@@ -18,7 +18,7 @@ class CreationFlowTests(unittest.TestCase):
     def empty(self):
         for key in ('cates','definitions','scoms','specs','books'):self.app.data[key]=[]
         self.app.reset_selection();self.app.switch('ptset');self.app.update()
-    def confirm(self,title,fields,apply):
+    def confirm(self,title,fields,apply,**kwargs):
         values={key:str(initial) for key,label,initial,options in fields}
         if title.startswith('新しい PTSET'):values['name']='/FLOW-PT'
         elif title.startswith('新しい GMSET'):values['name']='/FLOW-GM'

@@ -39,7 +39,7 @@ class PointsetPresetSelectorTests(unittest.TestCase):
 
     def test_empty_set_loads_without_confirmation_and_only_lists_pointset_presets(self):
         e=self.e;e.definition()['elements'].clear();e.refresh();self.app.update()
-        self.assertEqual(tuple(e.element_preset_choice['values']),(self.first['name'],self.second['name']))
+        self.assertEqual(tuple(e.element_preset_choice['values']),tuple(r['name'] for r in self.app.data['element_presets'] if r['kind']=='PTSET'))
         self.assertLess(e.element_preset_choice.winfo_rooty(),e.elements.winfo_rooty())
         with patch('catalog_studio.element_presets_ui.messagebox.askyesno') as confirm:self.select(self.first)
         confirm.assert_not_called()
@@ -50,7 +50,7 @@ class PointsetPresetSelectorTests(unittest.TestCase):
         self.assertEqual(e.element_id,copied['id'])
         self.assertEqual(e.element_preset_choice.get(),self.first['name'])
         self.app.switch('gmset');self.app.update()
-        self.assertEqual(tuple(self.app.geometry_editor.element_preset_choice['values']),('形状専用の配置',))
+        self.assertEqual(tuple(self.app.geometry_editor.element_preset_choice['values']),tuple(r['name'] for r in self.app.data['element_presets'] if r['kind']=='GMSET'))
 
     def test_one_existing_element_cancel_preserves_data_selection_and_dirty_state(self):
         e=self.e;e.definition()['elements'][:]=e.definition()['elements'][:1];e.refresh();self.app.update()

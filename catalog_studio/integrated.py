@@ -186,7 +186,7 @@ class IntegratedStudio(tk.Tk):
         panes.bind('<Configure>',apply,add='+')
         self.after_idle(apply)
 
-    def form(self,title,fields,apply):
+    def form(self,title,fields,apply,*,submit_label='適用'):
         """Fields: key, label, initial text, optional display choices."""
         win=tk.Toplevel(self);win.title(title);win.transient(self);win.grab_set()
         win.geometry('440x'+str(190+60*len(fields)) if len(fields)<=2 else '540x650')
@@ -209,7 +209,7 @@ class IntegratedStudio(tk.Tk):
             except (ValueError,KeyError,StopIteration) as exc:error.configure(text=str(exc) or '設定内容を確認してください。');return
             win.destroy();self.mark();self.render_page()
         ttk.Button(footer,text='キャンセル',command=win.destroy).pack(side='right',padx=5)
-        ttk.Button(footer,text='適用',command=submit,style='Primary.TButton').pack(side='right')
+        ttk.Button(footer,text=submit_label,command=submit,style='Primary.TButton').pack(side='right')
         return win
 
     @staticmethod
@@ -441,8 +441,40 @@ class IntegratedStudio(tk.Tk):
         s=project.get(self.data,'scoms',self.scom_id)
         if s and s.get(key):self.definition_id=s[key];self.switch('gmset' if key=='gmset_id' else 'ptset')
 
+    def set_creation_dialog(self,kind,*,insert_after=None):
+        """Name and element preset are optional; blank creates the usual empty item."""
+        import uuid
+        from . import element_library, browser_folders
+        data=self.data
+        options={'':None}
+        options.update({r['name']:r['id'] for r in data.get('element_presets',[]) if r['kind']==kind})
+        def apply(values):
+            if self.data is not data:raise ValueError('プロジェクトが変更されています。作成をやり直してください。')
+            candidate=copy.deepcopy(data)
+            if len(candidate['definitions'])>=project.LIMITS['definitions']:raise ValueError('定義数の上限です。')
+            names={r['name'] for r in candidate['definitions']}
+            name=values['name'] or self.registered_browser.fresh_name('新しいアイテム',names)
+            if name in names:raise ValueError('定義名が重複しています。')
+            record=dict(id=uuid.uuid4().hex,name=name,kind=kind,revision='01',elements=[],parameter_preset_id=presets.selected_id(candidate))
+            ident=options[values['element_preset']]
+            if ident:element_library.recall(candidate,record,ident,replace=True)
+            key='definitions:'+record['id']
+            browser_folders.place_created(candidate,kind.lower(),key,insert_after or '')
+            candidate['definitions'].append(record)
+            if kind=='PTSET':candidate['creation_draft']={'ptset_id':record['id']}
+            project.validate(candidate)
+            data.clear();data.update(candidate)
+            self.definition_id=record['id'];self.element_id=None
+            self.page=kind.lower()
+            self.registered_browser.search.set('')
+        return self.form('新しい '+kind+' を作成',[
+            ('name',kind+' 名（省略可）','',None),
+            ('element_preset','要素プリセット（省略可）','',list(options))],apply,submit_label='作成')
+
     def definition_form(self,kind,*,preset_id=None,ptset_id=None,insert_after=None):
         """Create an empty set; numerical component data is entered later."""
+        if preset_id is None and ptset_id is None:
+            return self.set_creation_dialog(kind,insert_after=insert_after)
         import uuid
         data=self.data
         source=presets.selected_id(self.data) if preset_id is None else preset_id

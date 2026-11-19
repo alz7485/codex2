@@ -441,20 +441,8 @@ class RegisteredBrowser(ttk.Frame):
     def add_definition(self):
         if self.host.page=='rules':self.host.preset_editor.add();return
         if self.host.page not in ('ptset','gmset') or not self.ready():return
-        from . import project,presets
-        import uuid
-        data=self.host.data
-        if len(data['definitions'])>=project.LIMITS['definitions']:
-            self.host.status.configure(text='定義数の上限です。');return
         selected=self.tree.selection();anchor=selected[0] if selected else ''
-        name=self.fresh_name('新しいアイテム',{r['name'] for r in data['definitions']})
-        record=dict(id=uuid.uuid4().hex,name=name,kind=self.host.page.upper(),revision='01',elements=[],parameter_preset_id=presets.selected_id(data))
-        key='definitions:'+record['id']
-        try:folders.place_created(data,self.host.page,key,anchor)
-        except ValueError as exc:self.host.status.configure(text=str(exc));return
-        data['definitions'].append(record);self.host.definition_id=record['id']
-        if record['kind']=='PTSET':data['creation_draft']={'ptset_id':record['id']}
-        self.host.render_page();self.reveal_created(key)
+        return self.host.set_creation_dialog(self.host.page.upper(),insert_after=anchor)
 
     def select(self, _=None):
         if self.host.page=='sdte_cmpt':return
