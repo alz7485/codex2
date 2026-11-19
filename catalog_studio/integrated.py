@@ -186,10 +186,10 @@ class IntegratedStudio(tk.Tk):
         panes.bind('<Configure>',apply,add='+')
         self.after_idle(apply)
 
-    def form(self,title,fields,apply,*,submit_label='適用',compact=False):
+    def form(self,title,fields,apply,*,submit_label='適用',compact=False,field_actions=None):
         """Fields: key, label, initial text, optional display choices."""
         win=tk.Toplevel(self);win.title(title);win.transient(self);win.grab_set()
-        win.geometry('440x'+str(190+60*len(fields)) if compact or len(fields)<=2 else '540x650')
+        win.geometry('440x'+str(190+60*len(fields)+32*len(field_actions or {})) if compact or len(fields)<=2 else '540x650')
         container=ttk.Frame(win,padding=14 if len(fields)<=2 else 18);container.pack(fill='both',expand=True)
         ttk.Label(container,text=title,style='Heading.TLabel').pack(anchor='w',pady=(0,6 if len(fields)<=2 else 10))
         canvas=tk.Canvas(container,highlightthickness=0,bg='white');canvas.pack(side='left',fill='both',expand=True)
@@ -202,6 +202,12 @@ class IntegratedStudio(tk.Tk):
             ttk.Label(inner,text=label).pack(anchor='w',pady=(8,3));var=tk.StringVar(value=str(value));variables[key]=var
             widget=ttk.Combobox(inner,textvariable=var,values=choices,state='readonly') if choices is not None else ttk.Entry(inner,textvariable=var)
             widget.pack(fill='x')
+            if field_actions and key in field_actions:
+                label,action=field_actions[key]
+                def run_action(action=action):
+                    try:action(variables);error.configure(text='')
+                    except ValueError as exc:error.configure(text=str(exc))
+                ttk.Button(inner,text=label,command=run_action).pack(anchor='e',pady=(5,0))
         error=ttk.Label(win,text='',foreground='#bb4949',wraplength=400 if len(fields)<=2 else 500,padding=(10,4) if len(fields)<=2 else 10);error.pack(side='bottom',fill='x',before=container)
         footer=ttk.Frame(win,padding=12);footer.pack(side='bottom',fill='x',before=error)
         def submit():
@@ -482,7 +488,25 @@ class IntegratedStudio(tk.Tk):
         fields=[('name',kind+' 名（省略可）','',None),
                 ('element_preset','要素プリセット（省略可）','',list(options))]
         if kind=='GMSET':fields.append(('pointset','参照する PTSET（省略可）','',list(pointsets)))
-        return self.form('新しい '+kind+' を作成',fields,apply,submit_label='作成',compact=True)
+        def choose_by_name(variables):
+            name=variables['name'].get().strip().lstrip('/')
+            if not name.startswith('GM-') or not name[3:]:
+                raise ValueError('GMSET 名を GM-名前 の形式で入力してください。')
+            target='PT-'+name[3:]
+            matches=[label for label in pointsets if label.lstrip('/')==target]
+            if len(matches)!=1:
+                raise ValueError('対応する '+target+' が見つかりません。' if not matches else '対応する PTSET が複数あります。手動で選択してください。')
+            variables['pointset'].set(matches[0])
+        def name_from_pointset(variables):
+            selected=variables['pointset'].get()
+            if not pointsets.get(selected):raise ValueError('先に PTSET を選択してください。')
+            name=selected.lstrip('/')
+            if not name.startswith('PT-') or not name[3:]:
+                raise ValueError('PT-名前 の形式の PTSET を選択してください。')
+            variables['name'].set(('/' if selected.startswith('/') else '')+'GM-'+name[3:])
+        actions={'pointset':('名称からPTSETを選択',choose_by_name),
+                 'name':('PTSETから名称を入力',name_from_pointset)} if kind=='GMSET' else None
+        return self.form('新しい '+kind+' を作成',fields,apply,submit_label='作成',compact=True,field_actions=actions)
 
     def definition_form(self,kind,*,preset_id=None,ptset_id=None,insert_after=None):
         """Create an empty set; numerical component data is entered later."""

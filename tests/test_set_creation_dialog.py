@@ -67,3 +67,34 @@ class SetCreationDialogTests(unittest.TestCase):
         before=copy.deepcopy(self.app.data)
         win=self.submit('GMSET','/INCOMPATIBLE','標準 BEND',point['name'])
         self.assertTrue(win.winfo_exists());self.assertEqual(self.app.data,before)
+
+    def test_select_pointset_by_name_button(self):
+        point=next(d for d in self.app.data['definitions'] if d['kind']=='PTSET')
+        point['name']='/PT-SAMPLE'
+        win=self.app.set_creation_dialog('GMSET');self.app.update()
+        widgets=list(self.descendants(win))
+        entry=next(w for w in widgets if isinstance(w,ttk.Entry) and not isinstance(w,ttk.Combobox))
+        choice=[w for w in widgets if isinstance(w,ttk.Combobox)][1]
+        button=next(w for w in widgets if isinstance(w,ttk.Button) and w.cget('text')=='名称からPTSETを選択')
+        entry.insert(0,'/GM-SAMPLE');button.invoke()
+        self.assertEqual(choice.get(),'/PT-SAMPLE')
+        for name in ('GM-NOTFOUND','WRONG','GM-'):
+            entry.delete(0,'end');entry.insert(0,name);button.invoke()
+            self.assertEqual(choice.get(),'/PT-SAMPLE')
+        entry.delete(0,'end');entry.insert(0,'GM-SAMPLE');button.invoke()
+        next(w for w in widgets if isinstance(w,ttk.Button) and w.cget('text')=='作成').invoke()
+        self.app.update()
+        self.assertEqual(self.app.definition()['paired_ptset_id'],point['id'])
+
+    def test_name_from_selected_pointset(self):
+        point=next(d for d in self.app.data['definitions'] if d['kind']=='PTSET')
+        point['name']='/PT-REVERSE'
+        win=self.app.set_creation_dialog('GMSET');self.app.update()
+        widgets=list(self.descendants(win))
+        entry=next(w for w in widgets if isinstance(w,ttk.Entry) and not isinstance(w,ttk.Combobox))
+        choice=[w for w in widgets if isinstance(w,ttk.Combobox)][1]
+        button=next(w for w in widgets if isinstance(w,ttk.Button) and w.cget('text')=='PTSETから名称を入力')
+        entry.insert(0,'existing');button.invoke()
+        self.assertEqual(entry.get(),'existing')
+        choice.set(point['name']);button.invoke()
+        self.assertEqual(entry.get(),'/GM-REVERSE')
