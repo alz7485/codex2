@@ -41,7 +41,12 @@ def add_samples(data):
                 'BEND':{'P1':40.,'P2':48.6,'P3':'TUB','P4':150.}}[component]
         scom.update(sample=marker,size='',parameter_preset_id=profile['id'],ptset_id=pt['id'],
                     gmset_id=gm['id'] if gm else '',values=values,attrs={'GTYP':'TUBE' if component=='PIPE' else component})
-        if gm:scom['component_attrs']={'ANGL':90.}
+        if gm:
+            scom['component_attrs']={'ANGL':90.}
+            # Preview-only dimensions; these do not export as catalogue attributes.
+            state={'scale':.01,'values':{'PARAM':{k:v for k,v in values.items() if isinstance(v,float)},'IPARAM':{'P1':0.}},'expressions':[]}
+            for definition in (pt,gm):definition['schematic_dimensions']=copy.deepcopy(state)
+
         added+=1
     project.validate(candidate)
     data.clear();data.update(candidate)

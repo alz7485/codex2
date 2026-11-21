@@ -33,8 +33,9 @@ def add_presets(data):
             if any(r['id']==eid for r in library):continue
             if len(library)>=1000:raise ValueError('要素プリセット数の上限です。')
             record={'id':eid,'name':unique([r for r in library if r['kind']==kind],'標準 '+component),
-                    'kind':kind,'description':'配管用 '+component+' '+kind+'。BENDのTANF式は原文を保持し、プレビュー計算は未対応。' if component=='BEND' else '配管用 '+component+' PTSET（GMSETなし）。',
+                    'kind':kind,'description':'配管用 '+component+' '+kind+'。TANFによる接線長。確認用の設計角度は90度。' if component=='BEND' else '配管用 '+component+' PTSET（GMSETなし）。',
                     'parameter_preset_id':ident,'elements':[]}
+            if component=='BEND':record['model_settings']={'DDANGLE':90.}
             def element(typ,attrs):schema.add_element(record,typ)['attrs'].update(attrs)
             if kind=='PTSET':
                 for n in range(1,2 if component=='PIPE' else 3):

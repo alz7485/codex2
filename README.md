@@ -6,7 +6,7 @@ Python / Tkinter で、CATE・SCOM、ポイント・形状定義、SPEC、説明
 
 くり抜き表示に`manifold3d`と`numpy`を追加しました。既存環境は`install.bat`を再実行し、EXE版は再ビルドしてください。
 
-[CatalogStadio ver0.1.8 をダウンロード](https://github.com/alz7485/codex2/raw/refs/heads/main/CatalogStadio_ver0.1.8.zip)
+[CatalogStadio ver0.1.9 をダウンロード](https://github.com/alz7485/codex2/raw/refs/heads/main/CatalogStadio_ver0.1.9.zip)
 
 [開発用の仕様・ユーザー要件・未確認事項](https://github.com/alz7485/codex2/blob/main/docs/knowledge/README.md)を継続参照用に保存しています。ユーザー提示の資料と会話の整理であり、E3D 4.0 実機で全項目を確認した仕様書や、全機能の実装済み一覧ではありません。写真原本は含みません。
 
@@ -35,7 +35,7 @@ Python / Tkinter で、CATE・SCOM、ポイント・形状定義、SPEC、説明
 
 PTSET・GMSET・CATEのマクロ読込では複数ファイルを一度に選択できます。PTSET・GMSETはファイルごとに解析した定義をまとめて選択し追加します。CATEは選択順に解析し、全ファイルが成功してから反映します。途中でエラーが出た場合はプロジェクトを変更せず、ファイル名と原因を表示します。
 
-起動中の版はタイトルの`Catalog Studio ver0.1.8`で確認できます。WindowsのAlt判定はキーの実押下状態を使い、ドロップ直前にも再確認します。ZIPを展開しても既存EXEは更新されないため、EXE使用時は`build_onedir.bat`を再実行してください。
+起動中の版はタイトルの`Catalog Studio ver0.1.9`で確認できます。WindowsのAlt判定はキーの実押下状態を使い、ドロップ直前にも再確認します。ZIPを展開しても既存EXEは更新されないため、EXE使用時は`build_onedir.bat`を再実行してください。
 
 ## 左側のフォルダ管理と統合一覧
 
@@ -499,7 +499,7 @@ SDTE/CMPTは追加・マクロ・検索を左一覧上部へ集約し、関連CA
 
 SPEC登録表は提示例の14タイプに対応するヘッダーへ切り替わります。すべてのタイプにTEXTを含め、PBOR0/1/2/3、RADI、EDGE、ALLO、HEIG、ANGLと共通参照列をタイプに応じて表示します。非表示列の値は保持します。これは登録表の更新であり、SPEC実行マクロ入出力の追加ではありません。
 
-配管プリセット：PTSETは標準 PIPE・WELD・BEND、GMSETは標準 BENDのみ。新規プロジェクトに登録済みで、既存プロジェクトはメニュー「配管PTSET・GMSETプリセットを追加」から追加できます。各セットのプリセット呼出しで選択してください。BENDのTANF式は保持しますがプレビュー計算は未対応です。
+配管プリセット：PTSETは標準 PIPE・WELD・BEND、GMSETは標準 BENDのみ。新規プロジェクトに登録済みで、既存プロジェクトはメニュー「配管PTSET・GMSETプリセットを追加」から追加できます。各セットのプリセット呼出しで選択してください。BENDのTANF式の計算とプレビューに対応しています。
 
 PTSET・GMSETの新規作成は小窓で名称と要素プリセットを選択できます。両方空欄なら従来どおり自動名の空セットを作成します。
 
@@ -508,3 +508,5 @@ GMSET作成の小窓では参照PTSETも任意選択できます。選択時はP
 GMSET作成の小窓では「名称からPTSETを選択」でGM-名前に対応するPT-名前を選択し、「PTSETから名称を入力」で逆方向にGMSET名を入力できます。先頭の/は任意、名前部分は完全一致です。
 
 起動時および新規プロジェクトにPIPE・WELD・BENDの編集用サンプル（CATE・SDTE・PARAM説明TEXT・SCOM・PTSET、BENDのみGMSET）を登録しています。各CATEのTEXT説明に対応するPARAMプリセットも登録済みです。寸法は自作参考値です。既存プロジェクトは「配管サンプル・プリセットを追加」から追加できます。
+
+TANFは`L × tan(ANG / 2)`（角度は度）として計算します。`TANF PARAM 4 DDANGLE`と`TANF(L, ANG)`の両形式に対応し、BENDサンプルとプリセットの確認用DDANGLEは90度です。確認用設計値で45度などに変更できます。180度など半角のTANが未定義になる角度はエラーを表示します。この計算仕様はユーザー提示情報に基づき、E3D実機との独立照合は未実施です。

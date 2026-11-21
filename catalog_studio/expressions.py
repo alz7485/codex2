@@ -47,6 +47,14 @@ def parse(text, parameters=()):
         if upper == 'ATTRIB': return atom(depth+1)
         if upper in ('SUM', 'DIFF', 'DIFFERENCE', 'TIMES', 'DIV'):
             return ('binary', {'SUM':'+', 'DIFF':'-', 'DIFFERENCE':'-', 'TIMES':'*', 'DIV':'/'}[upper], atom(depth+1), atom(depth+1))
+        if upper == 'TANF':
+            if peek()=='(':
+                take();length=expr(0,depth+1)
+                if take()!=',':raise ValueError('TANF は長さと角度の2引数です。')
+                angle=expr(0,depth+1)
+                if take()!=')':raise ValueError('TANF の括弧を閉じてください。')
+            else:length,angle=atom(depth+1),atom(depth+1)
+            return ('tanf','TANF',length,angle)
         if upper == 'TAN': return ('tan', atom(depth+1))
         if upper in ('SIN','COS','ASIN','ACOS','ATAN'):return ('func',upper,atom(depth+1))
         if upper=='TWICE':return ('binary','*',('number',2.),atom(depth+1))
@@ -105,6 +113,7 @@ def normalized(text, parameters=()):
         if kind == 'attr': return node[1]
         if kind == 'tan': return 'TAN(' + render(node[1]) + ')'
         if kind == 'func':return node[1]+'('+render(node[2])+')'
+        if kind == 'tanf':return 'TANF('+render(node[2])+','+render(node[3])+')'
         if kind == 'unary': return '(' + node[1] + render(node[2]) + ')'
         return '(' + render(node[2]) + ' ' + node[1] + ' ' + render(node[3]) + ')'
     return render(parse(text, parameters))
@@ -130,6 +139,14 @@ def evaluate(text, contexts=None, attributes=None, parameters=(), expected=None,
         if kind == 'attr':
             if node[1] not in attributes: raise ValueError('コンポーネント属性が未設定：' + node[1])
             return units.Quantity(numeric(attributes[node[1]]),units.ANGL if node[1] in ('ANGL','DDANGLE') else units.DIST)
+        if kind=='tanf':
+            length,angle=run(node[2]),run(node[3])
+            if not isinstance(length,units.Quantity) or not isinstance(angle,units.Quantity):raise ValueError('TANF には数値が必要です。')
+            units.compatible(length.dimension,units.DIST)
+            tangent=units.function('TAN',units.Quantity(angle.value/2,angle.dimension))
+            result=units.Quantity(length.value*tangent.value,length.dimension)
+            numeric(result.value)
+            return result
         if kind in ('tan','func'):
             arg=run(node[1] if kind=='tan' else node[2])
             if not isinstance(arg,units.Quantity):raise ValueError('関数には数値が必要です。')
@@ -176,6 +193,7 @@ def e3d(text):
         if kind=='binary':return '('+render(node[2],True)+' '+node[1]+' '+render(node[3],True)+')'
         if kind=='unary':return '('+node[1]+render(node[2],True)+')'
         if kind=='tan':return 'TAN('+render(node[1],True)+')'
+        if kind=='tanf':return 'TANF('+render(node[2],True)+','+render(node[3],True)+')'
         return node[1]+'('+render(node[2],True)+')'
     result=render(root)
     return '('+result+')' if root[0] in ('attr','ref') and (root[0]!='ref' or root[1]!='PARAM') else result

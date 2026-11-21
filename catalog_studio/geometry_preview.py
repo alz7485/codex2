@@ -22,7 +22,7 @@ def numeric_form(root,attributes=None):
     if root[0]=='tan':numeric_form(root[1],attributes)
     elif root[0]=='func':numeric_form(root[2],attributes)
     elif root[0]=='unary':numeric_form(root[2],attributes)
-    elif root[0]=='binary':numeric_form(root[2],attributes);numeric_form(root[3],attributes)
+    elif root[0] in ('binary','tanf'):numeric_form(root[2],attributes);numeric_form(root[3],attributes)
 
 
 def pointset_for(data,definition):

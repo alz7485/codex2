@@ -3,6 +3,7 @@ import copy
 import math
 import re
 from . import expressions, element_schema as schema, presets
+from .units import UndefinedAngleError
 from .point_geometry import LAYOUT_KEY, DIMENSIONS_KEY, PLANES, schematic_position, valid_layout, coordinate_expressions, validate_dimensions
 from .geometry_scene import Resolver, Scene, ZERO, add, sub, mul, dot, unit
 
@@ -33,7 +34,7 @@ def seed_parameter_position(data,definition,node,key):
 def preview_parse(text,parameters=()):
     def convert(node):
         if node==('ref','IPARAM','P2'):return ('binary','*',('number',.5),('ref','IPARAM','P1'))
-        if node[0]=='binary':return (node[0],node[1],convert(node[2]),convert(node[3]))
+        if node[0] in ('binary','tanf'):return (node[0],node[1],convert(node[2]),convert(node[3]))
         if node[0] in ('unary','func'):return (node[0],node[1],convert(node[2]))
         if node[0]=='tan':return (node[0],convert(node[1]))
         return node
@@ -105,6 +106,7 @@ class PointPreview(Resolver):
         missing=expressions.attribute_refs(root)-self.attributes.keys()
         if missing:raise ValueError(', '.join(sorted(missing))+' の確認用設計値は未設定です。')
         try:return self.run_scalar(root)
+        except UndefinedAngleError:raise
         except ValueError:
             if root not in self.exact:raise
             return self.exact[root]
@@ -120,6 +122,9 @@ class PointPreview(Resolver):
             return self.attributes[root[1]]
         if kind=='word':raise ValueError('位置には数値の式が必要です。')
         if kind=='unary':return self.scalar(root[2])*(1 if root[1]=='+' else -1)
+        if kind=='tanf':
+            from .units import Quantity, function
+            return self.scalar(root[2])*function('TAN',Quantity(self.scalar(root[3])/2)).value
         if kind in ('tan','func'):
             from .units import Quantity, function
             return function('TAN' if kind=='tan' else root[1],Quantity(self.scalar(root[1] if kind=='tan' else root[2]))).value
@@ -128,6 +133,8 @@ class PointPreview(Resolver):
         return {'+':lambda:a+b,'-':lambda:a-b,'*':lambda:a*b,'/':lambda:a/b}[root[1]]()
 
     def linear(self,root):
+        if root[0]=='tanf':
+            root=('binary','*',root[2],('tan',('binary','/',root[3],('number',2.))))
         if root[0]=='ref' and root[1:] not in self.values:return 0.,{root[1:]:1.}
         if root[0]=='unary':
             value,coeff=self.linear(root[2]);sign=1 if root[1]=='+' else -1
@@ -146,6 +153,7 @@ class PointPreview(Resolver):
     def number(self,text,expected=None):
         root=preview_parse(text,self.parameters)
         try:value=self.scalar(root)
+        except UndefinedAngleError:raise
         except ValueError:
             if root not in self.exact:raise
             value=self.exact[root]

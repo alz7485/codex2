@@ -2,6 +2,10 @@
 from dataclasses import dataclass
 import math
 
+class UndefinedAngleError(ValueError):
+    """A trig singularity must not be replaced by a provisional preview value."""
+
+
 SCALAR=(0,0)
 DIST=(1,0)
 ANGL=(0,1)
@@ -44,7 +48,7 @@ def function(name,arg):
     if name in ('SIN','COS','TAN'):
         compatible(arg.dimension,ANGL)
         angle=math.radians(arg.value)
-        if name=='TAN' and abs(math.cos(angle))<1e-12:raise ValueError('TAN が定義できない角度です。')
+        if name=='TAN' and abs(math.cos(angle))<1e-12:raise UndefinedAngleError('TAN が定義できない角度です。')
         return Quantity({'SIN':math.sin,'COS':math.cos,'TAN':math.tan}[name](angle),SCALAR)
     compatible(arg.dimension,SCALAR)
     if name in ('ASIN','ACOS') and not -1<=arg.value<=1:raise ValueError(name+' の値は −1〜1 です。')
