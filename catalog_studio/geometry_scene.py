@@ -21,6 +21,24 @@ def unit(a):
     return tuple(x/n for x in a)
 
 
+def arc_basis(start,tangent_a,end,tangent_b):
+    """Circle through endpoints with the specified face tangents (minor arc)."""
+    normal=unit(cross(tangent_a,tangent_b));ra=cross(normal,tangent_a);rb=cross(normal,tangent_b)
+    denominator=dot(cross(ra,rb),normal)
+    if abs(denominator)<1e-10:raise ValueError('トーラスの端面軸から円弧を決定できません。')
+    center=add(start,mul(ra,dot(cross(sub(end,start),rb),normal)/denominator))
+    a,b=sub(start,center),sub(end,center);radius=math.hypot(*a)
+    if not radius or abs(math.hypot(*b)-radius)>radius*1e-6 or abs(dot(sub(end,start),normal))>radius*1e-6:raise ValueError('トーラスの端点と方向が同じ円弧上にありません。')
+    angle=math.atan2(dot(normal,cross(unit(a),unit(b))),dot(unit(a),unit(b)))
+    if abs(angle)<1e-10:raise ValueError('トーラスの端点が重なっています。')
+    return center,unit(a),cross(normal,unit(a)),radius,angle
+
+
+def arc_points(basis,segments=24):
+    center,u,v,radius,angle=basis
+    return [add(center,mul(add(mul(u,math.cos(angle*i/segments)),mul(v,math.sin(angle*i/segments))),radius)) for i in range(segments+1)]
+
+
 def valid_scale(value):
     return isinstance(value,(list,tuple)) and len(value)==3 and all(type(v) in (int,float) and math.isfinite(v) and .02<=v<=50 for v in value)
 
@@ -303,24 +321,26 @@ def build_mesh(node,resolver):
                 tokens=['P'+str(i) for i in range(a,b+step,step)]
             if not 2<=len(tokens)<=200 or any(not re.fullmatch(r'[PT]\d+',t) for t in tokens):raise ValueError('LINE の点列は2〜200個の P/T 番号で指定してください。')
             if r.actual and any(t.startswith('T') for t in tokens):raise ValueError('LINE の接線点 T の曲線表示は未対応です。')
-            mesh.vertices=[r.point(int(t[1:]))[0] for t in tokens]
+            points=[r.point(int(t[1:])) for t in tokens]
+            mesh.vertices=[p[0] for p in points]
+            if len(tokens)==2 and all(t.startswith('P') for t in tokens):
+                try:basis=arc_basis(*points[0],*points[1])
+                except ValueError:pass  # Straight or noncircular point pairs keep their polyline.
+                else:
+                    mesh.vertices=arc_points(basis)
+                    mesh.vertices[0],mesh.vertices[-1]=points[0][0],points[1][0]
+
         elif r.actual:mesh.vertices=[r.position_expression(node['attrs'].get(k,'')) for k in ('PTSPOS','PTEPOS')]
         else:mesh.vertices=[r.position_expression(node['attrs'][k]) if str(node['attrs'].get(k,'')).strip().lower() not in ('','unset') else default for k,default in (('PTSPOS',(-.7,0,0)),('PTEPOS',(.7,0,0)))]
         mesh.lines=[tuple(range(len(mesh.vertices)))]
     elif kind in ('SCTO','SRTO'):
         start,tangent_a=axis('PAAX');end,tangent_b=axis('PBAX',AXES[1])
         if not r.actual and all(str(node['attrs'].get(key,'')).strip().lower() in ('','unset') for key in ('PAAX','PBAX')):start,tangent_a,end,tangent_b=(1.,0.,0.),(0.,-1.,0.),(0.,1.,0.),(-1.,0.,0.)
-        normal=unit(cross(tangent_a,tangent_b));ra=cross(normal,tangent_a);rb=cross(normal,tangent_b)
-        denominator=dot(cross(ra,rb),normal)
-        if abs(denominator)<1e-10:raise ValueError('トーラスの端面軸から円弧を決定できません。')
-        center=add(start,mul(ra,dot(cross(sub(end,start),rb),normal)/denominator))
-        a,b=sub(start,center),sub(end,center);radius=math.hypot(*a)
-        if not radius or abs(math.hypot(*b)-radius)>radius*1e-6 or abs(dot(sub(end,start),normal))>radius*1e-6:raise ValueError('トーラスの端点と方向が同じ円弧上にありません。')
-        angle=math.atan2(dot(normal,cross(unit(a),unit(b))),dot(unit(a),unit(b)))
-        if abs(angle)<1e-10:raise ValueError('トーラスの端点が重なっています。')
+        center,u,v,radius,angle=arc_basis(start,tangent_a,end,tangent_b)
+        normal=unit(cross(tangent_a,tangent_b))
         width=value('PDIA',.35,True);height=value('PHEI',.3,True) if kind=='SRTO' else width
         if width/2>=radius:raise ValueError('トーラスの断面幅が曲率半径に対して大きすぎます。')
-        u=unit(a);v=cross(normal,u);rings=[]
+        rings=[]
         for step in range(25):
             theta=angle*step/24;radial=add(mul(u,math.cos(theta)),mul(v,math.sin(theta)));path=add(center,mul(radial,radius))
             if kind=='SCTO':ring=[add(path,add(mul(radial,width/2*math.cos(i*math.pi/12)),mul(normal,width/2*math.sin(i*math.pi/12)))) for i in range(24)]
