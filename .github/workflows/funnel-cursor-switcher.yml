@@ -20,25 +20,11 @@ jobs:
         with:
           python-version: "3.12"
           architecture: x64
-      - name: Validate cursors with Windows
-        shell: pwsh
-        run: |
-          @'
-          from runpy import run_path
-
-          module = run_path("FunnelCursorSwitcher.pyw")
-          system = module["WindowsCursor"]()
-          categories = module["discover_cursors"](module["CURSORS"])
-          cursors = [cursor for group in categories.values() for cursor in group]
-          assert len(cursors) >= 16
-          system.store.mkdir(parents=True, exist_ok=True)
-          for cursor in cursors:
-              system.install_file(cursor)
-          print(f"Windows loaded {len(cursors)} cursors.")
-          '@ | python -
       - name: Build Windows onedir ZIP
         shell: cmd
         run: build-onedir.cmd
+      - name: Verify Windows cursors and start the extracted app
+        run: python verify_windows_release.py dist/FunnelCursorSwitcher-windows-x64.zip
       - name: Upload ZIP
         uses: actions/upload-artifact@v4
         with:
