@@ -10,7 +10,7 @@ import time
 from zipfile import ZipFile
 
 from funnel_effect import (
-    APPEARANCES, LAUNCH, THRUST, LayeredOverlay, MotionAnimation, bind, load_sprite,
+    APPEARANCES, LayeredOverlay, ThrustAnimation, bind, load_sprite,
 )
 
 
@@ -75,9 +75,9 @@ def verify_effect(cursors):
     window = overlay.window
     try:
         assert get_style(window, -20) & overlay.EXTENDED_STYLE == overlay.EXTENDED_STYLE
-        for name, mode in (("フィンファンネル", THRUST), ("サザビー", THRUST), ("フィンファンネル", LAUNCH)):
+        for name in ("フィンファンネル", "サザビー", "α・アジール"):
             sprite = load_sprite(assets / f"{name}.cur", assets / "フィンファンネル.png")
-            effect = MotionAnimation(mode, sprite, APPEARANCES[name])
+            effect = ThrustAnimation(sprite, APPEARANCES[name])
             assert effect.step((185, 195), 0.0) is None
             frame = effect.step(position, 0.03)
             assert frame is not None and frame.getbbox()
@@ -90,7 +90,7 @@ def verify_effect(cursors):
     finally:
         overlay.close()
     assert not is_window(window)
-    print("Windows rendered both click-through effects and hid the overlay when movement ended.")
+    print("Windows rendered the click-through effect and hid the overlay when movement ended.")
 
 
 def main(archive):
@@ -110,7 +110,8 @@ def main(archive):
         system.store.mkdir()
         entries = source["discover_cursors"](cursors)
         files = [cursor for category in entries.values() for cursor in category]
-        assert len(files) >= 16
+        assert len(files) >= 25
+        assert APPEARANCES.keys() <= {cursor.stem for cursor in files}
         for cursor in files:
             system.install_file(cursor)
         verify_effect(cursors)

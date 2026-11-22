@@ -1,7 +1,6 @@
 from collections import deque
 import ctypes
 from ctypes import wintypes
-from dataclasses import dataclass
 import math
 from pathlib import Path
 import time
@@ -10,9 +9,6 @@ from PIL import Image, ImageColor, ImageDraw, ImageFilter
 
 
 OVERLAY_SIZE = 256
-THRUST = "噴射光と軌跡"
-LAUNCH = "ファンネル射出"
-OFF = "オフ"
 WINDOW_TITLE = "Funnel Cursor Effect"
 
 # Each nozzle is (base offset, tip offset, length multiplier, half-width).
@@ -42,18 +38,17 @@ APPEARANCES = {
     "レジェンドガンダム": ("twin", ("#7ddfff", "#50c8ea")),
     "カオスガンダム": ("flare", ("#ffaf57",)),
     "ガンダムサバーニャ": ("twin", ("#7bfa87", "#c1ffc3")),
+    "Ξガンダム": ("needle", ("#ffca51",)),
+    "Sガンダム": ("flare", ("#83e2ff",)),
+    "ロングレンジ・フィン・ファンネル（RX-93ff）": ("ribbons", ("#6bd8ff", "#b6e8ff", "#ffc85c")),
+    "νガンダムHWS": ("twin", ("#c9ef64", "#86d754")),
+    "クィン・マンサ": ("fan", ("#7de9a2", "#c6ffd3", "#56cf98")),
+    "キュベレイMk-II（プル機）": ("needle", ("#bd8bff",)),
+    "キュベレイMk-II（プルツー機）": ("needle", ("#ff7199",)),
+    "エルメス": ("flare", ("#69e9ce",)),
+    "α・アジール": ("fan", ("#ffb24e", "#ffe5a1", "#ff783a")),
 }
 DEFAULT_APPEARANCE = ("needle", ("#72dfff",))
-
-
-@dataclass(frozen=True)
-class Flight:
-    x: float
-    y: float
-    vx: float
-    vy: float
-    born: float
-    image: Image.Image
 
 
 def load_sprite(path, fallback):
@@ -81,56 +76,37 @@ def sprite_axis(sprite):
     return delta if delta != (0, 0) else (20, 20)
 
 
-class MotionAnimation:
-    def __init__(self, mode, sprite, appearance):
+class ThrustAnimation:
+    def __init__(self, sprite, appearance):
         nozzle, colors = appearance
-        self.mode = mode
         self.nozzles = NOZZLES[nozzle]
         self.colors = [ImageColor.getrgb(color) for color in colors]
         self.rear_x, self.rear_y = sprite_axis(sprite)
         axis_length = math.hypot(self.rear_x, self.rear_y)
         self.axis = self.rear_x / axis_length, self.rear_y / axis_length
-        self.miniature = sprite.crop(sprite.getbbox())
-        self.miniature.thumbnail((17, 17), Image.Resampling.LANCZOS)
         self.previous = None
         self.last_motion = -math.inf
-        self.last_launch = -math.inf
-        self.distance = 0.0
         self.trace = deque()
-        self.flights = []
         self.plume_length = 13.0
 
     def step(self, position, now):
         previous, self.previous = self.previous, position
         if position is None:
             self.trace.clear()
-            self.flights.clear()
             self.last_motion = -math.inf
-            self.distance = 0.0
             return None
 
         if previous is not None and previous != position:
-            dx, dy = position[0] - previous[0], position[1] - previous[1]
-            distance = math.hypot(dx, dy)
+            distance = math.dist(position, previous)
             self.last_motion = now
-            if self.mode == THRUST:
-                self.plume_length = 11 + min(12, distance * 0.55)
-                ax, ay = self.axis
-                self.trace.append((
-                    now,
-                    position[0] + self.rear_x + ax * self.plume_length * 0.95,
-                    position[1] + self.rear_y + ay * self.plume_length * 0.95,
-                ))
-            else:
-                self.distance += distance
-                if self.distance >= 8 and now - self.last_launch >= 0.065:
-                    self.launch(position, (dx / distance, dy / distance), now)
-                    self.last_launch = now
-                    self.distance = 0.0
-
-        if self.mode == THRUST:
-            return self.draw_thrust(position, now)
-        return self.draw_flights(position, now)
+            self.plume_length = 11 + min(12, distance * 0.55)
+            ax, ay = self.axis
+            self.trace.append((
+                now,
+                position[0] + self.rear_x + ax * self.plume_length * 0.95,
+                position[1] + self.rear_y + ay * self.plume_length * 0.95,
+            ))
+        return self.draw_thrust(position, now)
 
     def draw_thrust(self, position, now):
         lifetime = 0.18
@@ -178,45 +154,6 @@ class MotionAnimation:
         glow = Image.new("RGBA", frame.size, self.colors[0])
         glow.putalpha(frame.getchannel("A").filter(ImageFilter.GaussianBlur(1.5)).point(lambda a: a // 2))
         return Image.alpha_composite(glow, frame)
-
-    def launch(self, position, direction, now):
-        dx, dy = direction
-        for side in (-1, 1):
-            vx, vy = -52 * dx - side * 120 * dy, -52 * dy + side * 120 * dx
-            heading = math.degrees(math.atan2(-vy, vx))
-            image = self.miniature.rotate(heading - 135, resample=Image.Resampling.BICUBIC, expand=True)
-            self.flights.append(Flight(
-                position[0] + self.rear_x * 0.43, position[1] + self.rear_y * 0.43,
-                vx, vy, now, image,
-            ))
-
-    def draw_flights(self, position, now):
-        lifetime = 0.32
-        self.flights = [flight for flight in self.flights if now - flight.born < lifetime]
-        if not self.flights:
-            return None
-
-        frame = Image.new("RGBA", (OVERLAY_SIZE, OVERLAY_SIZE))
-        draw = ImageDraw.Draw(frame)
-        half = OVERLAY_SIZE // 2
-        visible = []
-        for flight in self.flights:
-            elapsed = now - flight.born
-            x = flight.x + flight.vx * elapsed - position[0] + half
-            y = flight.y + flight.vy * elapsed - position[1] + half
-            if not (-24 <= x <= OVERLAY_SIZE + 24 and -24 <= y <= OVERLAY_SIZE + 24):
-                continue
-            opacity = 1 - elapsed / lifetime
-            draw.line(
-                (x, y, x - flight.vx * 0.10, y - flight.vy * 0.10),
-                fill=(*self.colors[0], round(155 * opacity)), width=2,
-            )
-            visible.append((flight, x, y, opacity))
-        for flight, x, y, opacity in visible:
-            sprite = flight.image.copy()
-            sprite.putalpha(sprite.getchannel("A").point(lambda value: round(value * opacity)))
-            frame.alpha_composite(sprite, (round(x - sprite.width / 2), round(y - sprite.height / 2)))
-        return frame if frame.getbbox() else None
 
 
 class BitmapHeader(ctypes.Structure):
@@ -360,11 +297,11 @@ class FunnelEffect:
         self.timer = None
         self.animation = None
 
-    def start(self, cursor, mode):
+    def start(self, cursor):
         self.stop()
         sprite = load_sprite(cursor, self.fallback)
         appearance = APPEARANCES.get(cursor.stem, DEFAULT_APPEARANCE)
-        self.animation = MotionAnimation(mode, sprite, appearance)
+        self.animation = ThrustAnimation(sprite, appearance)
         self.overlay = LayeredOverlay()
         self.tick()
 
