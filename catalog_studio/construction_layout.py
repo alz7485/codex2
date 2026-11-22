@@ -287,5 +287,6 @@ def build_simple(editor):
         e.geometry_view.pack(fill='both',expand=True)
         e.canvas=e.geometry_view.canvas
         e.group_filter_bar=ttk.Frame(left);e.group_filter_bar.pack(fill='x',pady=(0,6),before=e.tree_holder)
+        e.group_filter_bar.columnconfigure(tuple(range(4)),weight=1,uniform='display-groups')
         for index,(label,var) in enumerate(e.geometry_view.group_visibility.items()):
-            ttk.Checkbutton(e.group_filter_bar,text=label,variable=var,command=e.geometry_view.redraw,style='Preview.Toolbutton').grid(row=index//2,column=index%2,sticky='w',padx=2)
+            ttk.Checkbutton(e.group_filter_bar,text=label,variable=var,command=e.geometry_view.redraw,style='Preview.Toolbutton').grid(row=0,column=index,sticky='ew',padx=1)
