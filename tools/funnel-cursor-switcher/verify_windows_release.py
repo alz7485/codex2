@@ -9,6 +9,10 @@ from tempfile import TemporaryDirectory
 import time
 from zipfile import ZipFile
 
+from funnel_effect import (
+    APPEARANCES, LAUNCH, THRUST, LayeredOverlay, MotionAnimation, bind, load_sprite,
+)
+
 
 def verify_base_frame(cursor):
     data = cursor.read_bytes()
@@ -59,6 +63,36 @@ def verify_startup(bundle, window_title):
                 app.wait(timeout=5)
 
 
+def verify_effect(cursors):
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    is_visible = bind(user32, "IsWindowVisible", wintypes.BOOL, wintypes.HWND)
+    is_window = bind(user32, "IsWindow", wintypes.BOOL, wintypes.HWND)
+    get_style = bind(user32, "GetWindowLongW", wintypes.LONG, wintypes.HWND, ctypes.c_int)
+    position = (200, 200)
+
+    assets = cursors / "ファンネル"
+    overlay = LayeredOverlay()
+    window = overlay.window
+    try:
+        assert get_style(window, -20) & overlay.EXTENDED_STYLE == overlay.EXTENDED_STYLE
+        for name, mode in (("フィンファンネル", THRUST), ("サザビー", THRUST), ("フィンファンネル", LAUNCH)):
+            sprite = load_sprite(assets / f"{name}.cur", assets / "フィンファンネル.png")
+            effect = MotionAnimation(mode, sprite, APPEARANCES[name])
+            assert effect.step((185, 195), 0.0) is None
+            frame = effect.step(position, 0.03)
+            assert frame is not None and frame.getbbox()
+            overlay.render(frame, position)
+            assert is_visible(window)
+            assert effect.step(position, 0.125) is not None
+            assert effect.step(position, 0.45) is None
+            overlay.render(None, position)
+            assert not is_visible(window)
+    finally:
+        overlay.close()
+    assert not is_window(window)
+    print("Windows rendered both click-through effects and hid the overlay when movement ended.")
+
+
 def main(archive):
     source = run_path(str(Path(__file__).with_name("FunnelCursorSwitcher.pyw")))
     with TemporaryDirectory(prefix="Cursor Switcher ") as folder:
@@ -79,6 +113,7 @@ def main(archive):
         assert len(files) >= 16
         for cursor in files:
             system.install_file(cursor)
+        verify_effect(cursors)
         verify_startup(bundle, source["APP_NAME"])
         print(f"Windows loaded {len(files)} cursors and opened the extracted onedir app.")
 

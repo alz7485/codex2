@@ -10,6 +10,8 @@ import tkinter as tk
 from ctypes import wintypes
 from tkinter import messagebox, ttk
 
+from funnel_effect import LAUNCH, OFF, THRUST, FunnelEffect
+
 
 APP_NAME = "ファンネル・カーソル切替"
 ROOT = Path(sys.executable if getattr(sys, "frozen", False) else __file__).resolve().parent
@@ -204,8 +206,34 @@ def show_window(root, entries, system_cursor):
     swatches.create_rectangle(0, 0, 40, 40, fill="#ffffff", outline="#c7cdd5")
     swatches.create_rectangle(48, 0, 88, 40, fill="#253141", outline="#253141")
 
+    ttk.Label(page, text="移動エフェクト").grid(row=4, column=0, sticky="w", padx=(0, 18), pady=(0, 12))
+    effect_mode = tk.StringVar(value=THRUST)
+    effect_choice = ttk.Combobox(page, textvariable=effect_mode, values=(THRUST, LAUNCH, OFF), state="readonly", width=39)
+    effect_choice.grid(row=4, column=1, sticky="ew", pady=(0, 12))
+
     status = tk.StringVar()
-    ttk.Label(page, textvariable=status, wraplength=430).grid(row=4, columnspan=2, sticky="w", pady=(0, 12))
+    ttk.Label(page, textvariable=status, wraplength=430).grid(row=5, columnspan=2, sticky="w", pady=(0, 12))
+    applied_cursor = None
+
+    def effect_error(error):
+        effect_mode.set(OFF)
+        status.set(f"エフェクトを停止しました。{error}")
+
+    effect = FunnelEffect(root, CURSORS / "ファンネル" / "フィンファンネル.png", effect_error)
+
+    def update_effect(_event=None):
+        try:
+            if applied_cursor is None or effect_mode.get() == OFF:
+                effect.stop()
+            else:
+                effect.start(applied_cursor, effect_mode.get())
+        except (OSError, ValueError) as error:
+            effect.stop()
+            effect_error(error)
+
+    def close():
+        effect.stop()
+        root.destroy()
 
     def choices():
         selection = category.current()
@@ -245,17 +273,25 @@ def show_window(root, entries, system_cursor):
         render_preview()
 
     def apply(_event=None):
+        nonlocal applied_cursor
         if cursor.current() < 0:
             return
+        target = selected()
         try:
-            status.set(system_cursor.apply(selected()))
+            result = system_cursor.apply(target)
         except (OSError, ValueError) as error:
             messagebox.showerror(APP_NAME, str(error), parent=root)
+            return
+        applied_cursor = target
+        status.set(result)
+        update_effect()
 
     apply_button = ttk.Button(page, text="適用", command=apply)
-    apply_button.grid(row=5, column=1, sticky="e")
+    apply_button.grid(row=6, column=1, sticky="e")
     category.bind("<<ComboboxSelected>>", choose_category)
     cursor.bind("<<ComboboxSelected>>", render_preview)
+    effect_choice.bind("<<ComboboxSelected>>", update_effect)
+    root.protocol("WM_DELETE_WINDOW", close)
     root.bind("<Return>", apply)
 
     if entries:

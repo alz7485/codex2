@@ -10,6 +10,16 @@ Windows 10・11 向けの通常ポインター切替ツールです。ファン�
 
 変更前に戻すには、「元に戻す」→「変更前のカーソル」を選んで「適用」を押します。最初に変更するときに、現在の通常ポインター設定を保存します。待機中や文字入力用などのポインターはWindows側で管理します。
 
+## 移動エフェクト
+
+カーソルを選んで「適用」を押し、「移動エフェクト」で切り替えます。
+
+- **噴射光と軌跡** — 移動中に後端が光り、軌跡が短く残ります。色と噴射の形は収録している機体ごとに変わります。
+- **ファンネル射出** — 移動中に小さなファンネルが左右へ飛び出します。
+- **オフ** — カーソルだけを表示します。
+
+アプリを最小化してもエフェクトは続きます。アプリを閉じるか「元に戻す」を適用すると、エフェクトが消えます。 [動きの見本](https://github.com/alz7485/codex2/blob/main/tools/funnel-cursor-switcher/effect-preview.gif)
+
 ## カーソルの追加
 
 EXEと同じ場所の `カーソル` フォルダに分類フォルダを作り、中に `.cur` または `.ani` を入れてアプリを再起動します。同名の `.png` があればプレビューに表示します。
@@ -42,4 +52,9 @@ FunnelCursorSwitcher/
 .\.venv-build\Scripts\python.exe -m PyInstaller --onedir --windowed --clean --noconfirm --name FunnelCursorSwitcher FunnelCursorSwitcher.pyw
 ```
 
-Pythonから直接使う場合は `py -3.12 .\FunnelCursorSwitcher.pyw` で起動できます。追加パッケージはビルド時に使用します。
+Pythonから直接使う場合は、Pillowをインストールしてから起動します。
+
+```powershell
+py -3.12 -m pip install Pillow==12.3.0
+py -3.12 .\FunnelCursorSwitcher.pyw
+```

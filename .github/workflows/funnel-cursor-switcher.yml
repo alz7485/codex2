@@ -24,7 +24,8 @@ jobs:
         shell: cmd
         run: build-onedir.cmd
       - name: Verify Windows cursors and start the extracted app
-        run: python verify_windows_release.py dist/FunnelCursorSwitcher-windows-x64.zip
+        shell: cmd
+        run: .venv-build\Scripts\python.exe verify_windows_release.py dist/FunnelCursorSwitcher-windows-x64.zip
       - name: Upload ZIP
         uses: actions/upload-artifact@v4
         with:
