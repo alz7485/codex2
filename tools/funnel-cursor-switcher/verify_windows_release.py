@@ -24,9 +24,11 @@ def verify_base_frame(cursor):
         assert header[:6] == (40, 32, 64, 1, 32, 0)
         alpha = data[offset + 43:offset + 40 + 32 * 32 * 4:4]
         assert length == 40 + 32 * 32 * 4 + 32 * 4
-        assert all(not value for index, value in enumerate(alpha) if (
-            index % 32 < 6 or index % 32 >= 26 or index // 32 < 6 or index // 32 >= 26
-        ))
+        points = [(index % 32, index // 32) for index, value in enumerate(alpha) if value >= 64]
+        x, y = zip(*points)
+        assert max(max(x) - min(x), max(y) - min(y)) + 1 >= 30
+        preview = cursor.with_suffix(".png").read_bytes()
+        assert struct.unpack_from(">II", preview, 16) == (32, 32)
         assert alpha[(31 - hot_y) * 32 + hot_x] >= 144
         return
     raise AssertionError(f"Missing 32-pixel frame in {cursor.name}")

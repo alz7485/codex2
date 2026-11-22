@@ -199,10 +199,10 @@ def show_window(root, entries, system_cursor):
     preview = ttk.Frame(page)
     preview.grid(row=3, columnspan=2, sticky="ew", pady=(0, 14))
     ttk.Label(preview, text="プレビュー").pack(side="left", padx=(0, 10))
-    swatches = tk.Canvas(preview, width=88, height=32, highlightthickness=0, takefocus=False)
+    swatches = tk.Canvas(preview, width=88, height=40, highlightthickness=0, takefocus=False)
     swatches.pack(side="left")
-    swatches.create_rectangle(0, 0, 40, 32, fill="#ffffff", outline="#c7cdd5")
-    swatches.create_rectangle(48, 0, 88, 32, fill="#253141", outline="#253141")
+    swatches.create_rectangle(0, 0, 40, 40, fill="#ffffff", outline="#c7cdd5")
+    swatches.create_rectangle(48, 0, 88, 40, fill="#253141", outline="#253141")
 
     status = tk.StringVar()
     ttk.Label(page, textvariable=status, wraplength=430).grid(row=4, columnspan=2, sticky="w", pady=(0, 12))
@@ -225,10 +225,10 @@ def show_window(root, entries, system_cursor):
             except tk.TclError:
                 pass
             else:
-                factor = max(1, (max(photo.width(), photo.height()) + 21) // 22)
+                factor = max(1, (max(photo.width(), photo.height()) + 31) // 32)
                 swatches.image = photo.subsample(factor) if factor > 1 else photo
                 for x in (20, 68):
-                    swatches.create_image(x, 16, image=swatches.image, tags="image")
+                    swatches.create_image(x, 20, image=swatches.image, tags="image")
         apply_button.state(["!disabled"] if cursor.current() >= 0 else ["disabled"])
 
     def choose_category(_event=None):
