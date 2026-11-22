@@ -1,0 +1,66 @@
+name: Funnel Cursor Switcher
+
+on:
+  push:
+    tags:
+      - "cursor-switcher-v*"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: tools/funnel-cursor-switcher
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          architecture: x64
+      - name: Validate cursors with Windows
+        shell: pwsh
+        run: |
+          @'
+          from runpy import run_path
+
+          module = run_path("FunnelCursorSwitcher.pyw")
+          system = module["WindowsCursor"]()
+          categories = module["discover_cursors"](module["CURSORS"])
+          cursors = [cursor for group in categories.values() for cursor in group]
+          assert len(cursors) >= 16
+          system.store.mkdir(parents=True, exist_ok=True)
+          for cursor in cursors:
+              system.install_file(cursor)
+          print(f"Windows loaded {len(cursors)} cursors.")
+          '@ | python -
+      - name: Build Windows onedir ZIP
+        shell: cmd
+        run: build-onedir.cmd
+      - name: Upload ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: funnel-cursor-switcher-zip
+          path: tools/funnel-cursor-switcher/dist/FunnelCursorSwitcher-windows-x64.zip
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: funnel-cursor-switcher-zip
+      - name: Publish Windows ZIP on Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$RELEASE_TAG" FunnelCursorSwitcher-windows-x64.zip \
+            --verify-tag --latest=false --title "ファンネル・カーソル切替 ${RELEASE_TAG#cursor-switcher-}" \
+            --notes 'Windows 10・11 (x64) 用です。ZIP全体を展開して FunnelCursorSwitcher.exe を起動してください。'
