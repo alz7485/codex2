@@ -31,6 +31,11 @@ class GeometryCanvas(ttk.Frame):
         for label,var in (('グリッド',self.show_grid),('座標軸',self.show_axes),('点番号',self.show_labels)):
             button=ttk.Checkbutton(self.settings_content,text=label,variable=var,command=self.redraw,style='Preview.Toolbutton')
             button.pack(anchor='w',fill='x',pady=2);self.overlay_buttons[label]=button
+        self.group_visibility={}
+        ttk.Label(self.settings_content,text='要素グループ',style='Muted.TLabel').pack(anchor='w',pady=(6,0))
+        for label in ('中心線','本体','保温','負形状'):
+            var=tk.BooleanVar(value=True);self.group_visibility[label]=var
+            ttk.Checkbutton(self.settings_content,text=label,variable=var,command=self.redraw,style='Preview.Toolbutton').pack(anchor='w')
         self.mode_overlay=mode_row=ttk.Frame(self.body,padding=4)
         mode_row.grid(row=0,column=0,sticky='nw',padx=8,pady=8)
         self.mode_buttons=self.toggles(mode_row,self.mode,('仮サイズ','SCOM 実寸'),self.mode_changed)
@@ -170,6 +175,8 @@ class GeometryCanvas(ttk.Frame):
             node=next((n for n in schema.walk(definition['elements']) if n['id']==self.drag['node']['id']),None)
             if node:node[geometry.SCALE_KEY]=self.drag['candidate']
         self.scene=geometry.build_scene(e.data,definition,scom,self.actual,preview_state=self.drag.get('candidate_state') if self.drag else None,representation_settings=self.representation_settings(),apply_negative=self.show_negative.get())
+        from .workflow import filter_scene
+        filter_scene(self.scene,definition,{key for key,var in self.group_visibility.items() if var.get()})
         meshes=[m for m in self.scene.meshes if not m.negative or self.show_negative.get()]
         width,height=max(c.winfo_width(),100),max(c.winfo_height(),100)
         vertices=[p for m in meshes if not m.negative or m.ident==e.element_id for p in m.vertices]+([p[0] for p in self.scene.points.values()] if self.show_points.get() else [])

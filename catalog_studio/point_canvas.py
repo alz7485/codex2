@@ -124,7 +124,7 @@ class PointCanvas(ttk.Frame):
             if self.show_relations.get():c.create_line(*origin,x,y,fill='#b3c4d8',dash=(3,4),tags=('relations',))
             if selected:c.create_oval(x-r-5,y-r-5,x+r+5,y+r+5,outline=preview_colors.get(self,'selected'),width=2,tags=('selected-point-halo',))
             c.create_oval(x-r,y-r,x+r,y+r,fill=color,outline='white',width=2,tags=('point','selected-point' if selected else 'other-point'))
-            if self.show_labels.get():c.create_text(x+r+6,y-r-4,text='P'+str(element['attrs'].get('NUMB','?')),anchor='w',fill=color,font=(self.editor.host.ui_font,11 if selected else 10,'bold' if selected else 'normal'),tags=('labels',))
+            if self.show_labels.get():c.create_text(x+r+6,y-r-4,text='P'+str(element['attrs'].get('NUMB','?'))+(' '+element['point_role'] if element.get('point_role') else ''),anchor='w',fill=color,font=(self.editor.host.ui_font,11 if selected else 10,'bold' if selected else 'normal'),tags=('labels',))
             if not any(vector):
                 vector=tuple(1 if i==a else 0 for i in range(3))
             if any(vector):
@@ -407,7 +407,8 @@ class PointCanvas(ttk.Frame):
                 for node,index in p['preview'].nodes.values():
                     original=next(n for n in e.definition()['elements'] if n['id']==node['id'])
                     original[LAYOUT_KEY]=list(p['preview'].location(node['id']))
-                e.definition()[DIMENSIONS_KEY]=p['preview'].snapshot()
+                from .workflow import share_dimensions
+                share_dimensions(e.data,e.definition(),p['preview'].snapshot())
                 e.host.mark();self.pending=None;e.refresh();self.cancel();return
             if p.get('rotation_only'):
                 element=next(r for r in e.definition()['elements'] if r['id']==p['id'])

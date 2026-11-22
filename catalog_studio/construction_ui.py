@@ -177,6 +177,18 @@ class ConstructionEditor(ttk.Frame):
         ttk.Button(right, text='SCOM の値・ANGL を編集', command=self.open_scom).pack(fill='x', pady=8)
         ttk.Label(right, text='確認値は PTSET に保存されません。' if self.kind=='PTSET' else '読み取り専用。点・形状の定義には保存されません。\n設計側のコンテキストを推測せず、未設定参照は計算不可と表示します。', style='Muted.TLabel', wraplength=310).pack(anchor='w')
 
+    def assign_role(self,_=None):
+        from . import workflow
+        node=self.element()
+        if not node or not self.commit_inline():return
+        value=self.role_choice.get()
+        if self.kind=='PTSET':
+            if value not in workflow.POINT_ROLES:return
+            node['point_role']=value
+        elif node['type'] not in schema.NEGATIVE_BASE and schema.positive(node['type']) not in ('LINE','SLINE'):
+            node['preview_group']=value
+        self.host.mark();self.refresh()
+
     def assign_preset(self,_=None):
         if self.busy or not self.definition():return
         if not self.commit_inline():return
@@ -407,6 +419,7 @@ class ConstructionEditor(ttk.Frame):
                 for index,e in enumerate(items):
                     counters[e['type']]=counters.get(e['type'],0)+1
                     label=e['type']+' '+str(counters[e['type']])
+                    if self.kind=='PTSET' and e.get('point_role'):label+=' / '+e['point_role']
                     values=(e['attrs'].get('NUMB','') if self.kind=='PTSET' else str(index+1),'  '*depth+e['name'],label) if getattr(self,'simple_layout',False) else ((e['attrs'].get('NUMB',''),e['type']) if self.kind=='PTSET' else (e['type'],))
                     self.elements.insert(parent,'end',iid=e['id'],text=e['name'],values=values,open=True)
                     insert(e.get('children',[]),e['id'],depth+1)
@@ -438,6 +451,11 @@ class ConstructionEditor(ttk.Frame):
     def refresh_element(self):
         e = self.element()
         self.attribute_sections={}
+        if hasattr(self,'role_choice'):
+            from .workflow import shape_group
+            self.role_choice.set(e.get('point_role','') if e and self.kind=='PTSET' else shape_group(e) if e else '')
+            editable=e and (self.kind=='PTSET' or shape_group(e) in ('本体','保温'))
+            self.role_choice.configure(state='readonly' if editable else 'disabled')
         unified=getattr(self,'unified_attributes',False)
         if unified:self.section='main'
         if getattr(self,'simple_layout',False):

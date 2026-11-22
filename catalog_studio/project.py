@@ -125,6 +125,8 @@ def validate_elements(elements, depth=0, identifiers=None):
         if 'schematic_scale' in element:
             from .geometry_scene import valid_scale
             if not valid_scale(element['schematic_scale']):raise ValueError('仮サイズは0.02〜50の有限数値3個で指定してください。')
+        if element.get('point_role','') not in ('','入口','出口','分岐','補助'):raise ValueError('点の役割が不正です。')
+        if element.get('preview_group','本体') not in ('本体','保温'):raise ValueError('表示グループが不正です。')
         validate_elements(element.get('children',[]),depth+1,identifiers)
 
 
@@ -497,6 +499,7 @@ def issues(data):
         for pid in sorted(scom['values'].keys() - defined_ids):
             result.append(scom['name'] + '：未定義のパラメータ値：' + pid)
         for ref_key, kind in (('gmset_id', 'GMSET'), ('ptset_id', 'PTSET')):
+            if kind=='GMSET' and not scom.get(ref_key) and scom.get('attrs',{}).get('GTYP','').upper() in ('TUBE','WELD'):continue
             definition = get(data, 'definitions', scom[ref_key])
             if not definition or definition['kind'] != kind:
                 result.append(scom['name'] + '：' + kind + 'の参照先が未選択または不正です。')

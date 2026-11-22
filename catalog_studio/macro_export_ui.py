@@ -30,6 +30,7 @@ def open_export(editor):
     window.title(definition['kind'] + '：MAC出力')
     window.geometry('820x650'); window.minsize(560, 400)
     window.transient(host); window.grab_set()
+    ttk.Button(window,text='出力前の問題一覧・編集箇所へ移動',command=lambda:(window.destroy(),host.switch('checks')),style='AttributeTool.TButton').pack(anchor='w',padx=12,pady=(8,0))
     ttk.Label(window, text=definition['name'] + '\n簡潔な作成マクロをShift-JIS（CP932）で出力します。INPUTの外枠・OLDは付けません。\nロックの有無は下で選べます。式・属性は保持します。E3D実行は未確認です。', padding=12, wraplength=520).pack(fill='x')
     destination_row=ttk.Frame(window,padding=(12,0,12,8));destination_row.pack(fill='x')
     ttk.Label(destination_row,text='登録先').pack(side='left',padx=(0,8))

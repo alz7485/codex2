@@ -46,6 +46,8 @@ def add_presets(data):
                 element('LINE',{'OBST':'0','CLFLA':'TRUE','PTS':'P1 TO P2'})
                 element('SCTO',{'TUFLA':'TRUE','PAAX':'P1','PBAX':'P2','PDIA':'SUM PARAM 2 IPARAM 1',
                                 'TVISI':'FALSE','BVISI':'FALSE','NAPP':'0'})
+            if kind=='PTSET':
+                for index,node in enumerate(record['elements']):node['point_role']='入口' if index==0 else '出口'
             library.append(record);added+=1
     from . import project
     project.validate(candidate)

@@ -34,6 +34,7 @@ def export_macro(host):
     value=tk.StringVar(value=choices[0] if choices else '')
     combo=ttk.Combobox(bar,textvariable=value,values=choices,state='readonly' if choices else 'disabled');combo.pack(side='left',fill='x',expand=True,padx=8)
     ttk.Label(win,text='CATE・SDTE・TEXT・SCOMをCP932で出力。DETAIL・PROPは対象外。',padding=8).pack(anchor='w')
+    ttk.Button(win,text='出力前の問題一覧・編集箇所へ移動',command=lambda:(win.destroy(),host.switch('checks')),style='AttributeTool.TButton').pack(anchor='w',padx=10,pady=(0,8))
     body=tk.Text(win,wrap='none');body.pack(fill='both',expand=True,padx=10)
     def refresh(_=None):
         body.configure(state='normal');body.delete('1.0','end');body.insert('1.0',catalog_macro.creation_text(data,ident,value.get()));body.configure(state='disabled')

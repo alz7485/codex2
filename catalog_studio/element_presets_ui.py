@@ -63,10 +63,13 @@ def choose(editor,mode='recall'):
     e=editor
     if not e.commit_inline():return
     records=[p for p in e.data.get('element_presets',[]) if p['kind']==e.kind]
+    if e.kind=='GMSET':
+        from . import pairing, workflow
+        records=workflow.preferred_presets(e.data,records,pairing.resolve(e.data,e.definition())['pointset'])
     if not records:return
     win=tk.Toplevel(e.winfo_toplevel());win.title('要素プリセットを呼び出し' if mode=='recall' else '要素プリセットを編集');win.geometry('570x510');win.transient(e.winfo_toplevel());win.grab_set()
     body=ttk.Frame(win,padding=18);body.pack(fill='both',expand=True)
-    ttk.Label(body,text='登録した要素一覧',style='Heading.TLabel').pack(anchor='w',pady=(0,10))
+    ttk.Label(body,text='登録した要素一覧（連携PTSETと同じPARAM定義を優先）' if e.kind=='GMSET' else '登録した要素一覧',style='Heading.TLabel').pack(anchor='w',pady=(0,10))
     choices={p['name']:p['id'] for p in records};choice=ttk.Combobox(body,values=list(choices),state='readonly');choice.pack(fill='x');choice.current(0)
     preview=tk.Text(body,height=9,wrap='word',font=(e.host.ui_font,10),relief='flat',bg='#f3f7fc');preview.pack(fill='both',expand=True,pady=12)
     def selected():return element_library.get(e.data,choices.get(choice.get()))

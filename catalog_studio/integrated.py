@@ -188,7 +188,7 @@ class IntegratedStudio(tk.Tk):
         panes.bind('<Configure>',apply,add='+')
         self.after_idle(apply)
 
-    def form(self,title,fields,apply,*,submit_label='適用',compact=False,field_actions=None):
+    def form(self,title,fields,apply,*,submit_label='適用',compact=False,field_actions=None,on_change=None):
         """Fields: key, label, initial text, optional display choices."""
         win=tk.Toplevel(self);win.title(title);win.transient(self);win.grab_set()
         win.geometry('440x'+str(190+60*len(fields)+32*len(field_actions or {})) if compact or len(fields)<=2 else '540x650')
@@ -199,11 +199,11 @@ class IntegratedStudio(tk.Tk):
         inner=ttk.Frame(canvas);window=canvas.create_window((0,0),window=inner,anchor='nw')
         canvas.bind('<Configure>',lambda e:canvas.itemconfigure(window,width=e.width))
         inner.bind('<Configure>',lambda _:canvas.configure(scrollregion=canvas.bbox('all')))
-        variables={}
+        variables={};widgets={}
         for key,label,value,choices in fields:
             ttk.Label(inner,text=label).pack(anchor='w',pady=(8,3));var=tk.StringVar(value=str(value));variables[key]=var
             widget=ttk.Combobox(inner,textvariable=var,values=choices,state='readonly') if choices is not None else ttk.Entry(inner,textvariable=var)
-            widget.pack(fill='x')
+            widget.pack(fill='x');widgets[key]=widget
             if field_actions and key in field_actions:
                 label,action=field_actions[key]
                 def run_action(action=action):
@@ -218,6 +218,9 @@ class IntegratedStudio(tk.Tk):
             win.destroy();self.mark();self.render_page()
         ttk.Button(footer,text='キャンセル',command=win.destroy).pack(side='right',padx=5)
         ttk.Button(footer,text=submit_label,command=submit,style='Primary.TButton').pack(side='right')
+        if on_change:
+            for var in variables.values():var.trace_add('write',lambda *_:on_change(variables,widgets))
+            on_change(variables,widgets)
         return win
 
     @staticmethod
@@ -269,6 +272,7 @@ class IntegratedStudio(tk.Tk):
         ttk.Button(references,text='PTSET を編集',command=lambda:self.goto_definition('ptset_id')).pack(side='left',pady=8,padx=3)
         preview_header=ttk.Frame(preview_parent);preview_header.pack(fill='x')
         ttk.Label(preview_header,text='プレビュー',style='Heading.TLabel').pack(side='left')
+        ttk.Button(preview_header,text='問題一覧',command=lambda:self.switch('checks'),style='AttributeTool.TButton').pack(side='left',padx=8)
         from .scom_sheet_ui import open_sheet
         from .project_actions import icon
         self.scom_sheet_icon=icon(self,'table',color=theme.ACCENT)
@@ -508,7 +512,13 @@ class IntegratedStudio(tk.Tk):
             variables['name'].set(('/' if selected.startswith('/') else '')+'GM-'+name[3:])
         actions={'pointset':('名称からPTSETを選択',choose_by_name),
                  'name':('PTSETから名称を入力',name_from_pointset)} if kind=='GMSET' else None
-        return self.form('新しい '+kind+' を作成',fields,apply,submit_label='作成',compact=True,field_actions=actions)
+        def prioritize(variables,widgets):
+            if kind!='GMSET':return
+            from .workflow import preferred_presets
+            pt=project.get(data,'definitions',pointsets.get(variables['pointset'].get()))
+            records=[r for r in data.get('element_presets',[]) if r['kind']==kind]
+            widgets['element_preset']['values']=['']+[r['name'] for r in preferred_presets(data,records,pt)]
+        return self.form('新しい '+kind+' を作成',fields,apply,submit_label='作成',compact=True,field_actions=actions,on_change=prioritize)
 
     def definition_form(self,kind,*,preset_id=None,ptset_id=None,insert_after=None):
         """Create an empty set; numerical component data is entered later."""
@@ -979,9 +989,8 @@ class IntegratedStudio(tk.Tk):
         self.heading('確認・マクロ','参照関係、入力値、式、SPEC の条件を確認します。出力はコメントのみの構成確認用ファイルです。',[('構成確認ファイルを保存',self.export_review)])
         notebook=ttk.Notebook(self.content);notebook.pack(fill='both',expand=True)
         first=ttk.Frame(notebook,padding=12);second=ttk.Frame(notebook,padding=12);notebook.add(first,text='入力・参照の確認');notebook.add(second,text='生成内容のたたき台')
-        problems=project.issues(self.data)
-        check=tk.Text(first,wrap='word',font=(self.ui_font,11));check.pack(fill='both',expand=True)
-        self.set_text(check,('\n\n'.join('! '+p for p in problems) if problems else '✓ 入力・参照の基本チェックに問題はありません。')+'\n\n○ E3D の実機属性、選択条件、登録コマンドは未検証です。')
+        from .diagnostics import build as build_diagnostics
+        build_diagnostics(self,first)
         text=tk.Text(second,wrap='none',font=('Consolas',10));text.pack(fill='both',expand=True);self.set_text(text,project.macro_text(self.data))
     def export_review(self):
         path=filedialog.asksaveasfilename(parent=self,defaultextension='.mac',initialfile='catalog-integrated-review.mac')

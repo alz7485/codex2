@@ -299,7 +299,8 @@ def remember(data,definition):
     if definition.get('kind')!='PTSET':return
     model=PointPreview(data,definition);state=model.snapshot()
     positions=[(node,model.location(node['id'])) for node,_ in model.nodes.values()]
-    definition[DIMENSIONS_KEY]=state
+    from .workflow import share_dimensions
+    share_dimensions(data,definition,state)
     for node,position in positions:
         if valid_layout(position):node[LAYOUT_KEY]=list(position)
     return model

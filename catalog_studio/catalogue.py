@@ -67,6 +67,9 @@ def definition_issues(definition, parameters=(), scom=None):
         if kind in schema.PT_TYPES and str(attrs.get('PSKEY','')).strip().upper() not in schema.PSKEY_CHOICES+('UNSET',):report(element,'PSKEY','NULL / BW / CP / FL / SC / SW / PL を指定してください。')
         if base == 'LINE' and attrs.get('PTS'):
             points = str(attrs['PTS']).upper().split()
+            if len(points)==3 and points[1]=='TO' and all(re.fullmatch(r'P[0-9]+',p) for p in (points[0],points[2])):
+                first,last=int(points[0][1:]),int(points[2][1:]);step=1 if last>=first else -1
+                points=['P'+str(n) for n in range(first,last+step,step)] if abs(last-first)<6 else []
             if not 1 <= len(points) <= 6 or any(not re.fullmatch(r'[PT]\d+', v) for v in points): report(element,'PTS','P1 / T2 形式の点を順に最大 6 個指定します。')
         if base == 'LSNO':
             for diameter,radius in (('PTDM','PTRA'),('PBDM','PBRA')):

@@ -108,6 +108,21 @@ class CatalogInspector(ttk.Frame):
     def __init__(self,host,parent):
         super().__init__(parent);self.host=host;self.fields={};self.editing=None
         self.title=ttk.Label(self,text='',style='Heading.TLabel');self.title.pack(anchor='w',pady=(0,8))
+        context=ttk.LabelFrame(self,text='PARAM：意味・TEXT・単位・値型・実値',padding=4)
+        context.pack(fill='x',pady=(0,6));self.parameter_context=context
+        cols=('pid','meaning','text','unit','type','value')
+        self.parameter_table=ttk.Treeview(context,columns=cols,show='headings',height=5,selectmode='browse')
+        for col,label,width in zip(cols,('PARAM','意味','TEXTの説明','単位','値型','実値'),(45,65,100,36,40,65)):
+            self.parameter_table.heading(col,text=label);self.parameter_table.column(col,width=width,minwidth=32,stretch=col in ('meaning','text','value'))
+        self.parameter_table.grid(row=0,column=0,sticky='ew')
+        sy=ttk.Scrollbar(context,command=self.parameter_table.yview);sy.grid(row=0,column=1,sticky='ns')
+        sx=ttk.Scrollbar(context,orient='horizontal',command=self.parameter_table.xview);sx.grid(row=1,column=0,sticky='ew')
+        self.parameter_table.configure(yscrollcommand=sy.set,xscrollcommand=sx.set);context.columnconfigure(0,weight=1)
+        self.parameter_table.bind('<Double-1>',self.open_parameter)
+        self.parameter_table.bind('<Return>',self.open_parameter)
+        source_frame=ttk.Frame(context,height=40);source_frame.grid(row=2,column=0,sticky='ew');source_frame.pack_propagate(False)
+        self.parameter_source=ttk.Label(source_frame,text='',style='Muted.TLabel',wraplength=400);self.parameter_source.pack(fill='both',expand=True)
+        self.parameter_table.bind('<<TreeviewSelect>>',self.show_parameter_source)
         from .catalog_attribute_table import CatalogAttributeTable
         self.tree=CatalogAttributeTable(self,host.ui_font);self.tree.pack(fill='both',expand=True);self.tree.before_scroll=self.finish
         self.tree.bind('<ButtonRelease-1>',self.click);self.tree.bind('<Return>',lambda _:self.begin(self.tree.focus()))
@@ -154,7 +169,28 @@ class CatalogInspector(ttk.Frame):
                 label,meaning=field_caption(self.host.data,record,label,path)
                 iid=self.tree.insert('','end',values=(label,display),meaning=meaning)
                 self.fields[iid]=(collection,record['id'],path,choices)
+        from .workflow import parameter_rows
+        self.parameter_table.delete(*self.parameter_table.get_children());self.parameter_rows={}
+        scom=targets[0][1] if targets and targets[0][0]=='scoms' else None
+        if scom:
+            self.parameter_context.pack(fill='x',pady=(0,6),before=self.tree)
+            for row in parameter_rows(self.host.data,scom):
+                self.parameter_rows[row['pid']]=row
+                self.parameter_table.insert('','end',iid=row['pid'],values=(row['pid'],row['meaning'],row['text'],row['unit'],'文字' if row['value_type']=='word' else '数値',row['value']))
+        else:self.parameter_context.pack_forget()
+        self.parameter_source.configure(text='説明の出典は行を選択すると表示します。')
         self.highlight_geometry()
+
+    def show_parameter_source(self,_=None):
+        selected=self.parameter_table.selection()
+        if selected:self.parameter_source.configure(text='出典：'+self.parameter_rows[selected[0]]['source'])
+
+    def open_parameter(self,_=None):
+        selected=self.parameter_table.selection()
+        if not selected:return
+        for iid,(_,ident,path,_) in self.fields.items():
+            if path==('values',selected[0]):
+                self.tree.selection_set(iid);self.tree.see(iid);self.tree.update_idletasks();self.begin(iid);break
 
     def highlight_geometry(self):
         from . import expressions,element_schema as schema

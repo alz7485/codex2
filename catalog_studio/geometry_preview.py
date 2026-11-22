@@ -194,7 +194,8 @@ class GeometryPreview(geo.Resolver):
 
 def store(data,definition,state):
     validate_dimensions(state)
-    definition[DIMENSIONS_KEY]=copy.deepcopy(state)
+    from .workflow import share_dimensions
+    share_dimensions(data,definition,state)
     pointset=pointset_for(data,definition)
     if pointset:
         pointset[DIMENSIONS_KEY]=copy.deepcopy(state);remember_points(data,pointset)

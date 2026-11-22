@@ -159,6 +159,15 @@ def build_simple(editor):
     e.cancel_creation_button.pack(side='right',padx=(0,6))
     e.populate_library()
 
+    from . import workflow, model_settings
+    role_row=ttk.Frame(left);role_row.pack(fill='x',pady=(0,6))
+    ttk.Label(role_row,text='点の役割' if point else '表示グループ',style='Muted.TLabel').pack(anchor='w')
+    e.role_choice=ttk.Combobox(role_row,state='readonly',values=workflow.POINT_ROLES if point else ('本体','保温'),width=12)
+    e.role_choice.pack(fill='x');e.role_choice.bind('<<ComboboxSelected>>',e.assign_role)
+    common_tools=ttk.Frame(center);common_tools.pack(fill='x',pady=(0,5))
+    ttk.Button(common_tools,text='連携セットの仮寸法・設計値',command=lambda:model_settings.edit(e),style='AttributeTool.TButton').pack(side='left')
+    ttk.Button(common_tools,text='問題一覧',command=lambda:e.host.switch('checks'),style='AttributeTool.TButton').pack(side='right')
+
     e.tree_holder = ttk.Frame(left)
     e.tree_holder.pack(fill='both', expand=True)
     e.elements = ElementList(e.tree_holder,e.host.ui_font,e.element_name_context)
@@ -277,3 +286,6 @@ def build_simple(editor):
         e.geometry_view=GeometryCanvas(e,center)
         e.geometry_view.pack(fill='both',expand=True)
         e.canvas=e.geometry_view.canvas
+        e.group_filter_bar=ttk.Frame(left);e.group_filter_bar.pack(fill='x',pady=(0,6),before=e.tree_holder)
+        for index,(label,var) in enumerate(e.geometry_view.group_visibility.items()):
+            ttk.Checkbutton(e.group_filter_bar,text=label,variable=var,command=e.geometry_view.redraw,style='Preview.Toolbutton').grid(row=index//2,column=index%2,sticky='w',padx=2)
