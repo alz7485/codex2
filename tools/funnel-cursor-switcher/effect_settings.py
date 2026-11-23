@@ -110,6 +110,9 @@ FIELDS = {
         fade=Field("切替時間 ms", 180, 40, 600),
         color=COLOR,
         opacity=ALPHA,
+        motion=choice("待機モーション", "なし", "横回転"),
+        turn_period=Field("横回転 1周の秒数", 2.4, 0.8, 8),
+        turn_direction=choice("回転方向", "順回転", "逆回転"),
     ),
     "particles": dict(
         rate=Field("発生数／秒", 20, 1, 80),

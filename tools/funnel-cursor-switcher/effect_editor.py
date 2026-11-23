@@ -32,6 +32,7 @@ from effect_settings import (
 )
 from funnel_effect import FunnelEffect
 from equipment_catalog import is_frozen
+from idle_motion import idle_sheet
 
 
 class Preview:
@@ -127,6 +128,9 @@ class Preview:
             self.events.clear()
             self.effect_photo = ImageTk.PhotoImage(frame, master=self.canvas) if frame else None
             self.canvas.itemconfigure(self.fx, image=self.effect_photo or "")
+            self.idle_photo = (ImageTk.PhotoImage(self.engine.pointer_image, master=self.canvas)
+                               if self.engine.idle_turn_step is not None else None)
+            self.canvas.itemconfigure(self.pointer, image=self.idle_photo or self.photo)
             self.canvas.coords(self.fx, *pos)
             self.canvas.coords(self.pointer, pos[0] - self.engine.hot[0], pos[1] - self.engine.hot[1])
             delay = 32 if self.engine.still < 0.5 else 50
@@ -145,7 +149,7 @@ class Editor:
         self.applied = ""
         self.preview_job = None
         self.live_values = None
-        self.effect = FunnelEffect(root, self.effect_error)
+        self.effect = FunnelEffect(root, self.effect_error, system.store / "idle-animations")
         root.title(title)
         self.restore = "元に戻す"
         while self.restore in entries:
@@ -179,9 +183,18 @@ class Editor:
         self.preset.pack(side="left", padx=4, expand=True, fill="x")
         ttk.Button(preset_bar, text="管理", width=5, command=self.manage).pack(side="right")
         self.rows = ttk.Frame(right)
+        self.idle_motion_controls = ttk.Frame(right)
+        ttk.Label(self.idle_motion_controls, text="待機モーション").pack(side="left")
+        self.idle_motion = ttk.Combobox(self.idle_motion_controls, state="readonly",
+                                        values=("なし", "横回転"), width=9)
+        self.idle_motion.pack(side="left", padx=4)
+        self.idle_motion.bind("<<ComboboxSelected>>", self.choose_idle_motion)
+        ttk.Button(self.idle_motion_controls, text="設定", width=5,
+                   command=lambda: self.details("idle")).pack(side="right")
         self.rows.pack(fill="both", expand=True, pady=(8, 2))
         self.rows.columnconfigure(2, weight=1)
         self.flags, self.sliders, self.numbers = {}, {}, {}
+        self.row_checks, self.primary_labels = {}, {}
         self.refreshing = False
         self.special_widgets = {}
         self.special_title = ttk.Label(self.rows)
@@ -190,12 +203,13 @@ class Editor:
             if group in SPECIAL:
                 idx += 1
             var = self.flags[group] = tk.BooleanVar()
-            ttk.Checkbutton(
+            self.row_checks[group] = ttk.Checkbutton(
                 self.rows,
                 text=label,
                 variable=var,
                 command=lambda g=group: self.edit(g, "enabled", self.flags[g].get()),
-            ).grid(row=idx, column=0, sticky="w")
+            )
+            self.row_checks[group].grid(row=idx, column=0, sticky="w")
             key = next(iter(FIELDS[group]))
             field = FIELDS[group][key]
             slider = self.sliders[group] = ttk.Scale(
@@ -205,9 +219,8 @@ class Editor:
                 length=68,
                 command=lambda val, g=group, k=key: self.main_slider(g, k, val),
             )
-            ttk.Label(self.rows, text=field.label.split(" ")[0]).grid(
-                row=idx, column=1, sticky="e", padx=(6, 0)
-            )
+            self.primary_labels[group] = ttk.Label(self.rows, text=field.label.split(" ")[0])
+            self.primary_labels[group].grid(row=idx, column=1, sticky="e", padx=(6, 0))
             slider.grid(row=idx, column=2, sticky="ew", padx=(5, 0))
             self.numbers[group] = ttk.Label(self.rows, width=5, anchor="e")
             self.numbers[group].grid(row=idx, column=3)
@@ -286,7 +299,13 @@ class Editor:
         self.preset.set(self.binding()["preset"] if self.path else "")
         values, _ = self.values()
         for g in FIELDS:
-            key = next(iter(FIELDS[g]))
+            rotating = g == "idle" and bool(idle_sheet(self.path)) and values[g]["motion"] == "横回転"
+            key = "turn_period" if rotating else next(iter(FIELDS[g]))
+            field = FIELDS[g][key]
+            self.row_checks[g].configure(text="待機横回転" if rotating else NAMES[g])
+            self.primary_labels[g].configure(text="1周（秒）" if rotating else field.label.split(" ")[0])
+            self.sliders[g].configure(from_=field.low, to=field.high,
+                                       command=lambda val, group=g, name=key: self.main_slider(group, name, val))
             self.flags[g].set(values[g]["enabled"] and bool(self.path))
             self.sliders[g].set(values[g][key])
             self.numbers[g].configure(text=format(values[g][key], ".3g"))
@@ -296,6 +315,11 @@ class Editor:
         self.feedback()
 
     def show_special_controls(self):
+        if idle_sheet(self.path):
+            self.idle_motion.set(self.values()[0]["idle"]["motion"])
+            self.idle_motion_controls.pack(fill="x", before=self.rows, pady=(6, 0))
+        else:
+            self.idle_motion_controls.pack_forget()
         group = special_group(self.key)
         for name, widgets in self.special_widgets.items():
             for widget in widgets:
@@ -309,6 +333,14 @@ class Editor:
             self.special_title.grid()
         else:
             self.special_title.grid_remove()
+
+    def choose_idle_motion(self, _=None):
+        self.edit("idle", "motion", self.idle_motion.get())
+        if self.idle_motion.get() == "横回転":
+            self.edit("idle", "enabled", True)
+            self.preview.mode.set("停止")
+            self.preview.restart_demo()
+        self.refresh()
 
     def feedback(self):
         self.show_special_controls()
@@ -399,6 +431,11 @@ class Editor:
         win.bind("<MouseWheel>", lambda ev: scroll.yview_scroll(int(-ev.delta / 120), "units"))
         values, origins = self.values()
         for idx, (k, f) in enumerate(FIELDS[g].items()):
+            if g == "idle" and k in ("motion", "turn_period", "turn_direction") and not idle_sheet(self.path):
+                continue
+            if (g == "idle" and idle_sheet(self.path) and values[g]["motion"] == "横回転"
+                    and k in ("intensity", "period", "drift", "fade", "color", "opacity")):
+                continue
             ttk.Label(page, text=f.label).grid(row=idx, column=0, sticky="w", pady=3)
             origin = ttk.Label(page, text=origins[g][k], width=10)
             origin.grid(row=idx, column=3)

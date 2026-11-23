@@ -29,7 +29,7 @@ def main():
     for name in ("VERSION", "README.md", "検証記録.md", "特殊アクション仕様.md", "開発対象.md",
                  "active-actions-preview.gif", "equipment-actions-preview.gif",
                  "shield-preview.gif", "shield-assembly.png", "spiral-preview.gif", "dragoon-preview.gif",
-                 "barrier-preview.gif", "cannon-preview.gif", "volley-preview.gif"):
+                 "barrier-preview.gif", "cannon-preview.gif", "volley-preview.gif", "fin-idle-preview.gif"):
         shutil.copy2(ROOT / name, bundle / name)
     archive = shutil.make_archive(
         str(dist / f"{NAME}-v{VERSION}-windows-x64"), "zip", root_dir=dist, base_dir=NAME

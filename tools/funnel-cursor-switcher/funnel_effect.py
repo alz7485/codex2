@@ -2,11 +2,14 @@ import ctypes
 import time
 from collections import deque
 from ctypes import wintypes
+from pathlib import Path
+from tempfile import gettempdir
 
 from PIL import Image
 
 from cursor_art import APPEARANCES, DEFAULT_APPEARANCE, OVERLAY_SIZE, load_sprite
 from effect_engine import ClickTracker, EffectEngine
+from idle_motion import MOTION, NativeIdleCursor
 
 WINDOW_TITLE = "Funnel Cursor Effect"
 
@@ -382,10 +385,12 @@ class LayeredOverlay:
 
 
 class FunnelEffect:
-    def __init__(self, root, on_error):
+    def __init__(self, root, on_error, cache_dir=None):
         self.root = root
         self.on_error = on_error
         self.overlay = self.timer = self.animation = None
+        self.cursor_motion = None
+        self.cache_dir = cache_dir or Path(gettempdir()) / "FunnelCursorSwitcher-idle"
 
     def start(self, cursor, config):
         self.stop()
@@ -401,6 +406,11 @@ class FunnelEffect:
         if self.animation.special:
             observe |= config[self.animation.special]["enabled"]
         try:
+            idle = config["idle"]
+            if self.animation.idle_sheet and idle["enabled"] and idle["motion"] == MOTION:
+                self.cursor_motion = NativeIdleCursor(self.animation.idle_sheet, idle,
+                                                       self.animation.hot, self.cache_dir)
+                observe = True
             self.overlay = LayeredOverlay(observe)
             self.tick()
         except Exception:
@@ -431,6 +441,8 @@ class FunnelEffect:
                         )
             logical = tuple(n / overlay.scale for n in position) if position is not None else None
             frame = self.animation.step(logical, start, events)
+            if self.cursor_motion:
+                self.cursor_motion.update(self.animation.idle_turn_step is not None)
             overlay.render(frame, position)
             cost = time.monotonic() - start
             if cost > 0.014:
@@ -449,7 +461,12 @@ class FunnelEffect:
         if self.timer is not None:
             self.root.after_cancel(self.timer)
             self.timer = None
-        if self.overlay is not None:
-            self.overlay.close()
-            self.overlay = None
-        self.animation = None
+        try:
+            if self.cursor_motion is not None:
+                self.cursor_motion.close()
+                self.cursor_motion = None
+        finally:
+            if self.overlay is not None:
+                self.overlay.close()
+                self.overlay = None
+            self.animation = None

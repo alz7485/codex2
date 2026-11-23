@@ -13,6 +13,8 @@ from zipfile import ZipFile
 from effect_engine import ClickEvent
 from effect_settings import FIELDS, SAMPLES, SPECIAL, resolve, special_group
 from equipment_catalog import ACTIVE_EQUIPMENT, equipment_key, is_frozen
+from cursor_art import anchors
+from idle_motion import NativeIdleCursor, idle_sheet
 from funnel_effect import (
     APPEARANCES,
     EffectEngine,
@@ -166,6 +168,55 @@ def verify_hit_test():
         root.destroy()
 
 
+def verify_idle_turn(cursors, folder):
+    """Check that the OS keeps the ANI frames, hotspot, and restore path."""
+    path = cursors / "ファンネル" / "フィンファンネル.cur"
+    sheet = idle_sheet(path)
+    assert sheet is not None
+    config = resolve("ファンネル", {}, {})[0]["idle"]
+    hotspot = anchors(load_sprite(path), path)[0]
+    native = NativeIdleCursor(sheet, config, hotspot, folder / "idle-animation")
+    overlay = LayeredOverlay()
+    user = ctypes.WinDLL("user32", use_last_error=True)
+    load = bind(user, "LoadCursorW", wintypes.HANDLE, wintypes.HINSTANCE, wintypes.LPCWSTR)
+    draw = bind(user, "DrawIconEx", wintypes.BOOL, wintypes.HDC, ctypes.c_int, ctypes.c_int,
+                wintypes.HANDLE, ctypes.c_int, ctypes.c_int, wintypes.UINT, wintypes.HANDLE, wintypes.UINT)
+
+    class IconInfo(ctypes.Structure):
+        _fields_ = [("icon", wintypes.BOOL), ("x", wintypes.DWORD), ("y", wintypes.DWORD),
+                    ("mask", wintypes.HANDLE), ("color", wintypes.HANDLE)]
+
+    info = bind(user, "GetIconInfo", wintypes.BOOL, wintypes.HANDLE, ctypes.POINTER(IconInfo))
+    delete = bind(ctypes.WinDLL("gdi32"), "DeleteObject", wintypes.BOOL, wintypes.HANDLE)
+    try:
+        native.update(True)
+        arrow = load(None, ctypes.cast(ctypes.c_void_p(32512), wintypes.LPCWSTR))
+        assert arrow
+        details = IconInfo()
+        assert info(arrow, ctypes.byref(details))
+        try:
+            assert (details.x, details.y) == hotspot
+        finally:
+            if details.mask:
+                delete(details.mask)
+            if details.color:
+                delete(details.color)
+        images = []
+        for frame in (0, 12):
+            ctypes.memset(overlay.bits, 0, overlay.side * overlay.side * 4)
+            assert draw(overlay.dc, 0, 0, arrow, 32, 32, frame, None, 3)
+            images.append(ctypes.string_at(overlay.bits, overlay.side * overlay.side * 4))
+        assert images[0] != images[1], "The system normal arrow lost its animation frames."
+        native.update(False)
+        assert not native.active
+    finally:
+        try:
+            native.close()
+        finally:
+            overlay.close()
+    print("Windows preserved the C-shaped idle ANI frames and fixed hotspot, then restored the normal arrow.")
+
+
 def verify_restore(system, cursor):
     # Opt-in on the disposable CI account. Restore the exact prior value even on failure.
     reg = system.registry
@@ -250,6 +301,7 @@ def main(archive, check_restore=False):
             verify_restore(system, files[0])
         verify_effect(cursors)
         verify_hit_test()
+        verify_idle_turn(cursors, root)
         verify_startup(bundle, source["APP_NAME"])
         print(f"Windows loaded {len(files)} cursors and opened the extracted onedir app.")
 

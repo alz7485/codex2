@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - "build/funnel-cursor-v1.4.0-*"
+      - "build/funnel-cursor-v1.5.0-*"
 
 permissions:
   contents: read
@@ -26,13 +27,13 @@ jobs:
         run: build-onedir.cmd
       - name: Check catalog, editor, and effects
         shell: cmd
-        run: .venv-build\Scripts\python.exe -m unittest -v test_catalog test_effects test_editor
+        run: .venv-build\Scripts\python.exe -m unittest -v test_catalog test_effects test_idle_motion test_editor
       - name: Verify extracted Windows app and cursor restore
         shell: cmd
-        run: .venv-build\Scripts\python.exe verify_windows_release.py dist/FunnelCursorSwitcher-v1.4.0-windows-x64.zip --check-system-restore
+        run: .venv-build\Scripts\python.exe verify_windows_release.py dist/FunnelCursorSwitcher-windows-x64.zip --check-system-restore
       - name: Upload ready-to-run Windows app
         uses: actions/upload-artifact@v4
         with:
-          name: FunnelCursorSwitcher-v1.4.0-windows-x64
+          name: FunnelCursorSwitcher-v1.5.0-windows-x64
           path: tools/funnel-cursor-switcher/dist/FunnelCursorSwitcher/
           if-no-files-found: error

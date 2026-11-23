@@ -48,6 +48,30 @@ class EditorFlow(TestCase):
         if self.ui.preview_job:
             self.root.after_cancel(self.ui.preview_job)
 
+    def test_fin_idle_motion_controls_and_saved_settings(self):
+        path = Path(__file__).with_name("カーソル") / "ファンネル" / "フィンファンネル.cur"
+        self.entries["ファンネル"].append(path)
+        self.ui.category.set("ファンネル")
+        self.ui.choose_category(path)
+        self.root.update()
+        self.assertEqual(self.ui.idle_motion_controls.winfo_manager(), "pack")
+        self.ui.idle_motion.set("横回転")
+        self.ui.choose_idle_motion()
+        self.assertTrue(self.ui.values()[0]["idle"]["enabled"])
+        self.assertEqual(self.ui.values()[0]["idle"]["motion"], "横回転")
+        self.assertEqual(self.ui.preview.mode.get(), "停止")
+        self.assertEqual(self.ui.row_checks["idle"].cget("text"), "待機横回転")
+        self.ui.main_slider("idle", "turn_period", "3.2")
+        self.ui.refresh()
+        self.ui.apply()
+        self.assertEqual(self.fx.start.call_args.args[1]["idle"]["motion"], "横回転")
+        saved = Settings(self.system.store / "effects.json")
+        self.assertEqual(saved.binding("ファンネル/フィンファンネル.cur")["overrides"]["idle"]["motion"], "横回転")
+        self.assertEqual(saved.binding("ファンネル/フィンファンネル.cur")["overrides"]["idle"]["turn_period"], 3.2)
+        self.ui.choose_category(self.entries["ファンネル"][0])
+        self.root.update()
+        self.assertEqual(self.ui.idle_motion_controls.winfo_manager(), "")
+
     def select(self, category):
         self.ui.category.set(category)
         self.ui.choose_category()

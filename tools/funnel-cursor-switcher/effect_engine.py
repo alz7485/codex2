@@ -11,6 +11,7 @@ from cursor_art import NOZZLES, OVERLAY_SIZE, anchors
 
 from effect_settings import BUTTONS, MODIFIERS, SPECIAL, special_group
 from flight_art import FlightArt
+from idle_motion import MOTION, STEPS, idle_sheet, turn_frame
 
 CENTER = OVERLAY_SIZE // 2
 TAU = math.tau
@@ -211,8 +212,16 @@ class Idle(Layer):
     def __init__(self, config, engine):
         super().__init__(config, engine)
         self.level = 0
+        self.last_input = -math.inf
 
     def update(self):
+        e, c = self.e, self.c
+        if e.clicks:
+            self.last_input = e.now
+        rest = e.now - max(e.last_motion, self.last_input)
+        if e.idle_sheet and c.get("motion") == MOTION and rest >= c["delay"]:
+            direction = -1 if c["turn_direction"] == "逆回転" else 1
+            e.idle_turn_step = int((rest - c["delay"]) / c["turn_period"] * STEPS * direction) % STEPS
         target = 1 if self.e.still >= self.c["delay"] else 0
         step = self.e.dt * 1000 / self.c["fade"]
         self.level += clamp(target - self.level, -step, step)
@@ -220,6 +229,8 @@ class Idle(Layer):
 
     def draw(self, frame, draw):
         c, e = self.c, self.e
+        if e.idle_sheet and c.get("motion") == MOTION:
+            return
         phase = e.now * TAU / c["period"]
         light = (0.68 + 0.32 * math.sin(phase)) * self.level * c["intensity"]
         x, y = point(*e.rear, c["drift"], phase)
@@ -1279,6 +1290,7 @@ class EffectEngine:
         length = math.hypot(dx, dy)
         self.axis = (dx / length, dy / length) if length else (0.707, 0.707)
         self.art = FlightArt(path, sprite, self.axis)
+        self.idle_sheet = idle_sheet(path)
         self.nozzle, colors = appearance
         self.colors = [ImageColor.getrgb(color) for color in colors]
         self.rng = random.Random(seed)
@@ -1288,6 +1300,7 @@ class EffectEngine:
     def reset(self):
         self.pos = self.last_time = None
         self.has_moved = False
+        self.idle_turn_step = None
         self.heading = -3 * math.pi / 4
         self.deploy = self.rare_formation = self.speed = 0
         self.layers = [
@@ -1299,6 +1312,12 @@ class EffectEngine:
 
     def local(self, pos):
         return CENTER + pos[0] - self.pos[0], CENTER + pos[1] - self.pos[1]
+
+    @property
+    def pointer_image(self):
+        if self.idle_turn_step is not None:
+            return turn_frame(self.idle_sheet, self.idle_turn_step, self.sprite.width)
+        return self.sprite
 
     def fly(self, frame, pos, heading, pose, size, opacity, deploying=False):
         image = self.art.frame(heading, pose, size, deploying)
@@ -1344,6 +1363,7 @@ class EffectEngine:
             self.heading = math.atan2(pos[1] - previous[1], pos[0] - previous[0])
         self.still = now - self.last_motion
         self.speed = min(10000, distance / elapsed)
+        self.idle_turn_step = None
         visible = [layer for layer in self.layers if layer.update()]
         if not visible:
             return None

@@ -878,6 +878,10 @@ class Rendering(unittest.TestCase):
             for k, f in fields.items():
                 if g in SPECIAL or len(f.choices) < 2:
                     continue
+                # These choices change the native pointer image, rather than
+                # the FX overlay; test_idle_motion covers their turn frames.
+                if g == "idle" and k in ("motion", "turn_direction"):
+                    continue
                 results = set()
                 for v in f.choices:
                     e = engine([g], {g: {k: v}})
