@@ -132,7 +132,8 @@ class Preview:
                                if self.engine.idle_turn_step is not None else None)
             self.canvas.itemconfigure(self.pointer, image=self.idle_photo or self.photo)
             self.canvas.coords(self.fx, *pos)
-            self.canvas.coords(self.pointer, pos[0] - self.engine.hot[0], pos[1] - self.engine.hot[1])
+            hot = self.engine.pointer_hot
+            self.canvas.coords(self.pointer, pos[0] - hot[0], pos[1] - hot[1])
             delay = 32 if self.engine.still < 0.5 else 50
         self.timer = self.canvas.after(delay, self.tick)
 

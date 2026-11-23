@@ -577,27 +577,20 @@ class Rendering(unittest.TestCase):
             self.assertLess(e.art.rack_frame(action.RACK_SIZE, 0, False, 0).getbbox()[2],
                             e.art.rack_frame(action.RACK_SIZE, 0, False, 1).getbbox()[2])
             if name == "フィンファンネル":
-                from PIL import Image
-                art = Image.open(e.art.sheet.parent / "フィンファンネル.収納正面.png").convert("RGBA")
-                bounds = art.getchannel("A").point(lambda a: 255 if a >= 144 else 0).getbbox()
-                art = art.crop(bounds)
-                art.thumbnail((256, 512))
-                bands = [y for y in range(art.height)
-                         if sum(a > 180 and r > 140 and g > 90 and b < g * 0.65
-                                for r, g, b, a in (art.getpixel((x, y)) for x in range(art.width)))
-                         > art.width * 0.2]
-                upper, lower = min(bands), art.height - 1 - max(bands)
-                self.assertLess(abs(upper - lower) / max(upper, lower), 0.06)
-                # One inset slot per white plate, and no long dividing line.
-                for y0, y1, count in ((0.30, 0.37, 1), (0.66, 0.73, 1), (0.15, 0.20, 0)):
-                    for side in (0, 1):
-                        width = art.width / 2
-                        dark = [any(a > 180 and max(r, g, b) < 170
-                                    for r, g, b, a in (art.getpixel((x, y))
-                                        for y in range(round(art.height * y0), round(art.height * y1))))
-                                for x in range(round(width * (side + 0.15)), round(width * (side + 0.85)))]
-                        runs = sum(v and (i == 0 or not dark[i - 1]) for i, v in enumerate(dark))
-                        self.assertEqual(runs, count)
+                # Visible red tip inlays at both ends of a straight unit,
+                # and only above the hinge in the folded middle pair.
+                for folded, suffix in ((False, "正面"), (True, "中央")):
+                    with Image.open(e.art.sheet.parent / ("フィンファンネル.3D収納"+suffix+".png")) as art:
+                        for half in (0, 1):
+                            unit = art.crop((half*art.width//2, 0, (half+1)*art.width//2, art.height))
+                            reds = [y/unit.height for y in range(unit.height) for x in range(unit.width)
+                                    for r,g,b,a in [unit.getpixel((x,y))]
+                                    if a>180 and r>1.5*g and r>1.5*b]
+                            self.assertTrue(any(y < .15 for y in reds))
+                            self.assertEqual(any(y > .85 for y in reds), not folded)
+                for pose in range(4):
+                    self.assertEqual(e.art.frame(0,pose,96,deploying=True).tobytes(),
+                                     read_poses(e.art.deployment)[pose].tobytes())
             for i in range(6):
                 layout = action.rack_layout(action.RACK_HOLD + i * action.RACK_STAGGER + 0.01)
                 self.assertEqual({index for index, pos, launched in layout if not launched}, set(range(5 - i)))

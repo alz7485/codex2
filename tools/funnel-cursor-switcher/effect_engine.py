@@ -1161,6 +1161,8 @@ class DeltaField(SpecialEffect):
 
     def __init__(self, config, engine):
         super().__init__(config, engine)
+        if self.e.art.sheet.stem == "フィンファンネル":
+            self.RACK_PAIR_OFFSETS = (0, 17, 33)
         if self.has_rack:
             self.lifetime += self.RACK_END + self.HINGE_BEAT
 
@@ -1318,6 +1320,13 @@ class EffectEngine:
         if self.idle_turn_step is not None:
             return turn_frame(self.idle_sheet, self.idle_turn_step, self.sprite.width)
         return self.sprite
+
+    @property
+    def pointer_hot(self):
+        if self.idle_turn_step is not None:
+            from idle_motion import PADDING
+            return tuple(value + PADDING for value in self.hot)
+        return self.hot
 
     def fly(self, frame, pos, heading, pose, size, opacity, deploying=False):
         image = self.art.frame(heading, pose, size, deploying)

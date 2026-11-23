@@ -195,7 +195,8 @@ def verify_idle_turn(cursors, folder):
         details = IconInfo()
         assert info(arrow, ctypes.byref(details))
         try:
-            assert (details.x, details.y) == hotspot
+            from idle_motion import PADDING
+            assert (details.x, details.y) == tuple(value + PADDING for value in hotspot)
         finally:
             if details.mask:
                 delete(details.mask)
@@ -204,7 +205,7 @@ def verify_idle_turn(cursors, folder):
         images = []
         for frame in (0, 12):
             ctypes.memset(overlay.bits, 0, overlay.side * overlay.side * 4)
-            assert draw(overlay.dc, 0, 0, arrow, 32, 32, frame, None, 3)
+            assert draw(overlay.dc, 0, 0, arrow, 48, 48, frame, None, 3)
             images.append(ctypes.string_at(overlay.bits, overlay.side * overlay.side * 4))
         assert images[0] != images[1], "The system normal arrow lost its animation frames."
         native.update(False)

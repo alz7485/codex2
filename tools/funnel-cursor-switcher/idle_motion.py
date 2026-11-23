@@ -12,9 +12,11 @@ from PIL import Image
 from effect_settings import atomic_write
 
 
-CELL = 96
+CELL = 144
 STEPS = 48
 MOTION = "横回転"
+NATIVE_SIDE = 48
+PADDING = 8
 
 
 def idle_sheet(cursor):
@@ -37,11 +39,15 @@ def read_turntable(path):
 @lru_cache(maxsize=384)
 def turn_frame(path, step, size=32):
     poses = read_turntable(path)
+    side = round(size * NATIVE_SIDE / 32)
+    margin = round(size * PADDING / 32)
     if step % STEPS == 0 and size == 32:
         original = path.parent.parent.parent / 'カーソル/ファンネル/フィンファンネル.png'
         with Image.open(original) as image:
-            return image.convert('RGBA')
-    return poses[step % STEPS].resize((size, size), Image.Resampling.LANCZOS)
+            frame = Image.new('RGBA', (side, side))
+            frame.paste(image.convert('RGBA'), (margin, margin))
+            return frame
+    return poses[step % STEPS].resize((side, side), Image.Resampling.LANCZOS)
 
 
 def cursor_bytes(image, hotspot):
@@ -73,8 +79,9 @@ def animation_bytes(sheet, period, direction, hotspot):
     frames = []
     for step in range(STEPS):
         image = turn_frame(sheet, sign * step, 32)
-        frames.append(chunk(b"icon", cursor_bytes(image, hotspot)))
-    header = struct.pack("<9I", 36, STEPS, STEPS, 32, 32, 32, 1,
+        padded_hotspot = tuple(value + PADDING for value in hotspot)
+        frames.append(chunk(b"icon", cursor_bytes(image, padded_hotspot)))
+    header = struct.pack("<9I", 36, STEPS, STEPS, NATIVE_SIDE, NATIVE_SIDE, 32, 1,
                          max(1, round(total_ticks / STEPS)), 1)
     payload = b"ACON" + chunk(b"anih", header)
     payload += chunk(b"rate", struct.pack("<" + "I" * STEPS, *rates))
@@ -104,7 +111,7 @@ class WindowsArrow:
     def install(self, path):
         # Unlike LoadCursorFromFile, this returns an owned, non-shared handle
         # that SetSystemCursor is allowed to consume (including ANI files).
-        handle = self.load(None, str(path), 2, 0, 0, 0x0010 | 0x0040)
+        handle = self.load(None, str(path), 2, NATIVE_SIDE, NATIVE_SIDE, 0x0010)
         if not handle:
             raise ctypes.WinError(ctypes.get_last_error())
         if not self.replace(handle, 32512):  # OCR_NORMAL. Windows owns it on success.

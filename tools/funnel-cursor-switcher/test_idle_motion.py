@@ -8,7 +8,7 @@ from unittest.mock import Mock
 from cursor_art import APPEARANCES, load_sprite
 from effect_engine import ClickEvent, EffectEngine
 from effect_settings import FIELDS, Settings, resolve
-from idle_motion import NativeIdleCursor, STEPS, animation_bytes, idle_sheet, read_turntable, turn_frame
+from idle_motion import NativeIdleCursor, PADDING, STEPS, animation_bytes, idle_sheet, read_turntable, turn_frame
 
 
 ROOT = Path(__file__).resolve().parent
@@ -37,20 +37,24 @@ class IdleMotion(unittest.TestCase):
         sheet = idle_sheet(CURSOR)
         frames = read_turntable(sheet)
         self.assertEqual(len(frames), STEPS)
-        widths = [im.getchannel("A").point(lambda a: 255 if a > 144 else 0).getbbox() for im in frames]
-        self.assertLessEqual(max(b[2] - b[0] for b in widths) - min(b[2] - b[0] for b in widths), 5)
         # Enter from the actual upper-left pointer, including its original
-        # placement. Screen-X rotation preserves the horizontal coordinates.
+        # placement relative to the click hotspot. Padding never scales it.
         original = load_sprite(CURSOR)
-        self.assertEqual(turn_frame(sheet, 0).tobytes(), original.tobytes())
-        # At a half turn its opening has moved from above to below the hinge;
-        # a preliminary in-plane rotation would fail the original-pose check.
-        for frame, top_open in ((frames[0], True), (frames[STEPS // 2], False)):
+        first = turn_frame(sheet, 0)
+        self.assertEqual(first.crop((PADDING, PADDING, PADDING+32, PADDING+32)).tobytes(), original.tobytes())
+        # A roll about the beam keeps the long direction upper-left. Turning
+        # about screen X would reverse the slope during the second half.
+        for frame in frames:
             alpha = frame.getchannel('A')
-            tip = alpha.crop((0, 0 if top_open else 84, 16, 12 if top_open else 96))
-            opposite = alpha.crop((0, 84 if top_open else 0, 16, 96 if top_open else 12))
-            self.assertIsNotNone(tip.getbbox())
-            self.assertIsNone(opposite.getbbox())
+            box = alpha.point(lambda a: 255 if a > 144 else 0).getbbox()
+            self.assertTrue(0 < box[0] < box[2] < frame.width)
+            self.assertTrue(0 < box[1] < box[3] < frame.height)
+            points = [(x, y) for y in range(frame.height) for x in range(frame.width)
+                      if alpha.getpixel((x, y)) > 144]
+            mean_x = sum(p[0] for p in points) / len(points)
+            mean_y = sum(p[1] for p in points) / len(points)
+            covariance = sum((x-mean_x)*(y-mean_y) for x,y in points)
+            self.assertGreater(covariance, 0)
         self.assertNotEqual(frames[0].tobytes(), frames[STEPS // 4].tobytes())
         self.assertEqual(turn_frame(sheet, 0).tobytes(), turn_frame(sheet, STEPS).tobytes())
         self.assertIsNone(idle_sheet(CURSOR.with_name("νガンダムHWS.cur")))
@@ -111,7 +115,7 @@ class IdleMotion(unittest.TestCase):
         self.assertGreaterEqual(min(rates), 1)
         at = data.index(b"icon") + 8
         self.assertEqual(struct.unpack_from("<HHH", data, at), (0, 2, 1))
-        self.assertEqual(struct.unpack_from("<HH", data, at + 10), e.hot)
+        self.assertEqual(struct.unpack_from("<HH", data, at + 10), tuple(v+PADDING for v in e.hot))
         with TemporaryDirectory() as folder:
             api = Mock()
             native = NativeIdleCursor(e.idle_sheet, e.config["idle"], e.hot, folder, api)

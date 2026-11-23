@@ -97,6 +97,17 @@ def front_rack_pose(path, size, bank, fold_lower, part):
     height = round(full_height * (0.56 if fold_lower else 1))
     # An even-width joined pair supplies two exact, gap-free halves for launch.
     width = 2 * round(full_height * 0.075)
+    if path.name.startswith("フィンファンネル.3D"):
+        # Tapered units overlap slightly in the front view. Draw an entire
+        # unit both in the rack and on release, including its wider shoulder.
+        unit = source.crop((0, 0, source.width // 2, source.height))
+        unit_width = round(width * .62)
+        unit = unit.resize((unit_width, height), Image.Resampling.LANCZOS)
+        canvas = Image.new("RGBA", (size, size))
+        for index in ((0, 1) if part is None else (part,)):
+            x = (size - width) // 2 + index * (width - unit_width)
+            canvas.alpha_composite(unit, (x, (size-full_height)//2))
+        return canvas.rotate(bank, Image.Resampling.BICUBIC)
     source = source.resize((width, height), Image.Resampling.LANCZOS)
     canvas = Image.new("RGBA", (size, size))
     x = (size - width) // 2
@@ -119,7 +130,8 @@ class FlightArt:
 
     def rack_frame(self, size, bank=8, fold_lower=False, part=None):
         if self.sheet and self.sheet.stem in ("フィンファンネル", "νガンダムHWS"):
-            front = self.sheet.parent / ("フィンファンネル.収納中央.png" if fold_lower else "フィンファンネル.収納正面.png")
+            prefix = "フィンファンネル.3D" if self.sheet.stem == "フィンファンネル" else "フィンファンネル."
+            front = self.sheet.parent / (prefix + ("収納中央.png" if fold_lower else "収納正面.png"))
             if front.is_file():
                 return front_rack_pose(front, size, bank, fold_lower, part)
         poses = read_poses(self.deployment) if self.deployment else ()
@@ -142,7 +154,7 @@ class FlightArt:
         if path and read_poses(path):
             if self.sheet.stem == "ロングレンジ・フィン・ファンネル（RX-93ff）":
                 return long_range_pose(path, pose, direction, size)
-            return turned_pose(path, pose, direction, size, deploying)
+            return turned_pose(path, pose, direction, size, deploying and self.sheet.stem != "フィンファンネル")
         # User-added cursors can fly without supplying an animation strip.
         angle = math.degrees(self.forward) - direction * 360 / HEADINGS
         image = self.sprite.rotate(angle, Image.Resampling.BICUBIC, expand=True)
