@@ -1256,16 +1256,16 @@ class DeltaField(SpecialEffect):
 
 
 class FinPyramidField(DeltaField):
-    """Six RX-93 units enclose the pointer with a projected square pyramid."""
+    """Launch six RX-93 units; five return to the vertices of a square pyramid."""
 
     RACK_FOLDED = (0, 2, 3, 4)
     RACK_ANGLES = (-7, -2, -1, 3, 8, 12)
     # Hinge centres traced from the supplied front view, left to right.
     HINGES = ((0, 0), (9, 0), (18, -14), (27, -14), (35, -28), (43, -36))
-    # Four corners, top, then the sixth unit guarding the middle of the base.
+    # Four base corners and the apex. The sixth unit stays off-screen.
     STATIONS = ((-1,-1,-.54),(1,-1,-.54),(1,1,-.54),(-1,1,-.54),
-                (0,0,1.14),(0,0,-.54))
-    APPROACH = ((-170,-78),(108,-170),(170,64),(-102,170),(0,-182),(45,182))
+                (0,0,1.14))
+    APPROACH = ((-170,-78),(108,-170),(170,64),(-102,170),(0,-182))
 
     def rack_layout(self, elapsed):
         layout = []
@@ -1332,12 +1332,16 @@ class FinPyramidField(DeltaField):
             target = stations[item][0]
             dx,dy = self.APPROACH[item]
             start = CENTER+dx,CENTER+dy
-            pos = tuple(a+(b-a)*travel for a,b in zip(start,target))
+            pos = target if travel >= 1 else tuple(a+(b-a)*travel for a,b in zip(start,target))
             incoming = math.atan2(target[1]-start[1],target[0]-start[0])
             inward = math.atan2(CENTER-target[1],CENTER-target[0])
             heading = incoming+turn*((inward-incoming+math.pi)%TAU-math.pi)
-            self.e.fly(frame,pos,heading,round(3*opening),round(27+depth*3),
-                       fade*self.c["opacity"],deploying=progress>=.39)
+            # All five enter at the same viewing distance. The rear pair
+            # recedes during approach; hold each projected size once in place.
+            viewing_depth = depth * travel
+            scale = 1.0 / (1.0 - .28 * viewing_depth)
+            self.e.fly(frame, pos, heading, round(3 * opening), round(27 * scale),
+                       fade * self.c["opacity"], deploying=progress >= .39)
 
 
 LAYERS = {

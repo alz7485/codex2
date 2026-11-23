@@ -103,7 +103,7 @@ def render(destination=None, all_actions=False, group=None, show_pointer=True, i
                     detail = ("6基の収納配置" if now < action.RACK_HOLD else
                               "右から1基ずつ上方へ射出" if now < action.RACK_EXIT_END else
                               "全機フレームアウト・一拍" if now < action.RACK_END else
-                              "四方から進入・四角錐の隊形へ" if path.stem == "フィンファンネル" and phase < .32 else
+                              "四方から5基が進入・四角錐の隊形へ" if path.stem == "フィンファンネル" and phase < .32 else
                               "上方から三角形の頂点へ" if phase < 0.28 else
                               "内側へ向きヒンジ展開" if phase < action.OPEN_END else
                               "ヒンジ全開・一拍" if now < opened_at + action.HINGE_BEAT else

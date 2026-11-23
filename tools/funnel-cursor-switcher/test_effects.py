@@ -500,10 +500,18 @@ class Rendering(unittest.TestCase):
         with mock_patch.object(e,"fly",wraps=e.fly) as fly:
             e.step(pos,action.RACK_END)
             starts=[c.args[1] for c in fly.call_args_list]
-            self.assertEqual(len(starts),6)
+            self.assertEqual(len(starts),5)
             self.assertTrue(all(any(p[axis]<0 for p in starts) and any(p[axis]>256 for p in starts) for axis in (0,1)))
         with mock_patch.object(e,"fly",wraps=e.fly) as fly:
             e.step(pos,action.RACK_END+action.c["duration"]*.56+.01)
+            self.assertEqual({c.args[1] for c in fly.call_args_list},
+                             {action.project(v)[0] for v in action.STATIONS})
+            self.assertEqual(len(action.STATIONS),5)
+            sizes = {call.args[1]: call.args[4] for call in fly.call_args_list}
+            corners = sorted((action.project(v) for v in action.STATIONS[:4]), key=lambda v: v[1])
+            rear, front = corners[:2], corners[2:]
+            self.assertLess(max(sizes[xy] for xy,_ in rear), min(sizes[xy] for xy,_ in front))
+            self.assertLessEqual(sizes[rear[0][0]], .55 * sizes[front[-1][0]])
             for c in fly.call_args_list:
                 x,y=c.args[1]
                 self.assertAlmostEqual(math.cos(c.args[2]),(CENTER-x)/math.hypot(CENTER-x,CENTER-y))
@@ -517,7 +525,7 @@ class Rendering(unittest.TestCase):
                     unit = art.crop((half*art.width//2, 0, (half+1)*art.width//2, art.height))
                     reds = [y/unit.height for y in range(unit.height) for x in range(unit.width)
                             for r,g,b,a in [unit.getpixel((x,y))]
-                            if a>180 and r>1.5*g and r>1.5*b]
+                            if a>180 and r>1.5*g and r>1.5*b and abs(g-b)<12]
                     self.assertTrue(any(y < .15 for y in reds))
                     self.assertEqual(any(y > .85 for y in reds), not folded)
         for pose in range(4):
@@ -539,7 +547,7 @@ class Rendering(unittest.TestCase):
         for elapsed in (opened_at + 0.01, opened_at + action.HINGE_BEAT - 0.01):
             with mock_patch.object(e, "fly", wraps=e.fly) as fly:
                 image = e.step(pos, elapsed)
-                self.assertEqual(fly.call_count, 6)
+                self.assertEqual(fly.call_count, 5)
                 self.assertTrue(all(call.args[3] == 3 for call in fly.call_args_list))
                 held.append([call.args[1:5] for call in fly.call_args_list])
             self.assertEqual(image.getpixel(point)[3], 0)

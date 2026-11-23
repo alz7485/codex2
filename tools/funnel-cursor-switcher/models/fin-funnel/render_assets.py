@@ -62,12 +62,6 @@ for index in range(4):
 
 # Face the OUTSIDE of the two straightened panels. +X is the upper tip.
 view((0,-15,0),(1,0,0),90,16)
-fill = bpy.data.lights.new('Rack frontal softbox', 'AREA')
-fill.energy, fill.size = 920, 9
-lamp = bpy.data.objects.new(fill.name, fill)
-scene.collection.objects.link(lamp)
-lamp.location = (0,-8,2)
-lamp.rotation_euler = (-lamp.location).to_track_quat('-Z','Y').to_euler()
 for folded in (False,True):
     open_arms(-82 if folded else 90,-90)
     shoot('rack-fold' if folded else 'rack')
