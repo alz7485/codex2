@@ -1,4 +1,5 @@
 import ctypes
+import os
 import struct
 import subprocess
 import sys
@@ -163,12 +164,21 @@ def verify_animated(source, root, system, cursor):
         return kind + struct.pack("<I", len(payload)) + payload + bytes(len(payload) % 2)
 
     # The Windows ANI format wraps icon frames in RIFF ACON.
-    frame = cursor.read_bytes()
+    data = cursor.read_bytes()
+    width, height, colors, reserved, hx, hy, size, offset = struct.unpack_from("<BBBBHHII", data, 6)
+    assert width == height == 32
+    frame = (
+        struct.pack("<HHHBBBBHHII", 0, 2, 1, width, height, colors, reserved, hx, hy, size, 22)
+        + data[offset : offset + size]
+    )
     header = struct.pack("<9I", 36, 2, 2, 0, 0, 0, 0, 6, 1)
     ani = category / "追加.ani"
     ani.write_bytes(
         chunk(b"RIFF", b"ACON" + chunk(b"anih", header) + chunk(b"LIST", b"fram" + chunk(b"icon", frame) * 2))
     )
+    windows_sample = next((Path(os.environ["WINDIR"]) / "Cursors").glob("*.ani"), None)
+    if windows_sample:
+        ani.write_bytes(windows_sample.read_bytes())
     assert ani in source["discover_cursors"](root)["自作"]
     system.install_file(ani)
 

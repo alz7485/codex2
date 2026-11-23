@@ -54,6 +54,8 @@ class WindowsCursor:
             wintypes.HINSTANCE, wintypes.LPCWSTR, wintypes.UINT, ctypes.c_int, ctypes.c_int, wintypes.UINT
         )
         self.user32.LoadImageW.restype = wintypes.HANDLE
+        self.user32.LoadCursorFromFileW.argtypes = (wintypes.LPCWSTR,)
+        self.user32.LoadCursorFromFileW.restype = wintypes.HANDLE
         self.user32.DestroyCursor.argtypes = (wintypes.HANDLE,)
         self.user32.DestroyCursor.restype = wintypes.BOOL
 
@@ -99,7 +101,10 @@ class WindowsCursor:
         if not installed.is_file():
             atomic_write(installed, data)
         image_cursor, lr_loadfromfile = 2, 0x0010
-        handle = self.user32.LoadImageW(None, str(installed), image_cursor, 0, 0, lr_loadfromfile)
+        if installed.suffix == ".ani":
+            handle = self.user32.LoadCursorFromFileW(str(installed))
+        else:
+            handle = self.user32.LoadImageW(None, str(installed), image_cursor, 0, 0, lr_loadfromfile)
         if not handle:
             raise ValueError(f"Windowsが「{source.name}」をカーソルとして読み込めませんでした。")
         self.user32.DestroyCursor(handle)
