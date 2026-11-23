@@ -1161,8 +1161,6 @@ class DeltaField(SpecialEffect):
 
     def __init__(self, config, engine):
         super().__init__(config, engine)
-        if self.e.art.sheet.stem == "フィンファンネル":
-            self.RACK_PAIR_OFFSETS = (0, 17, 33)
         if self.has_rack:
             self.lifetime += self.RACK_END + self.HINGE_BEAT
 
@@ -1257,6 +1255,91 @@ class DeltaField(SpecialEffect):
             self.e.fly(frame, vertex, heading, round(opening * 3), 44, opacity, deploying=True)
 
 
+class FinPyramidField(DeltaField):
+    """Six RX-93 units enclose the pointer with a projected square pyramid."""
+
+    RACK_FOLDED = (0, 2, 3, 4)
+    RACK_ANGLES = (-7, -2, -1, 3, 8, 12)
+    # Hinge centres traced from the supplied front view, left to right.
+    HINGES = ((0, 0), (9, 0), (18, -14), (27, -14), (35, -28), (43, -36))
+    # Four corners, top, then the sixth unit guarding the middle of the base.
+    STATIONS = ((-1,-1,-.54),(1,-1,-.54),(1,1,-.54),(-1,1,-.54),
+                (0,0,1.14),(0,0,-.54))
+    APPROACH = ((-170,-78),(108,-170),(170,64),(-102,170),(0,-182),(45,182))
+
+    def rack_layout(self, elapsed):
+        layout = []
+        for index, (dx, dy) in enumerate(self.HINGES):
+            age = elapsed - self.RACK_HOLD - (5-index)*self.RACK_STAGGER
+            # rack_frame places each half to one side of its canvas centre.
+            offset = (index % 2 - .5)*7
+            x = CENTER + 14 + dx - offset
+            y = CENTER + 26 + dy - 240*(max(0,age)/self.RACK_FLIGHT)**2
+            if y > -self.RACK_SIZE/2 - 24:
+                layout.append((index,(x,y),age>0))
+        return layout
+
+    def project(self, station):
+        x, z, height = station
+        yaw, tilt = math.radians(22), math.radians(19)
+        lateral = x*math.cos(yaw) - z*math.sin(yaw)
+        depth = x*math.sin(yaw) + z*math.cos(yaw)
+        radius = self.c["radius"]*.83
+        return ((CENTER+radius*lateral,
+                 CENTER+radius*(depth*math.sin(tilt)-height*math.cos(tilt))),
+                depth*math.cos(tilt)+height*math.sin(tilt))
+
+    def draw(self, frame, draw):
+        elapsed = self.e.now-self.event.time
+        if elapsed < self.RACK_END:
+            for i, pos, launched in self.rack_layout(elapsed):
+                folded = i in self.RACK_FOLDED
+                sprite = self.e.art.rack_frame(self.RACK_SIZE,self.RACK_ANGLES[i],folded,i%2)
+                if launched:
+                    age = elapsed-self.RACK_HOLD-(5-i)*self.RACK_STAGGER
+                    thrust = clamp(age/self.RACK_FLIGHT)
+                    y = pos[1]+self.RACK_SIZE*(.04 if folded else .44)
+                    draw.line([(pos[0],y),(pos[0],y+18*thrust)],fill=tint((155,214,255),thrust*self.c["opacity"]),width=2)
+                self.e.stamp(frame,sprite,(pos[0]-self.RACK_SIZE/2,pos[1]-self.RACK_SIZE/2),self.c["opacity"])
+            return
+
+        progress = self.field_progress(elapsed)
+        travel = clamp(progress/.32)
+        travel = travel*travel*(3-2*travel)
+        turn = clamp((progress-.21)/.18)
+        turn = turn*turn*(3-2*turn)
+        opening = clamp((progress-.39)/(self.OPEN_END-.39))
+        fade = clamp((1-progress)/.18)
+        strength = clamp((progress-self.OPEN_END)/.10)*fade
+        stations = [self.project(v) for v in self.STATIONS]
+        # Sort translucent surfaces and equipment together from back to front.
+        layers = []
+        if strength > 0:
+            for i in range(4):
+                ids = (i,(i+1)%4,4)
+                depth = sum(stations[j][1] for j in ids)/3
+                layers.append((depth,'face',ids))
+        layers.extend((depth,'unit',i) for i,(_,depth) in enumerate(stations))
+        for depth,kind,item in sorted(layers,key=lambda l:l[0]):
+            if kind == 'face':
+                pts = [stations[j][0] for j in item]
+                surface = Image.new("RGBA", frame.size)
+                brush = ImageDraw.Draw(surface)
+                brush.polygon(pts,fill=self.ink(strength*(.12+.11*clamp(.5+depth))))
+                brush.line(pts+[pts[0]],fill=self.ink(strength*(.39+.27*clamp(.5+depth))),width=2)
+                frame.alpha_composite(surface)
+                continue
+            target = stations[item][0]
+            dx,dy = self.APPROACH[item]
+            start = CENTER+dx,CENTER+dy
+            pos = tuple(a+(b-a)*travel for a,b in zip(start,target))
+            incoming = math.atan2(target[1]-start[1],target[0]-start[0])
+            inward = math.atan2(CENTER-target[1],CENTER-target[0])
+            heading = incoming+turn*((inward-incoming+math.pi)%TAU-math.pi)
+            self.e.fly(frame,pos,heading,round(3*opening),round(27+depth*3),
+                       fade*self.c["opacity"],deploying=progress>=.39)
+
+
 LAYERS = {
     "trail": Trail,
     "particles": Particles,
@@ -1307,6 +1390,7 @@ class EffectEngine:
         self.deploy = self.rare_formation = self.speed = 0
         self.layers = [
             (SazabiLaunch if k == "volley" and self.art.sheet and self.art.sheet.stem == "サザビー"
+             else FinPyramidField if k == "barrier" and self.art.sheet.stem == "フィンファンネル"
              else cls)(self.config[k], self)
             for k, cls in LAYERS.items()
             if self.config[k]["enabled"] and (k not in SPECIAL or k == self.special)

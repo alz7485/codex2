@@ -487,6 +487,43 @@ class Rendering(unittest.TestCase):
             self.assertGreater(g, r)
         self.assertEqual(e.step((0, 0), duration * 0.76).getpixel(sample)[3], 0)
 
+    def test_fin_pyramid_formation(self):
+        e = engine(["barrier"], cursor=CURSOR.with_name("フィンファンネル.cur"))
+        pos = (0, 0)
+        e.step(pos,0,[ClickEvent("left",pos,0,3)])
+        action = e.layers[0]
+        self.assertEqual(set(range(6))-set(action.RACK_FOLDED), {1,5})
+        for i in range(6):
+            layout=action.rack_layout(action.RACK_HOLD+i*action.RACK_STAGGER+.01)
+            self.assertEqual([j for j,_,launched in layout if not launched], list(range(5-i)))
+        self.assertIsNone(e.step(pos,action.RACK_EXIT_END+.1).getbbox())
+        with mock_patch.object(e,"fly",wraps=e.fly) as fly:
+            e.step(pos,action.RACK_END)
+            starts=[c.args[1] for c in fly.call_args_list]
+            self.assertEqual(len(starts),6)
+            self.assertTrue(all(any(p[axis]<0 for p in starts) and any(p[axis]>256 for p in starts) for axis in (0,1)))
+        with mock_patch.object(e,"fly",wraps=e.fly) as fly:
+            e.step(pos,action.RACK_END+action.c["duration"]*.56+.01)
+            for c in fly.call_args_list:
+                x,y=c.args[1]
+                self.assertAlmostEqual(math.cos(c.args[2]),(CENTER-x)/math.hypot(CENTER-x,CENTER-y))
+                self.assertAlmostEqual(math.sin(c.args[2]),(CENTER-y)/math.hypot(CENTER-x,CENTER-y))
+        from PIL import Image
+        # Visible red tip inlays at both ends of a straight unit,
+        # and only above the hinge in the folded middle pair.
+        for folded, suffix in ((False, "正面"), (True, "中央")):
+            with Image.open(e.art.sheet.parent / ("フィンファンネル.3D収納"+suffix+".png")) as art:
+                for half in (0, 1):
+                    unit = art.crop((half*art.width//2, 0, (half+1)*art.width//2, art.height))
+                    reds = [y/unit.height for y in range(unit.height) for x in range(unit.width)
+                            for r,g,b,a in [unit.getpixel((x,y))]
+                            if a>180 and r>1.5*g and r>1.5*b]
+                    self.assertTrue(any(y < .15 for y in reds))
+                    self.assertEqual(any(y > .85 for y in reds), not folded)
+        for pose in range(4):
+            self.assertEqual(e.art.frame(0,pose,96,deploying=True).tobytes(),
+                             read_poses(e.art.deployment)[pose].tobytes())
+
     def test_field_powers_up_after_opening(self):
         e = engine(["barrier"], cursor=CURSOR.with_name("フィンファンネル.cur"))
         pos = (0, 0)
@@ -502,7 +539,7 @@ class Rendering(unittest.TestCase):
         for elapsed in (opened_at + 0.01, opened_at + action.HINGE_BEAT - 0.01):
             with mock_patch.object(e, "fly", wraps=e.fly) as fly:
                 image = e.step(pos, elapsed)
-                self.assertEqual(fly.call_count, 3)
+                self.assertEqual(fly.call_count, 6)
                 self.assertTrue(all(call.args[3] == 3 for call in fly.call_args_list))
                 held.append([call.args[1:5] for call in fly.call_args_list])
             self.assertEqual(image.getpixel(point)[3], 0)
@@ -512,7 +549,7 @@ class Rendering(unittest.TestCase):
     def test_fin_launches_six_from_right_before_delta_field(self):
         from PIL import Image
 
-        for name in ("フィンファンネル", "νガンダムHWS"):
+        for name in ("νガンダムHWS",):
             e = engine(["barrier"], cursor=CURSOR.with_name(name + ".cur"))
             stored = e.step((0, 0), 0, [ClickEvent("left", (0, 0), 0, 3)])
             # All six units form one connected bank before the first release.
@@ -576,21 +613,6 @@ class Rendering(unittest.TestCase):
                 self.assertTrue(all(alpha.getpixel((x, y)) > 144 for x in range(min(xs), max(xs) + 1)))
             self.assertLess(e.art.rack_frame(action.RACK_SIZE, 0, False, 0).getbbox()[2],
                             e.art.rack_frame(action.RACK_SIZE, 0, False, 1).getbbox()[2])
-            if name == "フィンファンネル":
-                # Visible red tip inlays at both ends of a straight unit,
-                # and only above the hinge in the folded middle pair.
-                for folded, suffix in ((False, "正面"), (True, "中央")):
-                    with Image.open(e.art.sheet.parent / ("フィンファンネル.3D収納"+suffix+".png")) as art:
-                        for half in (0, 1):
-                            unit = art.crop((half*art.width//2, 0, (half+1)*art.width//2, art.height))
-                            reds = [y/unit.height for y in range(unit.height) for x in range(unit.width)
-                                    for r,g,b,a in [unit.getpixel((x,y))]
-                                    if a>180 and r>1.5*g and r>1.5*b]
-                            self.assertTrue(any(y < .15 for y in reds))
-                            self.assertEqual(any(y > .85 for y in reds), not folded)
-                for pose in range(4):
-                    self.assertEqual(e.art.frame(0,pose,96,deploying=True).tobytes(),
-                                     read_poses(e.art.deployment)[pose].tobytes())
             for i in range(6):
                 layout = action.rack_layout(action.RACK_HOLD + i * action.RACK_STAGGER + 0.01)
                 self.assertEqual({index for index, pos, launched in layout if not launched}, set(range(5 - i)))
