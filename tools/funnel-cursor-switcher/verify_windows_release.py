@@ -11,7 +11,7 @@ from tempfile import TemporaryDirectory
 from zipfile import ZipFile
 
 from effect_engine import ClickEvent
-from effect_settings import SAMPLES, SPECIAL, resolve, special_group
+from effect_settings import FIELDS, SAMPLES, SPECIAL, resolve, special_group
 from equipment_catalog import ACTIVE_EQUIPMENT, equipment_key, is_frozen
 from funnel_effect import (
     APPEARANCES,
@@ -103,13 +103,26 @@ def verify_effect(cursors):
                 path = cursors / key
                 group = special_group(key)
                 config = resolve(path.parent.name, {}, {group: {"enabled": True}})[0]
+                for effect_group in FIELDS:
+                    config[effect_group]["enabled"] = effect_group == group
                 effect = EffectEngine(load_sprite(path), APPEARANCES[path.stem], config, path)
                 assert effect.step(position, 0.0, [ClickEvent("left", position, 0.0)]) is None
                 effect.step(position, 0.1, [ClickEvent("left", position, 0.1, 3)])
-                frame = effect.step(position, 0.6)
-                assert frame is not None and frame.getbbox()
-                overlay.render(frame, position)
-                assert is_visible(window)
+                # Launch pauses can intentionally be blank at a fixed time.
+                # Exercise the full action instead, with normal effects off.
+                lifetime = max(layer.lifetime for layer in effect.layers)
+                samples = max(30, int(lifetime * 30))
+                visible_frames = 0
+                for sample in range(1, samples + 1):
+                    frame = effect.step(position, 0.1 + lifetime * sample / samples)
+                    if frame is not None and frame.getbbox():
+                        overlay.render(frame, position)
+                        assert is_visible(window), key
+                        visible_frames += 1
+                assert visible_frames >= 3, key
+                assert effect.step(position, 0.1 + lifetime + 0.1) is None, key
+                overlay.render(None, position)
+                assert not is_visible(window), key
         # Force a high-DPI DIB reallocation and draw across a negative desktop origin.
         config = resolve("ファンネル", SAMPLES["戦闘モード"], {})[0]
         effect = EffectEngine(sprite, APPEARANCES[name], config)
