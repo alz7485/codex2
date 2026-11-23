@@ -1,0 +1,38 @@
+name: Funnel Cursor ZIP Build
+
+on:
+  push:
+    branches:
+      - "build/funnel-cursor-v1.4.0-*"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    if: startsWith(github.event.head_commit.message, 'Build latest funnel cursor ZIP')
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: tools/funnel-cursor-switcher
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          architecture: x64
+      - name: Build Windows ZIP
+        shell: cmd
+        run: build-onedir.cmd
+      - name: Check catalog, editor, and effects
+        shell: cmd
+        run: .venv-build\Scripts\python.exe -m unittest -v test_catalog test_effects test_editor
+      - name: Verify extracted Windows app and cursor restore
+        shell: cmd
+        run: .venv-build\Scripts\python.exe verify_windows_release.py dist/FunnelCursorSwitcher-v1.4.0-windows-x64.zip --check-system-restore
+      - name: Upload ready-to-run Windows app
+        uses: actions/upload-artifact@v4
+        with:
+          name: FunnelCursorSwitcher-v1.4.0-windows-x64
+          path: tools/funnel-cursor-switcher/dist/FunnelCursorSwitcher/
+          if-no-files-found: error
