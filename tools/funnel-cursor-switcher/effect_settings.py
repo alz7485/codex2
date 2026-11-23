@@ -47,6 +47,8 @@ NAMES = dict(
     followers="随伴ファンネル",
     deploy="展開・収束",
     rare="レア演出",
+    spiral="螺旋ビット放出",
+    barrier="Δ型Iフィールド",
 )
 FIELDS = {
     "boost": dict(
@@ -124,6 +126,14 @@ FIELDS = {
         color=COLOR,
         opacity=ALPHA,
     ),
+    "spiral": dict(
+        count=Field("放出数", 6, 2, 10),
+        radius=Field("広がり px", 76, 32, 96),
+        turns=Field("回転数", 1.1, 0.4, 2),
+        duration=Field("飛行時間 秒", 0.95, 0.4, 1.6),
+        color=COLOR,
+        opacity=ALPHA,
+    ),
     "deploy": dict(
         distance=Field("展開半径 px", 30, 12, 72),
         trigger=choice("きっかけ", "すべて", "停止", "移動再開", "クリック"),
@@ -145,6 +155,37 @@ FIELDS = {
         opacity=ALPHA,
     ),
 }
+SPECIAL = {
+    "spiral": {
+        "ファンネル/キュベレイ.cur",
+        "ファンネル/キュベレイMk-II（プル機）.cur",
+        "ファンネル/キュベレイMk-II（プルツー機）.cur",
+    },
+    "barrier": {
+        "ファンネル/フィンファンネル.cur",
+        "ファンネル/νガンダムHWS.cur",
+        "ファンネル/Hi-νガンダム.cur",
+    },
+}
+# Internal modifier mask shared by the Tk and Windows input adapters.
+MODIFIERS = {
+    "Ctrl＋Shift": 3,
+    "Ctrl＋Alt": 6,
+    "Shift＋Alt": 5,
+    "Ctrl＋Shift＋Alt": 7,
+    "Ctrl": 2,
+    "Shift": 1,
+    "Alt": 4,
+}
+BUTTONS = {"左クリック": "left", "中クリック": "middle", "右クリック": "right"}
+FIELDS["barrier"] = dict(
+    radius=Field("半径 px", 58, 28, 84),
+    duration=Field("持続 秒", 1.4, 0.7, 2.4),
+    color=Field("色", "#8cecd9"),
+    opacity=ALPHA,
+)
+for group in SPECIAL:
+    FIELDS[group].update(modifiers=choice("発動キー", *MODIFIERS), button=choice("発動ボタン", *BUTTONS))
 for key, fields in FIELDS.items():
     fields["enabled"] = Field("有効", key in ("boost", "trail"))
 FIELDS["click"]["left_color"] = Field("左の色", "機体色")
@@ -160,8 +201,17 @@ STANDARD = "標準"
 SAMPLES = {
     STANDARD: {},
     "控えめ": {"boost": {"intensity": 0.45}, "trail": {"opacity": 0.4, "duration": 130}},
-    "戦闘モード": {key: {"enabled": True} for key in FIELDS},
+    "戦闘モード": {key: {"enabled": True} for key in FIELDS if key not in SPECIAL},
 }
+
+
+def special_group(cursor):
+    return next((group for group, cursors in SPECIAL.items() if cursor in cursors), None)
+
+
+def default_binding(cursor):
+    group = special_group(cursor)
+    return {"preset": STANDARD, "overrides": {group: {"enabled": True}} if group else {}}
 
 
 def valid_name(name):
@@ -264,7 +314,7 @@ class Settings:
         return {**SAMPLES, **self.presets}
 
     def binding(self, cursor):
-        return deepcopy(self.cursors.get(cursor, dict(preset=STANDARD, overrides={})))
+        return deepcopy(self.cursors[cursor]) if cursor in self.cursors else default_binding(cursor)
 
     def write(self):
         data = encode(

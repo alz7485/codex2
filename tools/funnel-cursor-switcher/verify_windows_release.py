@@ -95,6 +95,16 @@ def verify_effect(cursors):
             assert effect.step(position, 0.45) is None
             overlay.render(None, position)
             assert not is_visible(window)
+        for name, group in (("キュベレイ", "spiral"), ("フィンファンネル", "barrier")):
+            path = assets / f"{name}.cur"
+            config = resolve("ファンネル", {}, {group: {"enabled": True}})[0]
+            effect = EffectEngine(load_sprite(path), APPEARANCES[name], config, path)
+            assert effect.step(position, 0.0, [ClickEvent("left", position, 0.0)]) is None
+            effect.step(position, 0.1, [ClickEvent("left", position, 0.1, 3)])
+            frame = effect.step(position, 0.6)
+            assert frame is not None and frame.getbbox()
+            overlay.render(frame, position)
+            assert is_visible(window)
         # Force a high-DPI DIB reallocation and draw across a negative desktop origin.
         config = resolve("ファンネル", SAMPLES["戦闘モード"], {})[0]
         effect = EffectEngine(sprite, APPEARANCES[name], config)

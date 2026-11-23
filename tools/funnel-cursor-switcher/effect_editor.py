@@ -13,16 +13,21 @@ from PIL import ImageTk
 from cursor_art import APPEARANCES, DEFAULT_APPEARANCE, load_sprite
 from effect_engine import ClickTracker, EffectEngine
 from effect_settings import (
+    BUTTONS,
+    MODIFIERS,
+    SPECIAL,
     FIELDS,
     NAMES,
     SAMPLES,
     STANDARD,
     Settings,
     atomic_write,
+    default_binding,
     difference,
     encode,
     read_preset,
     resolve,
+    special_group,
     valid_name,
 )
 from funnel_effect import FunnelEffect
@@ -41,9 +46,11 @@ class Preview:
             ttk.Radiobutton(
                 controls, text=name, variable=self.mode, value=name, command=self.restart_demo
             ).pack(side="left")
+        self.test_button = ttk.Button(controls, text="特殊演出を試す", command=self.try_special)
         self.canvas.bind("<Motion>", self.motion)
         self.canvas.bind("<Leave>", lambda _: setattr(self, "manual", None))
         self.canvas.bind("<ButtonPress-1>", lambda event: self.press(event, "left"))
+        self.canvas.bind("<ButtonPress-2>", lambda event: self.press(event, "middle"))
         self.canvas.bind("<ButtonPress-3>", lambda event: self.press(event, "right"))
         self.tracker = ClickTracker()
         self.timer = self.engine = self.manual = None
@@ -60,14 +67,35 @@ class Preview:
 
     def press(self, event, button):
         self.motion(event)
-        self.events = (self.events + [self.tracker.press(button, self.manual, time.monotonic())])[-32:]
+        state = event.state
+        modifiers = int(bool(state & 1)) | (2 if state & 4 else 0) | (4 if state & (0x8 | 0x20000) else 0)
+        self.events = (self.events + [self.tracker.press(button, self.manual, time.monotonic(), modifiers)])[
+            -32:
+        ]
+
+    def try_special(self):
+        if self.engine and self.engine.special:
+            config = self.engine.config[self.engine.special]
+            if config["enabled"]:
+                pos = self.engine.pos or (self.canvas.winfo_width() // 2, self.canvas.winfo_height() // 2)
+                self.events.append(
+                    self.tracker.press(
+                        BUTTONS[config["button"]], pos, time.monotonic(), MODIFIERS[config["modifiers"]]
+                    )
+                )
 
     def set(self, path, config):
         self.events.clear()
+        self.test_button.pack_forget()
         self.tracker.previous = None
         if path is not None:
             sprite = load_sprite(path)
             self.engine = EffectEngine(sprite, APPEARANCES.get(path.stem, DEFAULT_APPEARANCE), config, path)
+            if self.engine.special:
+                self.test_button.pack(side="left")
+                self.test_button.state(
+                    ["!disabled"] if config[self.engine.special]["enabled"] else ["disabled"]
+                )
             self.photo = ImageTk.PhotoImage(sprite, master=self.canvas)
             self.canvas.itemconfigure(self.pointer, image=self.photo)
         else:
@@ -154,7 +182,12 @@ class Editor:
         self.rows.columnconfigure(2, weight=1)
         self.flags, self.sliders, self.numbers = {}, {}, {}
         self.refreshing = False
+        self.special_widgets = {}
+        self.special_title = ttk.Label(self.rows)
+        self.special_title.grid(row=len(NAMES) - len(SPECIAL), columnspan=5, sticky="w", pady=(7, 2))
         for idx, (group, label) in enumerate(NAMES.items()):
+            if group in SPECIAL:
+                idx += 1
             var = self.flags[group] = tk.BooleanVar()
             ttk.Checkbutton(
                 self.rows,
@@ -180,6 +213,8 @@ class Editor:
             ttk.Button(self.rows, text="詳細", width=5, command=lambda g=group: self.details(g)).grid(
                 row=idx, column=4, pady=2
             )
+            if group in SPECIAL:
+                self.special_widgets[group] = self.rows.grid_slaves(row=idx)
         bar = ttk.Frame(right)
         bar.pack(fill="x", pady=(4, 0))
         for label, cmd in (
@@ -256,7 +291,23 @@ class Editor:
         self.refreshing = False
         self.feedback()
 
+    def show_special_controls(self):
+        group = special_group(self.key)
+        for name, widgets in self.special_widgets.items():
+            for widget in widgets:
+                if name == group:
+                    widget.grid()
+                else:
+                    widget.grid_remove()
+        if group:
+            config = self.values()[0][group]
+            self.special_title.configure(text=f"特殊演出　{config['modifiers']}＋{config['button']}")
+            self.special_title.grid()
+        else:
+            self.special_title.grid_remove()
+
     def feedback(self):
+        self.show_special_controls()
         dirty = self.binding() != self.store.binding(self.key)
         self.state.set(
             "編集中（未適用）"
@@ -310,12 +361,14 @@ class Editor:
     def all_enabled(self, value):
         if self.path:
             for g in FIELDS:
+                if g in SPECIAL and g != special_group(self.key):
+                    continue
                 self.edit(g, "enabled", value)
             self.refresh()
 
     def reset(self):
         if self.path:
-            self.drafts[self.key] = {"preset": STANDARD, "overrides": {}}
+            self.drafts[self.key] = default_binding(self.key)
             self.refresh()
 
     def subwindow(self, title):

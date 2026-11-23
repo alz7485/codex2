@@ -70,6 +70,24 @@ class EditorFlow(TestCase):
         self.system.apply.assert_called_with(None)
         self.fx.stop.assert_called_once()
 
+    def test_special_command_preview_and_save(self):
+        ui = self.ui
+        self.assertTrue(ui.special_widgets["spiral"][0].winfo_ismapped())
+        self.assertFalse(ui.special_widgets["barrier"][0].winfo_ismapped())
+        ui.edit("spiral", "modifiers", "Ctrl＋Alt")
+        ui.edit("spiral", "button", "中クリック")
+        ui.update_preview()
+        ui.preview.try_special()
+        event = ui.preview.events.pop()
+        self.assertEqual((event.kind, event.modifiers), ("middle", 6))
+        ui.apply()
+        self.assertEqual(
+            Settings(ui.store.path).binding(ui.key)["overrides"]["spiral"]["button"], "中クリック"
+        )
+        self.select("自作")
+        self.root.update()
+        self.assertFalse(ui.special_title.winfo_ismapped())
+
     def test_named_presets_and_delete_preserves_look(self):
         ui = self.ui
         ui.edit("boost", "width", 1.6)
@@ -100,5 +118,5 @@ class EditorFlow(TestCase):
         win = next(w for w in self.root.winfo_children() if isinstance(w, tk.Toplevel))
         button(win, "閉じる").invoke()
         ui.update_preview()
-        ui.preview.press(Mock(x=50, y=60), "right")
+        ui.preview.press(Mock(x=50, y=60, state=0), "right")
         self.assertEqual(ui.preview.events[-1].kind, "right")

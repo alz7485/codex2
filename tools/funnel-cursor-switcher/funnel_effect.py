@@ -100,6 +100,7 @@ class ClickObserver:
         self.queue = deque(maxlen=32)
         self.overlay = overlay
         self.error = False
+        self.key_state = bind(user, "GetAsyncKeyState", ctypes.c_short, ctypes.c_int)
         self.register = bind(
             user,
             "RegisterRawInputDevices",
@@ -152,12 +153,17 @@ class ClickObserver:
                 )
                 if read == ctypes.sizeof(packet) and packet.header.kind == 0:
                     flags = packet.mouse.buttons.flags
-                    if flags & 5:
+                    if flags & 0x15:
                         pos = self.overlay.cursor_position()
                         if pos is not None:
-                            for mask, name in ((1, "left"), (4, "right")):
+                            modifiers = sum(
+                                bit
+                                for vk, bit in ((0x10, 1), (0x11, 2), (0x12, 4))
+                                if self.key_state(vk) & 0x8000
+                            )
+                            for mask, name in ((1, "left"), (4, "right"), (0x10, "middle")):
                                 if flags & mask:
-                                    self.queue.append((name, pos, time.monotonic()))
+                                    self.queue.append((name, pos, time.monotonic(), modifiers))
             elif msg == 0x7E:  # WM_DISPLAYCHANGE
                 self.overlay.monitor = None
         except (OSError, ValueError):
@@ -388,7 +394,12 @@ class FunnelEffect:
         self.animation = EffectEngine(
             load_sprite(cursor), APPEARANCES.get(cursor.stem, DEFAULT_APPEARANCE), config, cursor
         )
+        if not self.animation.layers:
+            self.animation = None
+            return
         observe = any(config[k]["enabled"] for k in ("click", "followers", "deploy", "particles"))
+        if self.animation.special:
+            observe |= config[self.animation.special]["enabled"]
         try:
             self.overlay = LayeredOverlay(observe)
             self.tick()
@@ -411,10 +422,12 @@ class FunnelEffect:
                     raise OSError("マウスの状態を読み取れませんでした。")
                 queue = overlay.observer.queue
                 while queue:
-                    button, pos, stamp = queue.popleft()
+                    button, pos, stamp, modifiers = queue.popleft()
                     if position is not None and start - stamp < 0.35:
                         events.append(
-                            overlay.tracker.press(button, tuple(n / overlay.scale for n in pos), stamp)
+                            overlay.tracker.press(
+                                button, tuple(n / overlay.scale for n in pos), stamp, modifiers
+                            )
                         )
             logical = tuple(n / overlay.scale for n in position) if position is not None else None
             frame = self.animation.step(logical, start, events)

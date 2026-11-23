@@ -9,6 +9,8 @@ from PIL import Image, ImageColor, ImageDraw
 
 from cursor_art import NOZZLES, OVERLAY_SIZE, anchors
 
+from effect_settings import BUTTONS, MODIFIERS, SPECIAL, special_group
+
 CENTER = OVERLAY_SIZE // 2
 TAU = math.tau
 
@@ -38,6 +40,7 @@ class ClickEvent:
     kind: str
     pos: tuple
     time: float
+    modifiers: int = 0
 
 
 class ClickTracker:
@@ -45,14 +48,14 @@ class ClickTracker:
         self.interval, self.area = interval, area
         self.previous = None
 
-    def press(self, button, pos, now):
+    def press(self, button, pos, now, modifiers=0):
         last = self.previous
         self.previous = (pos, now) if button == "left" else None
         if button == "left" and last and now - last[1] <= self.interval:
             if all(abs(a - b) <= radius / 2 for a, b, radius in zip(pos, last[0], self.area)):
                 self.previous = None
                 button = "double"
-        return ClickEvent(button, pos, now)
+        return ClickEvent(button, pos, now, modifiers)
 
 
 class Layer:
@@ -405,12 +408,97 @@ class Followers(Layer):
                 )
 
 
+class SpecialEffect(Layer):
+    COOLDOWN = 3.0
+
+    def __init__(self, config, engine):
+        super().__init__(config, engine)
+        self.event = None
+        self.last_launch = -math.inf
+        self.lifetime = config["duration"]
+        size = tuple(max(1, round(n * 0.46)) for n in engine.sprite.size)
+        self.sprite = engine.sprite.resize(size, Image.Resampling.LANCZOS)
+
+    def update(self):
+        for event in self.e.inputs:
+            button = "left" if event.kind == "double" else event.kind
+            if (
+                button == BUTTONS[self.c["button"]]
+                and event.modifiers == MODIFIERS[self.c["modifiers"]]
+                and event.time - self.last_launch >= self.COOLDOWN
+            ):
+                self.event = event
+                self.last_launch = event.time
+        if self.event and self.e.now - self.event.time >= self.lifetime:
+            self.event = None
+        return self.event is not None
+
+    def bit(self, frame, pos, opacity):
+        x, y = pos
+        self.e.stamp(frame, self.sprite, (x - self.sprite.width / 2, y - self.sprite.height / 2), opacity)
+
+
+class SpiralBits(SpecialEffect):
+    STAGGER = 0.035
+
+    def __init__(self, config, engine):
+        super().__init__(config, engine)
+        self.lifetime += (config["count"] - 1) * self.STAGGER
+
+    def location(self, origin, index, progress):
+        radius = 7 + (self.c["radius"] - 7) * progress
+        angle = -3 * math.pi / 4 + TAU * (index / self.c["count"] + self.c["turns"] * progress)
+        return point(*origin, radius, angle)
+
+    def draw(self, frame, draw):
+        origin = self.e.local(self.event.pos)
+        for index in range(self.c["count"]):
+            age = self.e.now - self.event.time - index * self.STAGGER
+            progress = age / self.c["duration"]
+            if not 0 <= progress < 1:
+                continue
+            fade = min(1, (1 - progress) / 0.25)
+            head = self.location(origin, index, progress)
+            last = head
+            for step in range(1, 7):
+                tail = self.location(origin, index, max(0, progress - step * 0.017))
+                draw.line([last, tail], fill=self.ink(fade * (7 - step) / 8), width=2 if step < 3 else 1)
+                last = tail
+            self.bit(frame, head, fade * self.c["opacity"])
+
+
+class DeltaField(SpecialEffect):
+    """Three fin funnels unfold a triangular barrier around the current pointer."""
+
+    def draw(self, frame, draw):
+        progress = (self.e.now - self.event.time) / self.lifetime
+        unfold = clamp(progress / 0.24)
+        unfold = unfold * unfold * (3 - 2 * unfold)
+        fade = clamp((1 - progress) / 0.28)
+        strength = unfold * fade
+        radius = 7 + self.c["radius"] * unfold
+        center = (CENTER, CENTER)
+        vertices = [point(*center, radius, -math.pi / 2 + i * TAU / 3) for i in range(3)]
+        apex = (CENTER + radius * 0.10, CENTER + radius * 0.17)
+        for i, a in enumerate(vertices):
+            b = vertices[(i + 1) % 3]
+            draw.polygon([apex, a, b], fill=self.ink(strength * (0.07 + i * 0.035)))
+        for vertex in vertices:
+            draw.line([vertex, apex], fill=self.ink(strength * 0.42), width=1)
+        draw.line(vertices + vertices[:1], fill=self.ink(strength * 0.23), width=5)
+        draw.line(vertices + vertices[:1], fill=self.ink(strength), width=2)
+        for vertex in vertices:
+            self.bit(frame, vertex, strength * self.c["opacity"])
+
+
 LAYERS = {
     "trail": Trail,
     "particles": Particles,
     "rare": Rare,
     "deploy": Deploy,
     "followers": Followers,
+    "spiral": SpiralBits,
+    "barrier": DeltaField,
     "idle": Idle,
     "boost": Boost,
     "click": Click,
@@ -420,6 +508,7 @@ LAYERS = {
 class EffectEngine:
     def __init__(self, sprite, appearance, config, path=None, seed=None):
         self.sprite, self.config = sprite, config
+        self.special = special_group(f"{path.parent.name}/{path.name}") if path else None
         self.hot, back = anchors(sprite, path)
         self.rear = CENTER + back[0] - self.hot[0], CENTER + back[1] - self.hot[1]
         dx, dy = back[0] - self.hot[0], back[1] - self.hot[1]
@@ -436,7 +525,11 @@ class EffectEngine:
         self.has_moved = False
         self.heading = -3 * math.pi / 4
         self.deploy = self.rare_formation = self.speed = 0
-        self.layers = [cls(self.config[k], self) for k, cls in LAYERS.items() if self.config[k]["enabled"]]
+        self.layers = [
+            cls(self.config[k], self)
+            for k, cls in LAYERS.items()
+            if self.config[k]["enabled"] and (k not in SPECIAL or k == self.special)
+        ]
 
     def local(self, pos):
         return CENTER + pos[0] - self.pos[0], CENTER + pos[1] - self.pos[1]
@@ -462,7 +555,9 @@ class EffectEngine:
         first = self.pos is None
         elapsed = 1 / 60 if first else max(0.0001, now - self.last_time)
         self.dt = min(0.12, elapsed)
-        self.now, self.last_time, self.clicks = now, now, clicks
+        self.now = self.last_time = now
+        self.inputs = clicks
+        self.clicks = [event for event in clicks if event.kind in ("left", "right", "double")]
         previous = pos if first else self.pos
         self.pos = pos
         self.delta = pos[0] - previous[0], pos[1] - previous[1]
