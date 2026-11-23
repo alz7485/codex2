@@ -1,16 +1,16 @@
-from collections import Counter
 import ctypes
 import hashlib
 import json
 import os
 from pathlib import Path
 import sys
-import tempfile
 import tkinter as tk
 from ctypes import wintypes
-from tkinter import messagebox, ttk
+from tkinter import messagebox
 
-from funnel_effect import FunnelEffect
+from effect_editor import Editor
+from effect_settings import atomic_write
+from funnel_effect import enable_monitor_dpi
 
 
 APP_NAME = "ファンネル・カーソル切替"
@@ -36,20 +36,6 @@ def discover_cursors(folder):
         if cursors:
             categories[category.name] = cursors
     return categories
-
-
-def atomic_write(path, data):
-    temporary = None
-    try:
-        with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as file:
-            temporary = Path(file.name)
-            file.write(data)
-            file.flush()
-            os.fsync(file.fileno())
-        os.replace(temporary, path)
-    finally:
-        if temporary is not None:
-            temporary.unlink(missing_ok=True)
 
 
 class WindowsCursor:
@@ -175,140 +161,12 @@ class WindowsCursor:
                 return status
 
 
-def show_window(root, entries, system_cursor):
-    root.title(APP_NAME)
-    root.resizable(False, False)
-    page = ttk.Frame(root, padding=20)
-    page.grid(sticky="nsew")
-    page.columnconfigure(1, weight=1)
-
-    style = ttk.Style(root)
-    style.configure("Heading.TLabel", font=("Yu Gothic UI", 16, "bold"))
-    ttk.Label(page, text="カーソルを選ぶ", style="Heading.TLabel").grid(row=0, columnspan=2, sticky="w", pady=(0, 16))
-
-    restore_label = RESTORE
-    while restore_label in entries:
-        restore_label += "（設定）"
-    category_labels = list(entries) + [restore_label]
-    ttk.Label(page, text="1. 分類").grid(row=1, column=0, sticky="w", padx=(0, 18))
-    category = ttk.Combobox(page, values=category_labels, state="readonly", width=39)
-    category.grid(row=1, column=1, sticky="ew")
-
-    ttk.Label(page, text="2. カーソル").grid(row=2, column=0, sticky="w", padx=(0, 18), pady=10)
-    cursor = ttk.Combobox(page, state="readonly", width=39)
-    cursor.grid(row=2, column=1, sticky="ew", pady=10)
-
-    preview = ttk.Frame(page)
-    preview.grid(row=3, columnspan=2, sticky="ew", pady=(0, 14))
-    ttk.Label(preview, text="プレビュー").pack(side="left", padx=(0, 10))
-    swatches = tk.Canvas(preview, width=88, height=40, highlightthickness=0, takefocus=False)
-    swatches.pack(side="left")
-    swatches.create_rectangle(0, 0, 40, 40, fill="#ffffff", outline="#c7cdd5")
-    swatches.create_rectangle(48, 0, 88, 40, fill="#253141", outline="#253141")
-
-    ttk.Label(page, text="移動エフェクト").grid(row=4, column=0, sticky="w", padx=(0, 18), pady=(0, 12))
-    effect_enabled = tk.BooleanVar(value=True)
-
-    status = tk.StringVar()
-    ttk.Label(page, textvariable=status, wraplength=430).grid(row=5, columnspan=2, sticky="w", pady=(0, 12))
-    applied_cursor = None
-
-    def effect_error(error):
-        effect_enabled.set(False)
-        status.set(f"エフェクトを停止しました。{error}")
-
-    effect = FunnelEffect(root, CURSORS / "ファンネル" / "フィンファンネル.png", effect_error)
-
-    def update_effect():
-        try:
-            if applied_cursor is None or not effect_enabled.get():
-                effect.stop()
-            else:
-                effect.start(applied_cursor)
-        except (OSError, ValueError) as error:
-            effect.stop()
-            effect_error(error)
-
-    effect_toggle = ttk.Checkbutton(page, text="噴射光と軌跡", variable=effect_enabled, command=update_effect)
-    effect_toggle.grid(row=4, column=1, sticky="w", pady=(0, 12))
-
-    def close():
-        effect.stop()
-        root.destroy()
-
-    def choices():
-        selection = category.current()
-        return list(entries.values())[selection] if 0 <= selection < len(entries) else [None]
-
-    def selected():
-        index = cursor.current()
-        return choices()[index] if index >= 0 else None
-
-    def render_preview(_event=None):
-        swatches.delete("image")
-        swatches.image = None
-        path = selected()
-        if path is not None:
-            try:
-                photo = tk.PhotoImage(master=root, file=str(path.with_suffix(".png")))
-            except tk.TclError:
-                pass
-            else:
-                factor = max(1, (max(photo.width(), photo.height()) + 31) // 32)
-                swatches.image = photo.subsample(factor) if factor > 1 else photo
-                for x in (20, 68):
-                    swatches.create_image(x, 20, image=swatches.image, tags="image")
-        apply_button.state(["!disabled"] if cursor.current() >= 0 else ["disabled"])
-
-    def choose_category(_event=None):
-        available = choices()
-        if available == [None]:
-            labels = ["変更前のカーソル"]
-        else:
-            name_counts = Counter(path.stem.casefold() for path in available)
-            labels = [path.name if name_counts[path.stem.casefold()] > 1 else path.stem for path in available]
-        cursor.configure(values=labels)
-        cursor.set("")
-        if len(labels) == 1:
-            cursor.current(0)
-        render_preview()
-
-    def apply(_event=None):
-        nonlocal applied_cursor
-        if cursor.current() < 0:
-            return
-        target = selected()
-        try:
-            result = system_cursor.apply(target)
-        except (OSError, ValueError) as error:
-            messagebox.showerror(APP_NAME, str(error), parent=root)
-            return
-        applied_cursor = target
-        status.set(result)
-        update_effect()
-
-    apply_button = ttk.Button(page, text="適用", command=apply)
-    apply_button.grid(row=6, column=1, sticky="e")
-    category.bind("<<ComboboxSelected>>", choose_category)
-    cursor.bind("<<ComboboxSelected>>", render_preview)
-    root.protocol("WM_DELETE_WINDOW", close)
-    root.bind("<Return>", apply)
-
-    if entries:
-        category.current(0)
-        status.set("分類とカーソルを選んで「適用」。")
-    else:
-        category.current(0)
-        status.set("「カーソル」フォルダに分類フォルダと .cur ファイルを追加してください。")
-    choose_category()
-    category.focus_set()
-
-
 def main():
     if sys.platform != "win32":
         print("このツールはWindows用です。", file=sys.stderr)
         return 1
 
+    enable_monitor_dpi()
     root = tk.Tk()
     try:
         system_cursor = WindowsCursor()
@@ -317,7 +175,7 @@ def main():
         messagebox.showerror(APP_NAME, str(error), parent=root)
         root.destroy()
         return 1
-    show_window(root, entries, system_cursor)
+    Editor(root, entries, system_cursor, APP_NAME)
     root.mainloop()
     return 0
 

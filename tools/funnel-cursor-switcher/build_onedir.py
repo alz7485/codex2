@@ -25,6 +25,7 @@ def main():
     bundle = dist / NAME
     shutil.copytree(ROOT / "カーソル", bundle / "カーソル", dirs_exist_ok=True)
     shutil.copy2(ROOT / "README.md", bundle / "README.md")
+    shutil.copy2(ROOT / "検証記録.md", bundle / "検証記録.md")
     archive = shutil.make_archive(
         str(dist / f"{NAME}-windows-x64"), "zip", root_dir=dist, base_dir=NAME
     )

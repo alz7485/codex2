@@ -1,167 +1,28 @@
-from collections import deque
 import ctypes
-from ctypes import wintypes
-import math
-from pathlib import Path
 import time
+from collections import deque
+from ctypes import wintypes
 
-from PIL import Image, ImageColor, ImageDraw, ImageFilter
+from PIL import Image
 
+from cursor_art import APPEARANCES, DEFAULT_APPEARANCE, OVERLAY_SIZE, load_sprite
+from effect_engine import ClickTracker, EffectEngine
 
-OVERLAY_SIZE = 256
 WINDOW_TITLE = "Funnel Cursor Effect"
-
-# Each nozzle is (base offset, tip offset, length multiplier, half-width).
-NOZZLES = {
-    "needle": ((0, 0, 1.14, 2.3),),
-    "flare": ((0, 0, 0.86, 3.9),),
-    "twin": ((-1.8, -3.8, 1.0, 1.9), (1.8, 3.6, 0.82, 1.8)),
-    "fan": ((-2.8, -5.5, 0.65, 1.5), (0, 0, 0.9, 2.2), (2.8, 5.2, 0.7, 1.5)),
-    "ribbons": ((-2, -2.8, 1.03, 1.7), (0, 0, 1.12, 1.7), (2, 3.6, 1.05, 1.7)),
-}
-
-# Artwork treatments chosen for the supplied reference and each unit's palette.
-APPEARANCES = {
-    "フィンファンネル": ("twin", ("#d6fb43", "#a3d722")),
-    "サザビー": ("fan", ("#ff7128", "#ffc33d", "#ff4551")),
-    "Hi-νガンダム": ("twin", ("#8c91ff", "#bd7fff")),
-    "キュベレイ": ("needle", ("#62d4ff",)),
-    "ヤクト・ドーガ": ("fan", ("#ffbe3a", "#ffe86a", "#f89f2c")),
-    "ナイチンゲール": ("flare", ("#ff8d37",)),
-    "クシャトリヤ": ("flare", ("#90e195",)),
-    "ユニコーン": ("ribbons", ("#39edb8", "#b9ffd8", "#54e59b")),
-    "ガンダム・エアリアル": ("twin", ("#6fe8ff", "#6398ff")),
-    "ガンダム・キャリバーン": ("ribbons", ("#ff70bb", "#82edff", "#d4ff59")),
-    "ガンダム・ファラクト": ("needle", ("#bb71f9",)),
-    "ガンダム・ルブリス": ("flare", ("#ff77cc",)),
-    "ストライクフリーダム": ("needle", ("#61a8ff",)),
-    "レジェンドガンダム": ("twin", ("#7ddfff", "#50c8ea")),
-    "カオスガンダム": ("flare", ("#ffaf57",)),
-    "ガンダムサバーニャ": ("twin", ("#7bfa87", "#c1ffc3")),
-    "Ξガンダム": ("needle", ("#ffca51",)),
-    "Sガンダム": ("flare", ("#83e2ff",)),
-    "ロングレンジ・フィン・ファンネル（RX-93ff）": ("ribbons", ("#6bd8ff", "#b6e8ff", "#ffc85c")),
-    "νガンダムHWS": ("twin", ("#c9ef64", "#86d754")),
-    "クィン・マンサ": ("fan", ("#7de9a2", "#c6ffd3", "#56cf98")),
-    "キュベレイMk-II（プル機）": ("needle", ("#bd8bff",)),
-    "キュベレイMk-II（プルツー機）": ("needle", ("#ff7199",)),
-    "エルメス": ("flare", ("#69e9ce",)),
-    "α・アジール": ("fan", ("#ffb24e", "#ffe5a1", "#ff783a")),
-}
-DEFAULT_APPEARANCE = ("needle", ("#72dfff",))
-
-
-def load_sprite(path, fallback):
-    try:
-        with Image.open(path.with_suffix(".png")) as source:
-            if max(source.size) <= 4096:
-                sprite = source.convert("RGBA")
-                sprite.thumbnail((32, 32), Image.Resampling.LANCZOS)
-                if sprite.getbbox():
-                    return sprite
-    except OSError:
-        pass
-    with Image.open(fallback) as source:
-        return source.convert("RGBA")
-
-
-def sprite_axis(sprite):
-    alpha = sprite.getchannel("A")
-    points = [(x, y) for y in range(sprite.height) for x in range(sprite.width) if alpha.getpixel((x, y)) >= 144]
-    if not points:
-        return 20, 20
-    front = min(points, key=lambda p: (sum(p), -alpha.getpixel(p), p[1]))
-    back = max(points, key=lambda p: (sum(p), alpha.getpixel(p), -p[1]))
-    delta = back[0] - front[0], back[1] - front[1]
-    return delta if delta != (0, 0) else (20, 20)
-
-
-class ThrustAnimation:
-    def __init__(self, sprite, appearance):
-        nozzle, colors = appearance
-        self.nozzles = NOZZLES[nozzle]
-        self.colors = [ImageColor.getrgb(color) for color in colors]
-        self.rear_x, self.rear_y = sprite_axis(sprite)
-        axis_length = math.hypot(self.rear_x, self.rear_y)
-        self.axis = self.rear_x / axis_length, self.rear_y / axis_length
-        self.previous = None
-        self.last_motion = -math.inf
-        self.trace = deque()
-        self.plume_length = 13.0
-
-    def step(self, position, now):
-        previous, self.previous = self.previous, position
-        if position is None:
-            self.trace.clear()
-            self.last_motion = -math.inf
-            return None
-
-        if previous is not None and previous != position:
-            distance = math.dist(position, previous)
-            self.last_motion = now
-            self.plume_length = 11 + min(12, distance * 0.55)
-            ax, ay = self.axis
-            self.trace.append((
-                now,
-                position[0] + self.rear_x + ax * self.plume_length * 0.95,
-                position[1] + self.rear_y + ay * self.plume_length * 0.95,
-            ))
-        return self.draw_thrust(position, now)
-
-    def draw_thrust(self, position, now):
-        lifetime = 0.18
-        while self.trace and now - self.trace[0][0] >= lifetime:
-            self.trace.popleft()
-        flame = max(0.0, 1 - (now - self.last_motion) / 0.075)
-        if not self.trace and flame == 0:
-            return None
-
-        frame = Image.new("RGBA", (OVERLAY_SIZE, OVERLAY_SIZE))
-        draw = ImageDraw.Draw(frame)
-        half = OVERLAY_SIZE // 2
-        ax, ay = self.axis
-        trace = []
-        for born, x, y in self.trace:
-            drift = 48 * (now - born)
-            trace.append((born, x - position[0] + half + ax * drift, y - position[1] + half + ay * drift))
-        for before, after in zip(trace, trace[1:]):
-            age = (now - after[0]) / lifetime
-            if math.dist(before[1:], after[1:]) <= 64:
-                draw.line((*before[1:], *after[1:]), fill=(*self.colors[0], round(100 * (1 - age))), width=2)
-        for born, x, y in trace:
-            opacity = round(110 * (1 - (now - born) / lifetime))
-            draw.ellipse((x - 1, y - 1, x + 1, y + 1), fill=(*self.colors[0], opacity))
-
-        if flame:
-            nx, ny = -ay, ax
-            x0, y0 = half + self.rear_x, half + self.rear_y
-            for i, (base, tip, length, width) in enumerate(self.nozzles):
-                x, y = x0 + nx * base, y0 + ny * base
-                reach = self.plume_length * length * (0.65 + 0.35 * flame)
-                tx, ty = x0 + ax * reach + nx * tip, y0 + ay * reach + ny * tip
-                color = self.colors[i % len(self.colors)]
-                draw.polygon(
-                    ((x - nx * width, y - ny * width), (tx, ty), (x + nx * width, y + ny * width)),
-                    fill=(*color, round(216 * flame)),
-                )
-                draw.line(
-                    (x, y, x + (tx - x) * 0.62, y + (ty - y) * 0.62),
-                    fill=(250, 255, 235, round(225 * flame)),
-                    width=1,
-                )
-        if not frame.getbbox():
-            return None
-        glow = Image.new("RGBA", frame.size, self.colors[0])
-        glow.putalpha(frame.getchannel("A").filter(ImageFilter.GaussianBlur(1.5)).point(lambda a: a // 2))
-        return Image.alpha_composite(glow, frame)
 
 
 class BitmapHeader(ctypes.Structure):
     _fields_ = [
-        ("size", wintypes.DWORD), ("width", wintypes.LONG), ("height", wintypes.LONG),
-        ("planes", wintypes.WORD), ("bits", wintypes.WORD), ("compression", wintypes.DWORD),
-        ("image_size", wintypes.DWORD), ("x_pixels_per_meter", wintypes.LONG),
-        ("y_pixels_per_meter", wintypes.LONG), ("colors_used", wintypes.DWORD),
+        ("size", wintypes.DWORD),
+        ("width", wintypes.LONG),
+        ("height", wintypes.LONG),
+        ("planes", wintypes.WORD),
+        ("bits", wintypes.WORD),
+        ("compression", wintypes.DWORD),
+        ("image_size", wintypes.DWORD),
+        ("x_pixels_per_meter", wintypes.LONG),
+        ("y_pixels_per_meter", wintypes.LONG),
+        ("colors_used", wintypes.DWORD),
         ("important_colors", wintypes.DWORD),
     ]
 
@@ -172,8 +33,10 @@ class BitmapInfo(ctypes.Structure):
 
 class BlendFunction(ctypes.Structure):
     _fields_ = [
-        ("operation", wintypes.BYTE), ("flags", wintypes.BYTE),
-        ("opacity", wintypes.BYTE), ("alpha_format", wintypes.BYTE),
+        ("operation", wintypes.BYTE),
+        ("flags", wintypes.BYTE),
+        ("opacity", wintypes.BYTE),
+        ("alpha_format", wintypes.BYTE),
     ]
 
 
@@ -184,11 +47,135 @@ def bind(library, name, result, *arguments):
     return function
 
 
+class RawInputDevice(ctypes.Structure):
+    _fields_ = [
+        ("page", wintypes.WORD),
+        ("usage", wintypes.WORD),
+        ("flags", wintypes.DWORD),
+        ("target", wintypes.HWND),
+    ]
+
+
+class RawInputHeader(ctypes.Structure):
+    _fields_ = [
+        ("kind", wintypes.DWORD),
+        ("size", wintypes.DWORD),
+        ("device", wintypes.HANDLE),
+        ("param", wintypes.WPARAM),
+    ]
+
+
+class RawButtons(ctypes.Structure):
+    _fields_ = [("flags", wintypes.WORD), ("data", wintypes.WORD)]
+
+
+class RawMouse(ctypes.Structure):
+    _fields_ = [
+        ("flags", wintypes.WORD),
+        ("padding", wintypes.WORD),
+        ("buttons", RawButtons),
+        ("raw_buttons", wintypes.DWORD),
+        ("x", wintypes.LONG),
+        ("y", wintypes.LONG),
+        ("extra", wintypes.DWORD),
+    ]
+
+
+class MousePacket(ctypes.Structure):
+    _fields_ = [("header", RawInputHeader), ("mouse", RawMouse)]
+
+
+def enable_monitor_dpi():
+    try:
+        user = ctypes.WinDLL("user32", use_last_error=True)
+        bind(user, "SetProcessDpiAwarenessContext", wintypes.BOOL, wintypes.HANDLE)(-4)
+    except AttributeError:
+        ctypes.windll.shcore.SetProcessDpiAwareness(2)
+
+
+class ClickObserver:
+    """Receive mouse-button downs at the overlay. Always chain to the window procedure."""
+
+    def __init__(self, user, overlay):
+        self.queue = deque(maxlen=32)
+        self.overlay = overlay
+        self.error = False
+        self.register = bind(
+            user,
+            "RegisterRawInputDevices",
+            wintypes.BOOL,
+            ctypes.POINTER(RawInputDevice),
+            wintypes.UINT,
+            wintypes.UINT,
+        )
+        self.read = bind(
+            user,
+            "GetRawInputData",
+            wintypes.UINT,
+            wintypes.HANDLE,
+            wintypes.UINT,
+            ctypes.c_void_p,
+            ctypes.POINTER(wintypes.UINT),
+            wintypes.UINT,
+        )
+        ptr = ctypes.c_void_p
+        self.set_proc = bind(user, "SetWindowLongPtrW", ptr, wintypes.HWND, ctypes.c_int, ptr)
+        self.call_proc = bind(
+            user,
+            "CallWindowProcW",
+            ctypes.c_ssize_t,
+            ptr,
+            wintypes.HWND,
+            wintypes.UINT,
+            wintypes.WPARAM,
+            wintypes.LPARAM,
+        )
+        prototype = ctypes.WINFUNCTYPE(
+            ctypes.c_ssize_t, wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM
+        )
+        self.callback = prototype(self.message)
+        self.previous = self.set_proc(overlay.window, -4, self.callback)
+        if not self.previous:
+            raise ctypes.WinError(ctypes.get_last_error())
+        self.device = RawInputDevice(1, 2, 0x100, overlay.window)
+        if not self.register(ctypes.byref(self.device), 1, ctypes.sizeof(self.device)):
+            self.set_proc(overlay.window, -4, self.previous)
+            raise ctypes.WinError(ctypes.get_last_error())
+
+    def message(self, window, msg, wp, lp):
+        try:
+            if msg == 0xFF:  # WM_INPUT. No keyboard registration or legacy-input suppression.
+                packet = MousePacket()
+                size = wintypes.UINT(ctypes.sizeof(packet))
+                read = self.read(
+                    lp, 0x10000003, ctypes.byref(packet), ctypes.byref(size), ctypes.sizeof(RawInputHeader)
+                )
+                if read == ctypes.sizeof(packet) and packet.header.kind == 0:
+                    flags = packet.mouse.buttons.flags
+                    if flags & 5:
+                        pos = self.overlay.cursor_position()
+                        if pos is not None:
+                            for mask, name in ((1, "left"), (4, "right")):
+                                if flags & mask:
+                                    self.queue.append((name, pos, time.monotonic()))
+            elif msg == 0x7E:  # WM_DISPLAYCHANGE
+                self.overlay.monitor = None
+        except (OSError, ValueError):
+            self.error = True
+        return self.call_proc(self.previous, window, msg, wp, lp)
+
+    def close(self):
+        remove = RawInputDevice(1, 2, 1, None)
+        self.register(ctypes.byref(remove), 1, ctypes.sizeof(remove))
+        self.set_proc(self.overlay.window, -4, self.previous)
+        self.queue.clear()
+
+
 class LayeredOverlay:
     # Layered and transparent makes the entire overlay click-through.
     EXTENDED_STYLE = 0x00080000 | 0x00000020 | 0x00000080 | 0x08000000
 
-    def __init__(self):
+    def __init__(self, observe=False):
         user = ctypes.WinDLL("user32", use_last_error=True)
         gdi = ctypes.WinDLL("gdi32", use_last_error=True)
         kernel = ctypes.WinDLL("kernel32", use_last_error=True)
@@ -197,22 +184,68 @@ class LayeredOverlay:
         boolean, integer, word = wintypes.BOOL, ctypes.c_int, wintypes.DWORD
         pointer = ctypes.c_void_p
         self.get_cursor_pos = bind(user, "GetCursorPos", boolean, ctypes.POINTER(wintypes.POINT))
+        self.monitor = self.observer = None
+        self.dpi_checked = -1
+        self.scale = 1
+        self.monitor_at = bind(user, "MonitorFromPoint", handle, wintypes.POINT, word)
+        shcore = ctypes.WinDLL("shcore")
+        self.monitor_dpi = bind(
+            shcore,
+            "GetDpiForMonitor",
+            wintypes.LONG,
+            handle,
+            integer,
+            ctypes.POINTER(wintypes.UINT),
+            ctypes.POINTER(wintypes.UINT),
+        )
+        self.tracker = ClickTracker(
+            user.GetDoubleClickTime() / 1000, (user.GetSystemMetrics(36), user.GetSystemMetrics(37))
+        )
         self.show_window = bind(user, "ShowWindow", boolean, hwnd, integer)
         self.destroy_window = bind(user, "DestroyWindow", boolean, hwnd)
         self.update = bind(
-            user, "UpdateLayeredWindow", boolean, hwnd, hdc, ctypes.POINTER(wintypes.POINT),
-            ctypes.POINTER(wintypes.SIZE), hdc, ctypes.POINTER(wintypes.POINT), word,
-            ctypes.POINTER(BlendFunction), word,
+            user,
+            "UpdateLayeredWindow",
+            boolean,
+            hwnd,
+            hdc,
+            ctypes.POINTER(wintypes.POINT),
+            ctypes.POINTER(wintypes.SIZE),
+            hdc,
+            ctypes.POINTER(wintypes.POINT),
+            word,
+            ctypes.POINTER(BlendFunction),
+            word,
         )
         create_window = bind(
-            user, "CreateWindowExW", hwnd, word, wintypes.LPCWSTR, wintypes.LPCWSTR, word,
-            integer, integer, integer, integer, hwnd, wintypes.HMENU, wintypes.HINSTANCE, pointer,
+            user,
+            "CreateWindowExW",
+            hwnd,
+            word,
+            wintypes.LPCWSTR,
+            wintypes.LPCWSTR,
+            word,
+            integer,
+            integer,
+            integer,
+            integer,
+            hwnd,
+            wintypes.HMENU,
+            wintypes.HINSTANCE,
+            pointer,
         )
         set_pos = bind(user, "SetWindowPos", boolean, hwnd, hwnd, integer, integer, integer, integer, word)
         create_dc = bind(gdi, "CreateCompatibleDC", hdc, hdc)
         create_bitmap = bind(
-            gdi, "CreateDIBSection", handle, hdc, ctypes.POINTER(BitmapInfo), wintypes.UINT,
-            ctypes.POINTER(pointer), handle, word,
+            gdi,
+            "CreateDIBSection",
+            handle,
+            hdc,
+            ctypes.POINTER(BitmapInfo),
+            wintypes.UINT,
+            ctypes.POINTER(pointer),
+            handle,
+            word,
         )
         self.select_object = bind(gdi, "SelectObject", handle, hdc, handle)
         self.delete_object = bind(gdi, "DeleteObject", boolean, handle)
@@ -224,25 +257,67 @@ class LayeredOverlay:
         try:
             side = OVERLAY_SIZE
             self.window = create_window(
-                self.EXTENDED_STYLE, "STATIC", WINDOW_TITLE, 0x80000000,
-                0, 0, side, side, None, None, module, None,
+                self.EXTENDED_STYLE,
+                "STATIC",
+                WINDOW_TITLE,
+                0x80000000,
+                0,
+                0,
+                side,
+                side,
+                None,
+                None,
+                module,
+                None,
             )
             if not self.window or not set_pos(self.window, -1, 0, 0, 0, 0, 0x0013):
                 raise ctypes.WinError(ctypes.get_last_error())
             self.dc = create_dc(None)
             if not self.dc:
                 raise ctypes.WinError(ctypes.get_last_error())
-            header = BitmapHeader(ctypes.sizeof(BitmapHeader), side, -side, 1, 32)
-            self.bitmap = create_bitmap(self.dc, ctypes.byref(BitmapInfo(header, 0)), 0, ctypes.byref(self.bits), None, 0)
-            if not self.bitmap or not self.bits:
-                raise ctypes.WinError(ctypes.get_last_error())
-            result = self.select_object(self.dc, self.bitmap)
-            if not result or result == pointer(-1).value:
-                raise ctypes.WinError(ctypes.get_last_error())
-            self.before_bitmap = result
-        except OSError:
+            self.create_bitmap = create_bitmap
+            self.side = 0
+            self.resize(1)
+            if observe:
+                self.observer = ClickObserver(user, self)
+        except Exception:
             self.close()
             raise
+
+    def resize(self, scale):
+        side = round(OVERLAY_SIZE * scale)
+        if side == self.side:
+            return
+        header = BitmapHeader(ctypes.sizeof(BitmapHeader), side, -side, 1, 32)
+        bits = ctypes.c_void_p()
+        bitmap = self.create_bitmap(
+            self.dc, ctypes.byref(BitmapInfo(header, 0)), 0, ctypes.byref(bits), None, 0
+        )
+        if not bitmap:
+            raise ctypes.WinError(ctypes.get_last_error())
+        previous = self.select_object(self.dc, bitmap)
+        if not previous or previous == ctypes.c_void_p(-1).value:
+            self.delete_object(bitmap)
+            raise ctypes.WinError(ctypes.get_last_error())
+        if self.bitmap:
+            self.delete_object(self.bitmap)
+        else:
+            self.before_bitmap = previous
+        self.bitmap, self.bits, self.side, self.scale = bitmap, bits, side, scale
+
+    def update_monitor(self, position):
+        monitor = self.monitor_at(wintypes.POINT(*position), 2)
+        now = time.monotonic()
+        if monitor == self.monitor and now - self.dpi_checked < 1:
+            return False
+        changed = monitor != self.monitor
+        previous_scale = self.scale
+        self.dpi_checked = now
+        x, y = wintypes.UINT(96), wintypes.UINT(96)
+        if self.monitor_dpi(monitor, 0, ctypes.byref(x), ctypes.byref(y)) == 0:
+            self.resize(max(1, min(5, x.value / 96)))
+        self.monitor = monitor
+        return changed or self.scale != previous_scale
 
     def cursor_position(self):
         point = wintypes.POINT()
@@ -257,16 +332,25 @@ class LayeredOverlay:
                 self.visible = False
             return
 
-        half = OVERLAY_SIZE // 2
+        half = self.side // 2
         top_left = wintypes.POINT(position[0] - half, position[1] - half)
-        size = wintypes.SIZE(OVERLAY_SIZE, OVERLAY_SIZE)
+        size = wintypes.SIZE(self.side, self.side)
+        if frame.width != self.side:
+            frame = frame.resize((self.side, self.side), Image.Resampling.BILINEAR)
         origin = wintypes.POINT(0, 0)
         blend = BlendFunction(0, 0, 255, 1)
         pixels = frame.convert("RGBa").tobytes("raw", "BGRa")
         ctypes.memmove(self.bits, pixels, len(pixels))
         if not self.update(
-            self.window, None, ctypes.byref(top_left), ctypes.byref(size), self.dc,
-            ctypes.byref(origin), 0, ctypes.byref(blend), 2,
+            self.window,
+            None,
+            ctypes.byref(top_left),
+            ctypes.byref(size),
+            self.dc,
+            ctypes.byref(origin),
+            0,
+            ctypes.byref(blend),
+            2,
         ):
             raise ctypes.WinError(ctypes.get_last_error())
         if not self.visible:
@@ -274,6 +358,9 @@ class LayeredOverlay:
             self.visible = True
 
     def close(self):
+        if self.observer:
+            self.observer.close()
+            self.observer = None
         if self.window:
             self.destroy_window(self.window)
             self.window = None
@@ -289,33 +376,61 @@ class LayeredOverlay:
 
 
 class FunnelEffect:
-    def __init__(self, root, fallback, on_error):
+    def __init__(self, root, on_error):
         self.root = root
-        self.fallback = Path(fallback)
         self.on_error = on_error
-        self.overlay = None
-        self.timer = None
-        self.animation = None
+        self.overlay = self.timer = self.animation = None
 
-    def start(self, cursor):
+    def start(self, cursor, config):
         self.stop()
-        sprite = load_sprite(cursor, self.fallback)
-        appearance = APPEARANCES.get(cursor.stem, DEFAULT_APPEARANCE)
-        self.animation = ThrustAnimation(sprite, appearance)
-        self.overlay = LayeredOverlay()
-        self.tick()
+        if not any(fields["enabled"] for fields in config.values()):
+            return
+        self.animation = EffectEngine(
+            load_sprite(cursor), APPEARANCES.get(cursor.stem, DEFAULT_APPEARANCE), config, cursor
+        )
+        observe = any(config[k]["enabled"] for k in ("click", "followers", "deploy", "particles"))
+        try:
+            self.overlay = LayeredOverlay(observe)
+            self.tick()
+        except Exception:
+            self.stop()
+            raise
 
     def tick(self):
         self.timer = None
+        start = time.monotonic()
+        overlay = self.overlay
         try:
-            position = self.overlay.cursor_position()
-            frame = self.animation.step(position, time.monotonic())
-            self.overlay.render(frame, position)
-        except OSError as error:
+            position = overlay.cursor_position()
+            events = []
+            if position is not None and overlay.update_monitor(position):
+                self.animation.reset()
+                overlay.tracker.previous = None
+            if overlay.observer:
+                if overlay.observer.error:
+                    raise OSError("マウスの状態を読み取れませんでした。")
+                queue = overlay.observer.queue
+                while queue:
+                    button, pos, stamp = queue.popleft()
+                    if position is not None and start - stamp < 0.35:
+                        events.append(
+                            overlay.tracker.press(button, tuple(n / overlay.scale for n in pos), stamp)
+                        )
+            logical = tuple(n / overlay.scale for n in position) if position is not None else None
+            frame = self.animation.step(logical, start, events)
+            overlay.render(frame, position)
+            cost = time.monotonic() - start
+            if cost > 0.014:
+                self.animation.budget = max(0.3, self.animation.budget - 0.08)
+            else:
+                self.animation.budget = min(1, self.animation.budget + 0.005)
+            interval = 16 if frame is not None else 32
+            if logical is None or self.animation.still > 0.6:
+                interval = 42 if frame is not None else 55
+            self.timer = self.root.after(max(4, interval - round(cost * 1000)), self.tick)
+        except (OSError, ValueError, RuntimeError, MemoryError) as error:
             self.stop()
             self.on_error(error)
-            return
-        self.timer = self.root.after(16 if frame is not None else 28, self.tick)
 
     def stop(self):
         if self.timer is not None:

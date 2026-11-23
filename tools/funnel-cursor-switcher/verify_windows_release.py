@@ -1,16 +1,23 @@
 import ctypes
-from ctypes import wintypes
-from pathlib import Path
-from runpy import run_path
 import struct
 import subprocess
 import sys
-from tempfile import TemporaryDirectory
 import time
+from ctypes import wintypes
+from pathlib import Path
+from runpy import run_path
+from tempfile import TemporaryDirectory
 from zipfile import ZipFile
 
+from effect_engine import ClickEvent
+from effect_settings import SAMPLES, resolve
 from funnel_effect import (
-    APPEARANCES, LayeredOverlay, ThrustAnimation, bind, load_sprite,
+    APPEARANCES,
+    EffectEngine,
+    LayeredOverlay,
+    bind,
+    enable_monitor_dpi,
+    load_sprite,
 )
 
 
@@ -26,7 +33,7 @@ def verify_base_frame(cursor):
             continue
         header = struct.unpack_from("<IiiHHIIiiII", data, offset)
         assert header[:6] == (40, 32, 64, 1, 32, 0)
-        alpha = data[offset + 43:offset + 40 + 32 * 32 * 4:4]
+        alpha = data[offset + 43 : offset + 40 + 32 * 32 * 4 : 4]
         assert length == 40 + 32 * 32 * 4 + 32 * 4
         points = [(index % 32, index // 32) for index, value in enumerate(alpha) if value >= 64]
         x, y = zip(*points)
@@ -71,13 +78,13 @@ def verify_effect(cursors):
     position = (200, 200)
 
     assets = cursors / "ファンネル"
-    overlay = LayeredOverlay()
+    overlay = LayeredOverlay(observe=True)
     window = overlay.window
     try:
         assert get_style(window, -20) & overlay.EXTENDED_STYLE == overlay.EXTENDED_STYLE
         for name in ("フィンファンネル", "サザビー", "α・アジール"):
             sprite = load_sprite(assets / f"{name}.cur", assets / "フィンファンネル.png")
-            effect = ThrustAnimation(sprite, APPEARANCES[name])
+            effect = EffectEngine(sprite, APPEARANCES[name], resolve("ファンネル", {}, {})[0])
             assert effect.step((185, 195), 0.0) is None
             frame = effect.step(position, 0.03)
             assert frame is not None and frame.getbbox()
@@ -87,13 +94,87 @@ def verify_effect(cursors):
             assert effect.step(position, 0.45) is None
             overlay.render(None, position)
             assert not is_visible(window)
+        # Force a high-DPI DIB reallocation and draw across a negative desktop origin.
+        config = resolve("ファンネル", SAMPLES["戦闘モード"], {})[0]
+        effect = EffectEngine(sprite, APPEARANCES[name], config)
+        overlay.resize(1.5)
+        scale_frame = effect.step((-120, -40), 1, [ClickEvent("right", (-120, -40), 1)])
+        overlay.render(scale_frame, (-180, -60))
+        assert is_visible(window) and overlay.side == 384
+        overlay.resize(1)
     finally:
         overlay.close()
     assert not is_window(window)
     print("Windows rendered the click-through effect and hid the overlay when movement ended.")
 
 
-def main(archive):
+def verify_hit_test():
+    import tkinter as tk
+
+    from PIL import Image
+
+    root = tk.Tk()
+    root.geometry("180x130+80+80")
+    root.update()
+    try:
+        point = (root.winfo_rootx() + 50, root.winfo_rooty() + 50)
+        user = ctypes.WinDLL("user32")
+        hit = bind(user, "WindowFromPoint", wintypes.HWND, wintypes.POINT)
+        before = hit(wintypes.POINT(*point))
+        assert before and (
+            before == root.winfo_id()
+            or bind(user, "IsChild", wintypes.BOOL, wintypes.HWND, wintypes.HWND)(root.winfo_id(), before)
+            or bind(user, "IsChild", wintypes.BOOL, wintypes.HWND, wintypes.HWND)(before, root.winfo_id())
+        )
+        overlay = LayeredOverlay(observe=True)
+        try:
+            overlay.render(Image.new("RGBA", (256, 256), (255, 120, 30, 220)), point)
+            root.update()
+            assert hit(wintypes.POINT(*point)) == before
+        finally:
+            overlay.close()
+    finally:
+        root.destroy()
+
+
+def verify_restore(system, cursor):
+    # Opt-in on the disposable CI account. Restore the exact prior value even on failure.
+    reg = system.registry
+    with reg.OpenKey(
+        reg.HKEY_CURRENT_USER, r"Control Panel\Cursors", 0, reg.KEY_READ | reg.KEY_SET_VALUE
+    ) as key:
+        previous = system.read_arrow(key)
+        try:
+            system.apply(cursor)
+            assert system.is_installed_cursor(system.read_arrow(key))
+            system.apply(None)
+            assert system.read_arrow(key) == previous
+        finally:
+            if system.read_arrow(key) != previous:
+                system.write_arrow(key, previous)
+                system.reload()
+
+
+def verify_animated(source, root, system, cursor):
+    category = root / "自作"
+    category.mkdir()
+
+    def chunk(kind, payload):
+        return kind + struct.pack("<I", len(payload)) + payload + bytes(len(payload) % 2)
+
+    # The Windows ANI format wraps icon frames in RIFF ACON.
+    frame = cursor.read_bytes()
+    header = struct.pack("<9I", 36, 2, 2, 0, 0, 0, 0, 6, 1)
+    ani = category / "追加.ani"
+    ani.write_bytes(
+        chunk(b"RIFF", b"ACON" + chunk(b"anih", header) + chunk(b"LIST", b"fram" + chunk(b"icon", frame) * 2))
+    )
+    assert ani in source["discover_cursors"](root)["自作"]
+    system.install_file(ani)
+
+
+def main(archive, check_restore=False):
+    enable_monitor_dpi()
     source = run_path(str(Path(__file__).with_name("FunnelCursorSwitcher.pyw")))
     with TemporaryDirectory(prefix="Cursor Switcher ") as folder:
         root = Path(folder)
@@ -108,16 +189,21 @@ def main(archive):
         system = source["WindowsCursor"]()
         system.store = root / "Installed Cursors"
         system.store.mkdir()
+        system.backup = system.store / "arrow-original.json"
         entries = source["discover_cursors"](cursors)
         files = [cursor for category in entries.values() for cursor in category]
         assert len(files) >= 25
         assert APPEARANCES.keys() <= {cursor.stem for cursor in files}
         for cursor in files:
             system.install_file(cursor)
+        verify_animated(source, root, system, files[0])
+        if check_restore:
+            verify_restore(system, files[0])
         verify_effect(cursors)
+        verify_hit_test()
         verify_startup(bundle, source["APP_NAME"])
         print(f"Windows loaded {len(files)} cursors and opened the extracted onedir app.")
 
 
 if __name__ == "__main__":
-    main(Path(sys.argv[1]))
+    main(Path(sys.argv[1]), "--check-system-restore" in sys.argv[2:])
