@@ -5,6 +5,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from cursor_art import APPEARANCES, load_sprite
+from flight_art import read_poses
 from effect_engine import (
     CENTER,
     ClickEvent,
@@ -44,6 +45,33 @@ def engine(groups=(), edits=None, cursor=CURSOR):
 
 
 class Rendering(unittest.TestCase):
+    def test_authored_flight_and_deployment_frames(self):
+        for cursor in (ROOT / "カーソル").glob("*/*.cur"):
+            name = f"{cursor.parent.name}/{cursor.name}"
+            e = engine(cursor=cursor)
+            poses = read_poses(e.art.sheet)
+            with self.subTest(cursor=name):
+                self.assertEqual(len({pose.tobytes() for pose in poses}), 4)
+                self.assertTrue(all(pose.getbbox() for pose in poses))
+                self.assertNotEqual(e.art.frame(0, 0, 24).tobytes(), e.art.frame(1.57, 0, 24).tobytes())
+                if name in SPECIAL["barrier"]:
+                    boxes = [p.getbbox() for p in read_poses(e.art.deployment)]
+                    proportions = [(x1 - x0) / (y1 - y0) for x0, y0, x1, y1 in boxes]
+                    self.assertEqual(len(proportions), 4)
+                    self.assertEqual(proportions, sorted(proportions, reverse=True))
+                    self.assertGreater(proportions[0], 2)
+                    self.assertLess(proportions[-1], 0.25)
+
+    def test_field_powers_up_after_opening(self):
+        e = engine(["barrier"], cursor=CURSOR.with_name("フィンファンネル.cur"))
+        pos = (0, 0)
+        e.step(pos, 0, [ClickEvent("left", pos, 0, 3)])
+        # This point is inside one face and well away from the three pivot points.
+        point = (CENTER + 8, CENTER + 5)
+        for t in (0.35, 0.6, 0.77):
+            self.assertEqual(e.step(pos, t).getpixel(point)[3], 0)
+        self.assertGreater(e.step(pos, 0.98).getpixel(point)[3], 0)
+
     def test_independent_and_combined(self):
         for special, name in (("spiral", "キュベレイ"), ("barrier", "フィンファンネル")):
             available = [g for g in FIELDS if g not in SPECIAL or g == special]

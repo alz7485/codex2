@@ -10,6 +10,7 @@ from PIL import Image, ImageColor, ImageDraw
 from cursor_art import NOZZLES, OVERLAY_SIZE, anchors
 
 from effect_settings import BUTTONS, MODIFIERS, SPECIAL, special_group
+from flight_art import FlightArt
 
 CENTER = OVERLAY_SIZE // 2
 TAU = math.tau
@@ -123,7 +124,7 @@ class Trail(Layer):
         if e.moved and e.now - self.last >= c["interval"] / 1000:
             speed = clamp(e.speed / 950)
             life = c["duration"] / 1000 * (1 - c["response"] * (1 - speed) * 0.48)
-            self.samples.append((e.pos, e.now, life))
+            self.samples.append((e.pos, e.now, life, e.heading))
             self.last = e.now
         while self.samples and e.now - self.samples[0][1] >= self.samples[0][2]:
             self.samples.popleft()
@@ -133,11 +134,11 @@ class Trail(Layer):
         e, c = self.e, self.c
         previous = None
         last_mid = None
-        for pos, born, life in list(self.samples)[-max(2, round(len(self.samples) * e.budget)) :]:
+        for pos, born, life, heading in list(self.samples)[-max(2, round(len(self.samples) * e.budget)) :]:
             remaining = clamp(1 - (e.now - born) / life)
             x, y = e.local(pos)
             if c["style"] == "残像":
-                e.stamp(frame, e.sprite, (x - e.hot[0], y - e.hot[1]), remaining * c["opacity"] * 0.46)
+                e.fly(frame, (x, y), heading, int(born * 8) % 4, 30, remaining * c["opacity"] * 0.46)
                 continue
             x += e.rear[0] - CENTER + e.axis[0] * 12
             y += e.rear[1] - CENTER + e.axis[1] * 12
@@ -345,8 +346,8 @@ class Rare(Layer):
 class Followers(Layer):
     def __init__(self, config, engine):
         super().__init__(config, engine)
-        size = tuple(max(2, round(n * config["scale"])) for n in engine.sprite.size)
-        self.sprite = engine.sprite.resize(size, Image.Resampling.LANCZOS)
+        self.size = max(4, round(38 * config["scale"]))
+        self.headings = []
         self.positions = []
         self.reaction = -math.inf
 
@@ -375,6 +376,7 @@ class Followers(Layer):
             target = point(0, 0, r, angle + kick * 1.8)
             if i == len(self.positions):
                 self.positions.append(target)
+                self.headings.append(e.heading)
             else:
                 # Preserve world-space inertia while bounding travel after a rapid sweep.
                 ox, oy = self.positions[i]
@@ -386,17 +388,20 @@ class Followers(Layer):
             if length < 18:
                 x, y = point(0, 0, 18, math.atan2(y, x))
             self.positions[i] = x, y
+            # Relative displacement includes camera compensation, giving world flight velocity.
+            if math.hypot(x - ox, y - oy) > 0.012:
+                self.headings[i] = math.atan2(y - oy, x - ox)
         return True
 
     def draw(self, frame, draw):
         c = self.c
-        for dx, dy in self.positions:
+        for index, (dx, dy) in enumerate(self.positions):
             x, y = CENTER + dx, CENTER + dy
             if c["style"] == "装備画像":
-                w, h = self.sprite.size
-                self.e.stamp(frame, self.sprite, (x - w / 2, y - h / 2), c["opacity"])
+                pose = (int(self.e.now * 5) + index) % 4
+                self.e.fly(frame, (x, y), self.headings[index], pose, self.size, c["opacity"])
             else:
-                r = self.sprite.width / 2
+                r = self.size / 2
                 shape = [
                     (x - r, y - r),
                     (x + r * 0.65, y - r * 0.25),
@@ -416,8 +421,6 @@ class SpecialEffect(Layer):
         self.event = None
         self.last_launch = -math.inf
         self.lifetime = config["duration"]
-        size = tuple(max(1, round(n * 0.46)) for n in engine.sprite.size)
-        self.sprite = engine.sprite.resize(size, Image.Resampling.LANCZOS)
 
     def update(self):
         for event in self.e.inputs:
@@ -432,10 +435,6 @@ class SpecialEffect(Layer):
         if self.event and self.e.now - self.event.time >= self.lifetime:
             self.event = None
         return self.event is not None
-
-    def bit(self, frame, pos, opacity):
-        x, y = pos
-        self.e.stamp(frame, self.sprite, (x - self.sprite.width / 2, y - self.sprite.height / 2), opacity)
 
 
 class SpiralBits(SpecialEffect):
@@ -464,7 +463,10 @@ class SpiralBits(SpecialEffect):
                 tail = self.location(origin, index, max(0, progress - step * 0.017))
                 draw.line([last, tail], fill=self.ink(fade * (7 - step) / 8), width=2 if step < 3 else 1)
                 last = tail
-            self.bit(frame, head, fade * self.c["opacity"])
+            ahead = self.location(origin, index, progress + 0.001)
+            heading = math.atan2(ahead[1] - head[1], ahead[0] - head[0])
+            pose = (int(age * 7) + index) % 4
+            self.e.fly(frame, head, heading, pose, 22, fade * self.c["opacity"])
 
 
 class DeltaField(SpecialEffect):
@@ -472,23 +474,29 @@ class DeltaField(SpecialEffect):
 
     def draw(self, frame, draw):
         progress = (self.e.now - self.event.time) / self.lifetime
-        unfold = clamp(progress / 0.24)
-        unfold = unfold * unfold * (3 - 2 * unfold)
-        fade = clamp((1 - progress) / 0.28)
-        strength = unfold * fade
-        radius = 7 + self.c["radius"] * unfold
+        # Travel folded, pivot to face the center, open both rails, then energize the field.
+        travel = clamp(progress / 0.28)
+        travel = travel * travel * (3 - 2 * travel)
+        opening = clamp((progress - 0.28) / 0.28)
+        strength = clamp((progress - 0.56) / 0.1) * clamp((1 - progress) / 0.21)
+        radius = 8 + self.c["radius"] * travel
         center = (CENTER, CENTER)
-        vertices = [point(*center, radius, -math.pi / 2 + i * TAU / 3) for i in range(3)]
-        apex = (CENTER + radius * 0.10, CENTER + radius * 0.17)
-        for i, a in enumerate(vertices):
-            b = vertices[(i + 1) % 3]
-            draw.polygon([apex, a, b], fill=self.ink(strength * (0.07 + i * 0.035)))
-        for vertex in vertices:
-            draw.line([vertex, apex], fill=self.ink(strength * 0.42), width=1)
-        draw.line(vertices + vertices[:1], fill=self.ink(strength * 0.23), width=5)
-        draw.line(vertices + vertices[:1], fill=self.ink(strength), width=2)
-        for vertex in vertices:
-            self.bit(frame, vertex, strength * self.c["opacity"])
+        outward = [-math.pi / 2 + i * TAU / 3 for i in range(3)]
+        vertices = [point(*center, radius, angle) for angle in outward]
+        if strength > 0:
+            apex = (CENTER + radius * 0.10, CENTER + radius * 0.17)
+            for i, a in enumerate(vertices):
+                b = vertices[(i + 1) % 3]
+                draw.polygon([apex, a, b], fill=self.ink(strength * (0.07 + i * 0.035)))
+            for vertex in vertices:
+                draw.line([vertex, apex], fill=self.ink(strength * 0.42), width=1)
+            draw.line(vertices + vertices[:1], fill=self.ink(strength * 0.23), width=5)
+            draw.line(vertices + vertices[:1], fill=self.ink(strength), width=2)
+        turn = clamp((progress - 0.10) / 0.24)
+        turn = turn * turn * (3 - 2 * turn)
+        opacity = clamp(progress / 0.06) * clamp((1 - progress) / 0.16) * self.c["opacity"]
+        for vertex, angle in zip(vertices, outward):
+            self.e.fly(frame, vertex, angle + math.pi * turn, round(opening * 3), 44, opacity, deploying=True)
 
 
 LAYERS = {
@@ -514,6 +522,7 @@ class EffectEngine:
         dx, dy = back[0] - self.hot[0], back[1] - self.hot[1]
         length = math.hypot(dx, dy)
         self.axis = (dx / length, dy / length) if length else (0.707, 0.707)
+        self.art = FlightArt(path, sprite, self.axis)
         self.nozzle, colors = appearance
         self.colors = [ImageColor.getrgb(color) for color in colors]
         self.rng = random.Random(seed)
@@ -533,6 +542,10 @@ class EffectEngine:
 
     def local(self, pos):
         return CENTER + pos[0] - self.pos[0], CENTER + pos[1] - self.pos[1]
+
+    def fly(self, frame, pos, heading, pose, size, opacity, deploying=False):
+        image = self.art.frame(heading, pose, size, deploying)
+        self.stamp(frame, image, (pos[0] - image.width / 2, pos[1] - image.height / 2), opacity)
 
     @staticmethod
     def stamp(frame, sprite, pos, opacity):

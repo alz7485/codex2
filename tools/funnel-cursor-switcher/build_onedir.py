@@ -24,6 +24,7 @@ def main():
     dist = ROOT / "dist"
     bundle = dist / NAME
     shutil.copytree(ROOT / "カーソル", bundle / "カーソル", dirs_exist_ok=True)
+    shutil.copytree(ROOT / "飛行アニメ", bundle / "飛行アニメ", dirs_exist_ok=True)
     shutil.copy2(ROOT / "README.md", bundle / "README.md")
     shutil.copy2(ROOT / "検証記録.md", bundle / "検証記録.md")
     archive = shutil.make_archive(
