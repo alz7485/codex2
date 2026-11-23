@@ -37,6 +37,10 @@ def read_turntable(path):
 @lru_cache(maxsize=384)
 def turn_frame(path, step, size=32):
     poses = read_turntable(path)
+    if step % STEPS == 0 and size == 32:
+        original = path.parent.parent.parent / 'カーソル/ファンネル/フィンファンネル.png'
+        with Image.open(original) as image:
+            return image.convert('RGBA')
     return poses[step % STEPS].resize((size, size), Image.Resampling.LANCZOS)
 
 

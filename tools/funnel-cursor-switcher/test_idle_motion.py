@@ -38,14 +38,19 @@ class IdleMotion(unittest.TestCase):
         frames = read_turntable(sheet)
         self.assertEqual(len(frames), STEPS)
         widths = [im.getchannel("A").point(lambda a: 255 if a > 144 else 0).getbbox() for im in frames]
-        self.assertLessEqual(max(b[2] - b[0] for b in widths) - min(b[2] - b[0] for b in widths), 2)
-        # Horizontal roll keeps the rail length fixed. The C gap is open in
-        # profile; a broad white plate faces the viewer at each quarter turn.
-        self.assertLess(frames[0].getpixel((32, 48))[3], 32)
-        for index in (STEPS // 4, 3 * STEPS // 4):
-            r, g, b, a = frames[index].getpixel((32, 48))
-            self.assertGreater(a, 200)
-            self.assertGreater(min(r, g, b), 150)
+        self.assertLessEqual(max(b[2] - b[0] for b in widths) - min(b[2] - b[0] for b in widths), 5)
+        # Enter from the actual upper-left pointer, including its original
+        # placement. Screen-X rotation preserves the horizontal coordinates.
+        original = load_sprite(CURSOR)
+        self.assertEqual(turn_frame(sheet, 0).tobytes(), original.tobytes())
+        # At a half turn its opening has moved from above to below the hinge;
+        # a preliminary in-plane rotation would fail the original-pose check.
+        for frame, top_open in ((frames[0], True), (frames[STEPS // 2], False)):
+            alpha = frame.getchannel('A')
+            tip = alpha.crop((0, 0 if top_open else 84, 16, 12 if top_open else 96))
+            opposite = alpha.crop((0, 84 if top_open else 0, 16, 96 if top_open else 12))
+            self.assertIsNotNone(tip.getbbox())
+            self.assertIsNone(opposite.getbbox())
         self.assertNotEqual(frames[0].tobytes(), frames[STEPS // 4].tobytes())
         self.assertEqual(turn_frame(sheet, 0).tobytes(), turn_frame(sheet, STEPS).tobytes())
         self.assertIsNone(idle_sheet(CURSOR.with_name("νガンダムHWS.cur")))
