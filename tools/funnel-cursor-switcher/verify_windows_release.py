@@ -11,7 +11,8 @@ from tempfile import TemporaryDirectory
 from zipfile import ZipFile
 
 from effect_engine import ClickEvent
-from effect_settings import SAMPLES, resolve
+from effect_settings import SAMPLES, SPECIAL, resolve, special_group
+from equipment_catalog import ACTIVE_EQUIPMENT, equipment_key, is_frozen
 from funnel_effect import (
     APPEARANCES,
     EffectEngine,
@@ -83,7 +84,7 @@ def verify_effect(cursors):
     window = overlay.window
     try:
         assert get_style(window, -20) & overlay.EXTENDED_STYLE == overlay.EXTENDED_STYLE
-        for name in ("フィンファンネル", "サザビー", "α・アジール"):
+        for name in ("フィンファンネル", "サザビー", "ユニコーン"):
             sprite = load_sprite(assets / f"{name}.cur", assets / "フィンファンネル.png")
             effect = EffectEngine(sprite, APPEARANCES[name], resolve("ファンネル", {}, {})[0])
             assert effect.step((185, 195), 0.0) is None
@@ -95,16 +96,20 @@ def verify_effect(cursors):
             assert effect.step(position, 0.45) is None
             overlay.render(None, position)
             assert not is_visible(window)
-        for name, group in (("キュベレイ", "spiral"), ("フィンファンネル", "barrier")):
-            path = assets / f"{name}.cur"
-            config = resolve("ファンネル", {}, {group: {"enabled": True}})[0]
-            effect = EffectEngine(load_sprite(path), APPEARANCES[name], config, path)
-            assert effect.step(position, 0.0, [ClickEvent("left", position, 0.0)]) is None
-            effect.step(position, 0.1, [ClickEvent("left", position, 0.1, 3)])
-            frame = effect.step(position, 0.6)
-            assert frame is not None and frame.getbbox()
-            overlay.render(frame, position)
-            assert is_visible(window)
+        for paths in SPECIAL.values():
+            for key in sorted(paths):
+                if is_frozen(key):
+                    continue
+                path = cursors / key
+                group = special_group(key)
+                config = resolve(path.parent.name, {}, {group: {"enabled": True}})[0]
+                effect = EffectEngine(load_sprite(path), APPEARANCES[path.stem], config, path)
+                assert effect.step(position, 0.0, [ClickEvent("left", position, 0.0)]) is None
+                effect.step(position, 0.1, [ClickEvent("left", position, 0.1, 3)])
+                frame = effect.step(position, 0.6)
+                assert frame is not None and frame.getbbox()
+                overlay.render(frame, position)
+                assert is_visible(window)
         # Force a high-DPI DIB reallocation and draw across a negative desktop origin.
         config = resolve("ファンネル", SAMPLES["戦闘モード"], {})[0]
         effect = EffectEngine(sprite, APPEARANCES[name], config)
@@ -203,14 +208,18 @@ def main(archive, check_restore=False):
         bundle = root / "FunnelCursorSwitcher"
         assert (bundle / "_internal" / "_tk_data" / "tk.tcl").is_file()
         cursors = bundle / "カーソル"
-        for stem in ("フィンファンネル", "サザビー"):
+        for stem in ("フィンファンネル", "サザビー", "クィン・マンサ", "ナイチンゲール", "キュベレイ", "キュベレイMk-II（プル機）", "キュベレイMk-II（プルツー機）"):
             verify_base_frame(cursors / "ファンネル" / f"{stem}.cur")
+        verify_base_frame(cursors / "ドラグーン" / "ストライクフリーダム.cur")
 
         system = source["WindowsCursor"]()
         system.store = root / "Installed Cursors"
         system.store.mkdir()
         system.backup = system.store / "arrow-original.json"
-        entries = source["discover_cursors"](cursors)
+        active = source["discover_cursors"](cursors)
+        assert {equipment_key(p) for paths in active.values() for p in paths} == ACTIVE_EQUIPMENT
+        # Check that frozen library artifacts still ship and remain loadable.
+        entries = source["discover_cursors"](cursors, include_frozen=True)
         files = [cursor for category in entries.values() for cursor in category]
         assert len(files) >= 25
         assert APPEARANCES.keys() <= {cursor.stem for cursor in files}
@@ -221,6 +230,8 @@ def main(archive, check_restore=False):
         for name in ("フィンファンネル", "νガンダムHWS", "Hi-νガンダム"):
             sheet = bundle / "飛行アニメ" / "ファンネル" / (name + ".展開.png")
             assert sheet.read_bytes() == (Path(__file__).parent / sheet.relative_to(bundle)).read_bytes()
+        shield = bundle / "飛行アニメ" / "ファンネル" / "ユニコーン.正面.png"
+        assert shield.read_bytes() == (Path(__file__).parent / shield.relative_to(bundle)).read_bytes()
         verify_animated(source, root, system, files[0])
         if check_restore:
             verify_restore(system, files[0])

@@ -3,9 +3,10 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest import SkipTest, TestCase
 from unittest.mock import Mock, patch
+from runpy import run_path
 
 from effect_editor import Editor
-from effect_settings import Settings
+from effect_settings import Settings, special_group
 
 
 def descendants(widget):
@@ -87,6 +88,47 @@ class EditorFlow(TestCase):
         self.select("自作")
         self.root.update()
         self.assertFalse(ui.special_title.winfo_ismapped())
+
+    def test_all_equipment_special_controls_and_preview(self):
+        ui = self.ui
+        folder = Path(__file__).with_name("カーソル")
+        discover = run_path(str(folder.parent / "FunnelCursorSwitcher.pyw"))["discover_cursors"]
+        ui.entries.update(discover(folder))
+        for category, paths in ui.entries.items():
+            if category == "自作":
+                continue
+            for path in paths:
+                ui.category.set(category)
+                ui.choose_category(path)
+                ui.update_preview()
+                self.root.update()
+                group = special_group(ui.key)
+                self.assertEqual(ui.preview.engine.special, group)
+                for key, widgets in ui.special_widgets.items():
+                    self.assertEqual(bool(widgets[0].winfo_ismapped()), key == group)
+                self.assertTrue(ui.preview.engine.config[group]["enabled"])
+                ui.preview.try_special()
+                self.assertTrue(ui.preview.events)
+                ui.apply()
+                self.assertTrue(Settings(ui.store.path).binding(ui.key)["overrides"][group]["enabled"])
+
+    def test_frozen_previous_selection_falls_back_and_preserves_settings(self):
+        key = "ファンネル/ナイチンゲール.cur"
+        store = Settings(self.ui.store.path)
+        store.active = key
+        store.cursors[key] = {"preset": "標準", "overrides": {"volley": {"enabled": True, "radius": 73}}}
+        original = store.cursors[key]
+        store.write()
+        child = tk.Toplevel(self.root)
+        self.addCleanup(child.destroy)
+        other = Editor(child, self.entries, self.system, "凍結した装備")
+        other.effect = Mock()
+        self.addCleanup(other.preview.close)
+        self.addCleanup(lambda: child.after_cancel(other.preview_job) if other.preview_job else None)
+        self.assertEqual(other.key, "ファンネル/キュベレイ.cur")
+        self.assertIn("凍結", other.status.get())
+        other.apply()
+        self.assertEqual(Settings(store.path).cursors[key], original)
 
     def test_named_presets_and_delete_preserves_look(self):
         ui = self.ui

@@ -49,6 +49,17 @@ NAMES = dict(
     rare="レア演出",
     spiral="螺旋ビット放出",
     barrier="Δ型Iフィールド",
+    volley="ファンネル・ビット包囲射撃",
+    dragoon="ドラグーン展開射撃",
+    pods="機動兵装ポッド分離射撃",
+    rifle="GNライフルビット一斉射撃",
+    shield="シールド・ファンネル三つ羽集合",
+    gund="ガンビット分離射撃・再集合",
+    biton="ガンビット集合・ビットオン",
+    stun="コラキ・スタンビーム",
+    incom="有線インコム射出・回収",
+    missile="ファンネル・ミサイル斉射",
+    cannon="ロングレンジ・フィン・ファンネル射撃",
 )
 FIELDS = {
     "boost": dict(
@@ -130,7 +141,7 @@ FIELDS = {
         count=Field("放出数", 6, 2, 10),
         radius=Field("広がり px", 76, 32, 96),
         turns=Field("回転数", 1.1, 0.4, 2),
-        duration=Field("飛行時間 秒", 0.95, 0.4, 1.6),
+        duration=Field("飛行時間 秒", 1.25, 0.4, 1.6),
         color=COLOR,
         opacity=ALPHA,
     ),
@@ -166,6 +177,20 @@ SPECIAL = {
         "ファンネル/νガンダムHWS.cur",
         "ファンネル/Hi-νガンダム.cur",
     },
+    "volley": {
+        f"ファンネル/{name}.cur" for name in
+        ("サザビー", "ヤクト・ドーガ", "ナイチンゲール", "クシャトリヤ", "クィン・マンサ", "α・アジール")
+    } | {"ビット/エルメス.cur"},
+    "dragoon": {f"ドラグーン/{name}.cur" for name in ("ストライクフリーダム", "レジェンドガンダム")},
+    "pods": {"機動兵装ポッド/カオスガンダム.cur"},
+    "rifle": {"ビット/ガンダムサバーニャ.cur"},
+    "shield": {"ファンネル/ユニコーン.cur"},
+    "gund": {f"ビット/{name}.cur" for name in ("ガンダム・エアリアル", "ガンダム・ルブリス")},
+    "biton": {"ビット/ガンダム・キャリバーン.cur"},
+    "stun": {"ビット/ガンダム・ファラクト.cur"},
+    "incom": {"インコム/Sガンダム.cur"},
+    "missile": {"ファンネルミサイル/Ξガンダム.cur"},
+    "cannon": {"ファンネル/ロングレンジ・フィン・ファンネル（RX-93ff）.cur"},
 }
 # Internal modifier mask shared by the Tk and Windows input adapters.
 MODIFIERS = {
@@ -184,6 +209,15 @@ FIELDS["barrier"] = dict(
     color=Field("色", "#8cecd9"),
     opacity=ALPHA,
 )
+for group in (g for g in SPECIAL if g not in ("spiral", "barrier")):
+    FIELDS[group] = dict(
+        radius=Field("展開距離 px", 64, 32, 84),
+        duration=Field("持続 秒", 1.8, 0.8, 2.4),
+        color=COLOR,
+        opacity=ALPHA,
+    )
+FIELDS["shield"]["duration"] = Field("持続 秒", 3.0, 0.8, 4.8)
+FIELDS["cannon"]["duration"] = Field("持続 秒", 2.4, 0.8, 4.8)
 for group in SPECIAL:
     FIELDS[group].update(modifiers=choice("発動キー", *MODIFIERS), button=choice("発動ボタン", *BUTTONS))
 for key, fields in FIELDS.items():

@@ -25,7 +25,7 @@ jobs:
         run: build-onedir.cmd
       - name: Verify settings, editor, and effect combinations
         shell: cmd
-        run: .venv-build\Scripts\python.exe -m unittest -v test_effects test_editor
+        run: .venv-build\Scripts\python.exe -m unittest -v test_catalog test_effects test_editor
       - name: Measure renderer on Windows
         shell: cmd
         run: .venv-build\Scripts\python.exe benchmark_effects.py --frames 18000

@@ -31,6 +31,7 @@ from effect_settings import (
     valid_name,
 )
 from funnel_effect import FunnelEffect
+from equipment_catalog import is_frozen
 
 
 class Preview:
@@ -229,7 +230,10 @@ class Editor:
         footer.grid(row=1, columnspan=2, sticky="ew", pady=(12, 0))
         self.state = tk.StringVar()
         self.status = tk.StringVar(
-            value=self.store.warning or "分類とカーソルを選んで「適用」を押してください。"
+            value=self.store.warning or (
+                "前回の装備は凍結中です。現行対象を選んで「適用」を押してください。"
+                if is_frozen(self.store.active) else "分類とカーソルを選んで「適用」を押してください。"
+            )
         )
         ttk.Label(footer, textvariable=self.state).pack(side="left")
         self.apply_button = ttk.Button(footer, text="適用", command=self.apply)

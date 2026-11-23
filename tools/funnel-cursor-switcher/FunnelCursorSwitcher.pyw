@@ -10,6 +10,7 @@ from tkinter import messagebox
 
 from effect_editor import Editor
 from effect_settings import atomic_write
+from equipment_catalog import is_frozen
 from funnel_effect import enable_monitor_dpi
 
 
@@ -21,7 +22,7 @@ RESTORE = "元に戻す"
 REGISTRY_PATH = r"Control Panel\Cursors"
 
 
-def discover_cursors(folder):
+def discover_cursors(folder, include_frozen=False):
     if not folder.is_dir():
         return {}
 
@@ -30,7 +31,9 @@ def discover_cursors(folder):
         if not category.is_dir():
             continue
         cursors = sorted(
-            (path for path in category.iterdir() if path.is_file() and path.suffix.lower() in EXTENSIONS),
+            (path for path in category.iterdir()
+             if path.is_file() and path.suffix.lower() in EXTENSIONS
+             and (include_frozen or not is_frozen(path))),
             key=lambda path: (path.stem != "フィンファンネル", path.stem.casefold(), path.suffix.lower()),
         )
         if cursors:
