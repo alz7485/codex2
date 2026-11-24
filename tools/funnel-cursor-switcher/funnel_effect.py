@@ -424,7 +424,7 @@ class FunnelEffect:
                 self.animation = trial_runtime.TrialDisplay(cursor,config)
                 self.overlay = LayeredOverlay(True)
                 self.trial_arrow = WindowsArrow()
-                self.blank_path = self.cache_dir / "trial58-transparent.cur"
+                self.blank_path = self.cache_dir / f"trial58-transparent-{self.animation.hot[0]}-{self.animation.hot[1]}.cur"
                 if not self.blank_path.is_file():
                     atomic_write(self.blank_path,cursor_bytes(Image.new("RGBA",(32,32)), self.animation.hot))
                 self.tick()

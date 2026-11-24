@@ -322,6 +322,24 @@ def main(archive, check_restore=False):
                 overlay.render(None,None)
         finally:
             overlay.close()
+        if check_restore:
+            import tkinter as tk
+            from funnel_effect import FunnelEffect
+            tk_root = tk.Tk()
+            errors = []
+            live = FunnelEffect(tk_root, errors.append, root / "trial58-cache")
+            try:
+                for name in UNITS:
+                    path = cursors / "ファンネル" / (name+".cur")
+                    cfg = resolve("ファンネル",{}, {}, "ファンネル/"+path.name)[0]
+                    live.start(path,cfg)
+                    tk_root.update()
+                    assert not errors, errors
+                    assert live.trial_arrow is not None and live.overlay is not None
+                    live.stop()
+            finally:
+                live.stop()
+                tk_root.destroy()
         verify_startup(bundle, source["APP_NAME"])
         print(f"Windows loaded {len(files)} cursors and opened the extracted onedir app.")
 

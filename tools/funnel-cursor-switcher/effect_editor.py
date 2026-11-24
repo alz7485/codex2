@@ -94,7 +94,7 @@ class Preview:
         self.tracker.previous = None
         if path is not None:
             sprite = load_sprite(path)
-            self.engine = (trial_runtime.TrialDisplay(path,config) if trial_runtime.supported(path)
+            self.engine = (trial_runtime.TrialDisplay(path,config) if trial_runtime.supported(path) and any(v["enabled"] for v in config.values())
                            else EffectEngine(sprite, APPEARANCES.get(path.stem, DEFAULT_APPEARANCE), config, path))
             if self.engine.special:
                 self.test_button.pack(side="left")
@@ -318,8 +318,6 @@ class Editor:
         for g in FIELDS:
             rotating = g == "idle" and bool(idle_sheet(self.path)) and values[g]["motion"] == "横回転"
             key = "turn_period" if rotating else next(iter(FIELDS[g]))
-            if trial_runtime.supported(self.path) and g == special_group(self.key):
-                key = "escort_count"
             field = FIELDS[g][key]
             self.row_checks[g].configure(text="待機横回転" if rotating else NAMES[g])
             self.primary_labels[g].configure(text="1周（秒）" if rotating else field.label.split(" ")[0])
@@ -330,6 +328,10 @@ class Editor:
             self.numbers[g].configure(text=format(values[g][key], ".3g"))
         for w in self.rows.winfo_children():
             w.state(["!disabled"] if self.path else ["disabled"])
+        if trial_runtime.supported(self.path):
+            group = special_group(self.key)
+            for widget in (self.sliders[group],self.numbers[group],self.primary_labels[group]):
+                widget.state(["disabled"])
         self.refreshing = False
         self.feedback()
 
@@ -451,6 +453,8 @@ class Editor:
         values, origins = self.values()
         for idx, (k, f) in enumerate(FIELDS[g].items()):
             if k in ("click_fire_enabled","orientation_mode","escort_count") and not trial_runtime.supported(self.path):
+                continue
+            if trial_runtime.supported(self.path) and g == "followers" and k not in ("enabled","count"):
                 continue
             if trial_runtime.supported(self.path) and g == special_group(self.key) and k in ("duration","count","radius","turns","color","opacity"):
                 continue

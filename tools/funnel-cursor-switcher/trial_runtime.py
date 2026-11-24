@@ -8,7 +8,8 @@ from zipfile import ZipFile
 
 from PIL import Image
 
-from cursor_art import anchors, load_sprite
+from cursor_art import APPEARANCES, anchors, load_sprite
+from effect_engine import ClickEvent, EffectEngine
 from effect_settings import BUTTONS, MODIFIERS
 from idle_motion import MOTION, PADDING, STEPS, idle_sheet, turn_frame
 
@@ -57,9 +58,17 @@ class TrialDisplay:
         self.special = "spiral" if self.unit == "qubeley" else "volley"
         self.config = config
         options = config[self.special]
-        self.control = coordinator(self.unit, options["escort_count"],
+        count = config["followers"]["count"] if config["followers"]["enabled"] else 0
+        self.control = coordinator(self.unit, count,
                                    click_fire_enabled=options["click_fire_enabled"],
                                    orientation_mode=options["orientation_mode"])
+        # Keep independent existing decorations available alongside the Trial58 hull and VFX.
+        groups = {"particles", "deploy", "rare", "click"}
+        if config["idle"]["motion"] != MOTION:
+            groups.add("idle")
+        decorations = {key: dict(value, enabled=value["enabled"] and key in groups)
+                       for key, value in config.items()}
+        self.decorations = EffectEngine(load_sprite(path), APPEARANCES[path.stem], decorations, path)
         self.idle_sheet = idle_sheet(path)
         self.hot = anchors(load_sprite(path), path)[0]
         self.pos = None
@@ -69,6 +78,7 @@ class TrialDisplay:
 
     def reset(self):
         self.control.reset()
+        self.decorations.reset()
         self.pos = None
         self.still = 0
 
@@ -76,7 +86,7 @@ class TrialDisplay:
         assets = self.control.m["assets"][self.unit]
         index = item["pose_index"]
         phase = item["phase_index"]
-        power = item["power"] * 8
+        power = item["power"] * 8 if self.config["boost"]["enabled"] else 0
         level = min(7, int(power))
         x = 144 * index
         box = (x, 0, x + 144, 144)
@@ -142,7 +152,17 @@ class TrialDisplay:
                 and not result["primary_effects"] and not result["fleet"]):
             direction = -1 if idle["turn_direction"] == "逆回転" else 1
             self.idle_turn_step = int((self.still-idle["delay"])*STEPS/idle["turn_period"])*direction % STEPS
-        layers = [tr.render(viewport,scale) for tr in c.trails[:len(result["items"])]]
+        layers = []
+        if self.config["trail"]["enabled"]:
+            layers.extend(tr.render(viewport,scale) for tr in c.trails[:len(result["items"])])
+        if self.decorations.layers:
+            logical = tuple(x/scale for x in pos)
+            clicks = [ClickEvent(e.kind, tuple(v/scale for v in e.pos), e.time, e.modifiers)
+                      for e in events if e.kind != "left_up" and
+                      not (options["click_fire_enabled"] and e.kind in ("left","double"))]
+            decoration = self.decorations.step(logical,now,clicks)
+            if decoration is not None:
+                layers.append(centered(scaled(decoration,scale),pos))
         layers.extend(self.item_layer(i,[],scale) for i in result["departing_escorts"])
         if result["fleet"]:
             layers.append(self.fleet_layer(result["fleet"],scale))

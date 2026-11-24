@@ -52,6 +52,8 @@ def render(destination=None, all_actions=False, group=None, show_pointer=True, i
             for name in FIELDS:
                 config[name]["enabled"] = name == group
             if trial_runtime.supported(path):
+                for name in ("boost", "trail", "followers"):
+                    config[name]["enabled"] = True
                 engine = trial_runtime.TrialDisplay(path,config)
                 engine.step((125,90),-.01,[],(0,0,256,256),.75)
             else:

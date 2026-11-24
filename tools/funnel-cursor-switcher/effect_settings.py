@@ -228,7 +228,6 @@ for key, fields in FIELDS.items():
 FIELDS["click"]["left_color"] = Field("左の色", "機体色")
 for group in ("spiral", "volley"):
     FIELDS[group].update(
-        escort_count=Field("随伴機数", 3, 0, 3),
         click_fire_enabled=Field("クリック・ドラッグで射撃", True),
         orientation_mode=choice("主機の向き", "follow", "fixed_upper_left"),
     )
@@ -288,6 +287,9 @@ def resolve(category, preset, overrides, cursor_key=None):
     if cursor_key == "ファンネル/フィンファンネル.cur":
         values["barrier"]["color"] = "#d479ca"
         origins["barrier"]["color"] = "機体"
+    if cursor_key in ("ファンネル/キュベレイ.cur", "ファンネル/サザビー.cur"):
+        values["followers"].update(enabled=True, count=3)
+        origins["followers"].update(enabled="機体", count="機体")
     for layer, title in ((CATEGORY.get(category, {}), "分類"), (preset, "プリセット"), (overrides, "個別")):
         for group, fields in layer.items():
             values[group].update(fields)

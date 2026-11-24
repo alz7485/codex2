@@ -15,8 +15,8 @@ class TrialIntegration(unittest.TestCase):
         for name, count, fire, orientation in product(UNITS,range(4),(True,False),("fixed_upper_left","follow")):
             path = ROOT / "カーソル" / "ファンネル" / (name+".cur")
             group = "spiral" if name == "キュベレイ" else "volley"
-            options = dict(enabled=True,escort_count=count,orientation_mode=orientation,click_fire_enabled=fire)
-            display = TrialDisplay(path,resolve("ファンネル",{},{group:options})[0])
+            options = dict(enabled=True,orientation_mode=orientation,click_fire_enabled=fire)
+            display = TrialDisplay(path,resolve("ファンネル",{},{group:options,"followers":{"count":max(count,1),"enabled":bool(count)}})[0])
             pos, bounds = (-100,80), (-350,-30,0,300)
             def sample(t, events=()):
                 return display.step(pos,t,events,bounds,1.25)
