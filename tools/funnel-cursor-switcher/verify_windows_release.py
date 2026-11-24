@@ -181,7 +181,7 @@ def verify_effect(cursors):
     window = overlay.window
     try:
         assert get_style(window, -20) & overlay.EXTENDED_STYLE == overlay.EXTENDED_STYLE
-        for name in ("フィンファンネル", "サザビー", "ユニコーン"):
+        for name in ("フィンファンネル", "サザビー", "キュベレイ"):
             sprite = load_sprite(assets / f"{name}.cur", assets / "フィンファンネル.png")
             effect = EffectEngine(sprite, APPEARANCES[name], resolve("ファンネル", {}, {})[0])
             assert effect.step((185, 195), 0.0) is None
@@ -368,9 +368,8 @@ def main(archive, check_restore=False):
         bundle = root / "FunnelCursorSwitcher"
         assert (bundle / "_internal" / "_tk_data" / "tk.tcl").is_file()
         cursors = bundle / "カーソル"
-        for stem in ("フィンファンネル", "サザビー", "キュベレイ", "キュベレイMk-II（プル機）", "キュベレイMk-II（プルツー機）"):
+        for stem in ("フィンファンネル", "サザビー", "キュベレイ"):
             verify_base_frame(cursors / "ファンネル" / f"{stem}.cur")
-        verify_base_frame(cursors / "ドラグーン" / "ストライクフリーダム.cur")
 
         system = source["WindowsCursor"]()
         system.store = root / "Installed Cursors"
