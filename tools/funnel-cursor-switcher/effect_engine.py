@@ -1489,7 +1489,13 @@ class EffectEngine:
             return None
         frame = Image.new("RGBA", (OVERLAY_SIZE, OVERLAY_SIZE))
         draw = ImageDraw.Draw(frame)
+        barrier = None
         for layer in visible:
-            layer.draw(frame, draw)
+            if isinstance(layer, FinPyramidField):
+                barrier = layer
+            else:
+                layer.draw(frame, draw)
         draw.ellipse(box(CENTER, CENTER, 2), fill=(0, 0, 0, 0))
+        if barrier is not None:
+            barrier.draw(frame, draw)
         return frame

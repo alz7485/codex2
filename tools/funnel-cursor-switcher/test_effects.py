@@ -555,7 +555,10 @@ class Rendering(unittest.TestCase):
                 held.append([call.args[1:5] for call in fly.call_args_list])
             self.assertEqual(image.getpixel(point)[3], 0)
         self.assertEqual(held[0], held[1])
-        self.assertGreater(e.step(pos, lead + action.HINGE_BEAT + 0.98).getpixel(point)[3], 0)
+        field = e.step(pos, lead + action.HINGE_BEAT + 0.98)
+        self.assertGreater(field.getpixel(point)[3], 0)
+        self.assertTrue(all(field.getpixel((CENTER+x, CENTER+y))[3] > 0
+                            for x in range(-2, 3) for y in range(-2, 3)))
 
     def test_fin_launches_six_from_right_before_delta_field(self):
         from PIL import Image
