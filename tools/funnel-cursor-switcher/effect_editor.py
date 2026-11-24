@@ -32,6 +32,7 @@ from effect_settings import (
 )
 from funnel_effect import FunnelEffect
 from equipment_catalog import is_frozen
+import trial_runtime
 from idle_motion import idle_sheet
 
 
@@ -54,6 +55,7 @@ class Preview:
         self.canvas.bind("<ButtonPress-1>", lambda event: self.press(event, "left"))
         self.canvas.bind("<ButtonPress-2>", lambda event: self.press(event, "middle"))
         self.canvas.bind("<ButtonPress-3>", lambda event: self.press(event, "right"))
+        self.canvas.bind("<ButtonRelease-1>", lambda event: self.press(event, "left_up") if isinstance(self.engine,trial_runtime.TrialDisplay) else None)
         self.tracker = ClickTracker()
         self.timer = self.engine = self.manual = None
         self.events = []
@@ -92,7 +94,8 @@ class Preview:
         self.tracker.previous = None
         if path is not None:
             sprite = load_sprite(path)
-            self.engine = EffectEngine(sprite, APPEARANCES.get(path.stem, DEFAULT_APPEARANCE), config, path)
+            self.engine = (trial_runtime.TrialDisplay(path,config) if trial_runtime.supported(path)
+                           else EffectEngine(sprite, APPEARANCES.get(path.stem, DEFAULT_APPEARANCE), config, path))
             if self.engine.special:
                 self.test_button.pack(side="left")
                 self.test_button.state(
@@ -123,7 +126,20 @@ class Preview:
                 mark = int(elapsed // 6), pulse
                 if pulse and mark != self.mark:
                     self.events.append(self.tracker.press("right" if pulse == 2 else "left", pos, now))
+                    if pulse != 2 and isinstance(self.engine,trial_runtime.TrialDisplay):
+                        self.events.append(self.tracker.press("left_up",pos,now))
                 self.mark = mark
+            if isinstance(self.engine,trial_runtime.TrialDisplay):
+                frame = self.engine.step(pos, now, self.events, (0,0,max(1,w),max(1,h)))
+                self.events.clear()
+                self.effect_photo = ImageTk.PhotoImage(frame, master=self.canvas) if frame else None
+                self.canvas.itemconfigure(self.pointer,image="")
+                self.canvas.itemconfigure(self.fx, image=self.effect_photo or "")
+                if frame:
+                    x,y = self.engine.frame_origin
+                    self.canvas.coords(self.fx,x+frame.width/2,y+frame.height/2)
+                self.timer = self.canvas.after(25,self.tick)
+                return
             frame = self.engine.step(pos, now, self.events)
             self.events.clear()
             self.effect_photo = ImageTk.PhotoImage(frame, master=self.canvas) if frame else None
@@ -302,6 +318,8 @@ class Editor:
         for g in FIELDS:
             rotating = g == "idle" and bool(idle_sheet(self.path)) and values[g]["motion"] == "横回転"
             key = "turn_period" if rotating else next(iter(FIELDS[g]))
+            if trial_runtime.supported(self.path) and g == special_group(self.key):
+                key = "escort_count"
             field = FIELDS[g][key]
             self.row_checks[g].configure(text="待機横回転" if rotating else NAMES[g])
             self.primary_labels[g].configure(text="1周（秒）" if rotating else field.label.split(" ")[0])
@@ -432,6 +450,10 @@ class Editor:
         win.bind("<MouseWheel>", lambda ev: scroll.yview_scroll(int(-ev.delta / 120), "units"))
         values, origins = self.values()
         for idx, (k, f) in enumerate(FIELDS[g].items()):
+            if k in ("click_fire_enabled","orientation_mode","escort_count") and not trial_runtime.supported(self.path):
+                continue
+            if trial_runtime.supported(self.path) and g == special_group(self.key) and k in ("duration","count","radius","turns","color","opacity"):
+                continue
             if g == "idle" and k in ("motion", "turn_period", "turn_direction") and not idle_sheet(self.path):
                 continue
             if (g == "idle" and idle_sheet(self.path) and values[g]["motion"] == "横回転"
@@ -448,9 +470,10 @@ class Editor:
                 self.refresh()
 
             if f.choices:
-                w = ttk.Combobox(page, state="readonly", values=f.choices, width=14)
-                w.set(value)
-                w.bind("<<ComboboxSelected>>", lambda _, cb=w, fn=changed: fn(cb.get()))
+                labels = {"follow":"移動方向に追従", "fixed_upper_left":"左上固定"} if k == "orientation_mode" else {}
+                w = ttk.Combobox(page, state="readonly", values=[labels.get(v,v) for v in f.choices], width=14)
+                w.set(labels.get(value,value))
+                w.bind("<<ComboboxSelected>>", lambda _, cb=w, fn=changed, choices=f.choices: fn(choices[cb.current()]))
             elif isinstance(value, bool):
                 var = tk.BooleanVar(value=value)
                 w = ttk.Checkbutton(page, variable=var, command=lambda v=var, fn=changed: fn(v.get()))

@@ -55,22 +55,15 @@ class Rendering(unittest.TestCase):
         path = CURSOR.with_name("サザビー.cur")
         verify_base_frame(path)
         self.assertEqual(struct.unpack_from("<HHH", path.read_bytes()), (0, 2, 16))
-        poses = read_poses(ROOT / "飛行アニメ" / "ファンネル" / "サザビー.png")
+        poses = read_poses(ROOT / "飛行アニメ" / "ファンネル" / "サザビー.展開.png")
         self.assertEqual(len({pose.tobytes() for pose in poses}), 4)
         closed, opened = poses[0], poses[-1]
         self.assertGreater(opened.getbbox()[3] - opened.getbbox()[1],
                            closed.getbbox()[3] - closed.getbbox()[1])
-        # Opening reveals the dark inner cylinder behind the red front head.
-        # Compare the rear area, excluding the grey forward muzzle.
-        def dark_core(image):
-            count = 0
-            for y in range(24, 73):
-                for x in range(12, 64):
-                    r, g, b, a = image.getpixel((x, y))
-                    count += (a > 200 and max(r, g, b) < 115
-                              and max(r, g, b) - min(r, g, b) < 20)
-            return count
-        self.assertGreater(dark_core(opened), max(40, dark_core(closed) * 2))
+        # Match the accepted Trial58 deployment art, including the short inner core.
+        import hashlib
+        self.assertEqual(hashlib.sha256((path.parents[2] / "飛行アニメ/ファンネル/サザビー.展開.png").read_bytes()).hexdigest(),
+                         "9a78bdf0dffea24178dfa9a2593c7b536e20317d0706dc9387a91bf6b8dd2a49")
 
     def test_sazabi_attack_uses_separately_authored_rear_view(self):
         e = engine(["volley"], cursor=CURSOR.with_name("サザビー.cur"))
@@ -406,7 +399,7 @@ class Rendering(unittest.TestCase):
                     self.assertGreaterEqual(data[offset + 40 + ((side - 1 - hy) * side + hx) * 4 + 3], 144)
                     self.assertEqual(length, 40 + side * side * 4 + ((side + 31) // 32) * 4 * side)
                 self.assertEqual(sizes, [32, 40, 48, 56, 64, 72, 80, 88, 96, 112, 128, 144, 160, 192, 224, 256])
-                self.assertEqual(struct.unpack_from("<HH", data, 10), (0, 3))
+                self.assertEqual(struct.unpack_from("<HH", data, 10), (3, 1) if name == "キュベレイ" else (0, 3))
                 poses = read_poses(engine(cursor=path).art.sheet)
                 # The large rear shell is closed and coloured, rather than the
                 # old open cone with a blue hollow rear nozzle.

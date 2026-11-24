@@ -10,6 +10,7 @@ from cursor_art import APPEARANCES, load_sprite
 from effect_engine import CENTER, ClickEvent, EffectEngine
 from effect_settings import FIELDS, NAMES, SPECIAL, resolve
 from equipment_catalog import is_frozen
+import trial_runtime
 
 
 ROOT = Path(__file__).resolve().parent
@@ -50,9 +51,13 @@ def render(destination=None, all_actions=False, group=None, show_pointer=True, i
             config, _ = resolve(path.parent.name, {}, {}, key)
             for name in FIELDS:
                 config[name]["enabled"] = name == group
-            engine = EffectEngine(load_sprite(path), APPEARANCES[path.stem], config, path, seed=73)
+            if trial_runtime.supported(path):
+                engine = trial_runtime.TrialDisplay(path,config)
+                engine.step((125,90),-.01,[],(0,0,256,256),.75)
+            else:
+                engine = EffectEngine(load_sprite(path), APPEARANCES[path.stem], config, path, seed=73)
             engines.append((group, path, engine))
-        frame_count = max(125, math.ceil(max(max(layer.lifetime for layer in e.layers) for g, p, e in engines) * FPS) + 20)
+        frame_count = max(125, math.ceil(max(e.control.fleet["duration_ms"]/1000 if isinstance(e,trial_runtime.TrialDisplay) else max(layer.lifetime for layer in e.layers) for g, p, e in engines) * FPS) + 20)
         for i in range(frame_count):
             now = i / FPS
             canvas = Image.new("RGB", (256 * columns, 296 * rows), "#16202c")
@@ -60,30 +65,25 @@ def render(destination=None, all_actions=False, group=None, show_pointer=True, i
             for index, (group, path, engine) in enumerate(engines):
                 x, y = (index % columns) * 256, (index // columns) * 296
                 events = [ClickEvent("left", (0, 0), now, 3)] if i == 0 else []
-                effect = engine.step((0, 0), now, events)
                 tile = Image.new("RGBA", (256, 256), "#16202c")
-                if effect is not None:
-                    tile.alpha_composite(effect)
-                if show_pointer:
-                    engine.stamp(tile, engine.sprite, (CENTER - engine.hot[0], CENTER - engine.hot[1]), 1)
+                if isinstance(engine,trial_runtime.TrialDisplay):
+                    for event in events:
+                        event.pos = (125,90)
+                    effect = engine.step((125,90),now,events,(0,0,256,256),.75,show_primary=show_pointer)
+                    if effect:
+                        tile.alpha_composite(effect,engine.frame_origin)
+                else:
+                    effect = engine.step((0, 0), now, events)
+                    if effect is not None:
+                        tile.alpha_composite(effect)
+                    if show_pointer:
+                        engine.stamp(tile, engine.sprite, (CENTER - engine.hot[0], CENTER - engine.hot[1]), 1)
                 if requested_group == "shield" and i == round(engine.config["shield"]["duration"] * engine.layers[0].JOIN_AT * FPS):
                     tile.convert("RGB").resize((768, 768), Image.Resampling.LANCZOS).save(ROOT / "shield-assembly.png")
                 canvas.paste(tile.convert("RGB"), (x, y + 24))
                 name = path.stem.replace("ロングレンジ・フィン・ファンネル（RX-93ff）", "RX-93ff")
                 title = (name + ("（演出のみ）" if not show_pointer else "")) if font else group
                 detail = NAMES[group] if font else group
-                if font and group == "volley" and path.stem == "サザビー":
-                    action = engine.layers[0]
-                    p = action.launch_progress(now)
-                    detail = ("6基とも羽を閉じて上へ射出" if p < action.OPEN_AT else
-                              "羽を開いて方向を変える" if p < action.TURN_AT + 0.08 else
-                              "黄色い軌跡を残して6方向へ" if p < action.DEPART_AT else
-                              "残光が薄れて消える" if now < action.launch_end else
-                              "全機フレームアウト・一拍" if now < action.entry_at else
-                              "外側から奥へ向いて再登場" if now < action.fire_at else
-                              "奥の狭い範囲へ一斉射撃" if now < action.fire_end else
-                              "ビームの余韻" if now < action.after_end else
-                              "射撃位置で静止・消灯" if now < action.lifetime else "")
                 if font and group == "cannon":
                     action = engine.layers[0]
                     p = action.progress_at(now)

@@ -8,8 +8,10 @@ from tempfile import gettempdir
 from PIL import Image
 
 from cursor_art import APPEARANCES, DEFAULT_APPEARANCE, OVERLAY_SIZE, load_sprite
-from effect_engine import ClickTracker, EffectEngine
-from idle_motion import MOTION, NativeIdleCursor
+import trial_runtime
+from effect_settings import atomic_write
+from effect_engine import ClickEvent, ClickTracker, EffectEngine
+from idle_motion import MOTION, NativeIdleCursor, WindowsArrow, cursor_bytes
 
 WINDOW_TITLE = "Funnel Cursor Effect"
 
@@ -156,7 +158,7 @@ class ClickObserver:
                 )
                 if read == ctypes.sizeof(packet) and packet.header.kind == 0:
                     flags = packet.mouse.buttons.flags
-                    if flags & 0x15:
+                    if flags & 0x17:
                         pos = self.overlay.cursor_position()
                         if pos is not None:
                             modifiers = sum(
@@ -164,7 +166,7 @@ class ClickObserver:
                                 for vk, bit in ((0x10, 1), (0x11, 2), (0x12, 4))
                                 if self.key_state(vk) & 0x8000
                             )
-                            for mask, name in ((1, "left"), (4, "right"), (0x10, "middle")):
+                            for mask, name in ((1, "left"), (2, "left_up"), (4, "right"), (0x10, "middle")):
                                 if flags & mask:
                                     self.queue.append((name, pos, time.monotonic(), modifiers))
             elif msg == 0x7E:  # WM_DISPLAYCHANGE
@@ -196,6 +198,18 @@ class LayeredOverlay:
         self.monitor = self.observer = None
         self.dpi_checked = -1
         self.scale = 1
+        class MonitorInfo(ctypes.Structure):
+            _fields_ = [("size", wintypes.DWORD), ("rect", wintypes.RECT),
+                        ("work", wintypes.RECT), ("flags", wintypes.DWORD)]
+        self.monitor_info = MonitorInfo()
+        self.monitor_info.size = ctypes.sizeof(MonitorInfo)
+        self.get_monitor_info = bind(user, "GetMonitorInfoW", wintypes.BOOL, handle, ctypes.POINTER(MonitorInfo))
+        class CursorInfo(ctypes.Structure):
+            _fields_ = [("size", wintypes.DWORD), ("flags", wintypes.DWORD),
+                        ("cursor", handle), ("point", wintypes.POINT)]
+        self.cursor_info = CursorInfo()
+        self.cursor_info.size = ctypes.sizeof(CursorInfo)
+        self.read_cursor_info = bind(user, "GetCursorInfo", boolean, ctypes.POINTER(CursorInfo))
         self.monitor_at = bind(user, "MonitorFromPoint", handle, wintypes.POINT, word)
         shcore = ctypes.WinDLL("shcore")
         self.monitor_dpi = bind(
@@ -293,11 +307,11 @@ class LayeredOverlay:
             self.close()
             raise
 
-    def resize(self, scale):
-        side = round(OVERLAY_SIZE * scale)
-        if side == self.side:
+    def resize(self, scale, dimensions=None):
+        side, height = dimensions or (round(OVERLAY_SIZE * scale),) * 2
+        if (side, height) == (self.side, getattr(self, "height", 0)):
             return
-        header = BitmapHeader(ctypes.sizeof(BitmapHeader), side, -side, 1, 32)
+        header = BitmapHeader(ctypes.sizeof(BitmapHeader), side, -height, 1, 32)
         bits = ctypes.c_void_p()
         bitmap = self.create_bitmap(
             self.dc, ctypes.byref(BitmapInfo(header, 0)), 0, ctypes.byref(bits), None, 0
@@ -312,7 +326,7 @@ class LayeredOverlay:
             self.delete_object(self.bitmap)
         else:
             self.before_bitmap = previous
-        self.bitmap, self.bits, self.side, self.scale = bitmap, bits, side, scale
+        self.bitmap, self.bits, self.side, self.height, self.scale = bitmap, bits, side, height, scale
 
     def update_monitor(self, position):
         monitor = self.monitor_at(wintypes.POINT(*position), 2)
@@ -324,7 +338,13 @@ class LayeredOverlay:
         self.dpi_checked = now
         x, y = wintypes.UINT(96), wintypes.UINT(96)
         if self.monitor_dpi(monitor, 0, ctypes.byref(x), ctypes.byref(y)) == 0:
-            self.resize(max(1, min(5, x.value / 96)))
+            scale = max(1, min(5, x.value / 96))
+            if changed or scale != previous_scale:
+                self.resize(scale)
+        if not self.get_monitor_info(monitor, ctypes.byref(self.monitor_info)):
+            raise ctypes.WinError(ctypes.get_last_error())
+        rect = self.monitor_info.rect
+        self.viewport = (rect.left, rect.top, rect.right, rect.bottom)
         self.monitor = monitor
         return changed or self.scale != previous_scale
 
@@ -334,16 +354,18 @@ class LayeredOverlay:
             return point.x, point.y
         return None
 
-    def render(self, frame, position):
+    def render(self, frame, position, origin=None):
         if frame is None:
             if self.visible:
                 self.show_window(self.window, 0)
                 self.visible = False
             return
 
+        if origin is not None:
+            self.resize(self.scale, frame.size)
         half = self.side // 2
-        top_left = wintypes.POINT(position[0] - half, position[1] - half)
-        size = wintypes.SIZE(self.side, self.side)
+        top_left = wintypes.POINT(*(origin or (position[0] - half, position[1] - half)))
+        size = wintypes.SIZE(self.side, self.height)
         if frame.width != self.side:
             frame = frame.resize((self.side, self.side), Image.Resampling.BILINEAR)
         origin = wintypes.POINT(0, 0)
@@ -389,12 +411,26 @@ class FunnelEffect:
         self.root = root
         self.on_error = on_error
         self.overlay = self.timer = self.animation = None
-        self.cursor_motion = None
+        self.cursor_motion = self.trial_arrow = None
+        self.arrow_hidden = False
         self.cache_dir = cache_dir or Path(gettempdir()) / "FunnelCursorSwitcher-idle"
 
     def start(self, cursor, config):
         self.stop()
         if not any(fields["enabled"] for fields in config.values()):
+            return
+        if trial_runtime.supported(cursor):
+            try:
+                self.animation = trial_runtime.TrialDisplay(cursor,config)
+                self.overlay = LayeredOverlay(True)
+                self.trial_arrow = WindowsArrow()
+                self.blank_path = self.cache_dir / "trial58-transparent.cur"
+                if not self.blank_path.is_file():
+                    atomic_write(self.blank_path,cursor_bytes(Image.new("RGBA",(32,32)), self.animation.hot))
+                self.tick()
+            except Exception:
+                self.stop()
+                raise
             return
         self.animation = EffectEngine(
             load_sprite(cursor), APPEARANCES.get(cursor.stem, DEFAULT_APPEARANCE), config, cursor
@@ -423,22 +459,43 @@ class FunnelEffect:
         overlay = self.overlay
         try:
             position = overlay.cursor_position()
+            trial = self.trial_arrow is not None
+            if trial and (not overlay.read_cursor_info(ctypes.byref(overlay.cursor_info)) or overlay.cursor_info.flags != 1):
+                position = None
             events = []
             if position is not None and overlay.update_monitor(position):
                 self.animation.reset()
                 overlay.tracker.previous = None
+                if trial and overlay.observer:
+                    overlay.observer.queue.clear()
             if overlay.observer:
                 if overlay.observer.error:
                     raise OSError("マウスの状態を読み取れませんでした。")
                 queue = overlay.observer.queue
+                if trial and len(queue) == queue.maxlen:
+                    self.animation.control.cancel_fire()
+                    queue.clear()
                 while queue:
                     button, pos, stamp, modifiers = queue.popleft()
+                    if trial and start - stamp >= 0.35:
+                        self.animation.control.cancel_fire()
+                        continue
                     if position is not None and start - stamp < 0.35:
-                        events.append(
-                            overlay.tracker.press(
-                                button, tuple(n / overlay.scale for n in pos), stamp, modifiers
-                            )
-                        )
+                        if trial:
+                            events.append(ClickEvent(button,pos,stamp,modifiers))
+                        elif button != "left_up":
+                            events.append(overlay.tracker.press(button,tuple(n / overlay.scale for n in pos),stamp,modifiers))
+            if trial:
+                frame = self.animation.step(position,start,events,getattr(overlay,"viewport",None),overlay.scale)
+                overlay.render(frame,position,self.animation.frame_origin)
+                if frame is not None and not self.arrow_hidden:
+                    self.trial_arrow.install(self.blank_path)
+                    self.arrow_hidden = True
+                elif frame is None and self.arrow_hidden:
+                    self.trial_arrow.restore()
+                    self.arrow_hidden = False
+                self.timer = self.root.after(max(4, 16-round((time.monotonic()-start)*1000)),self.tick)
+                return
             logical = tuple(n / overlay.scale for n in position) if position is not None else None
             frame = self.animation.step(logical, start, events)
             if self.cursor_motion:
@@ -462,6 +519,10 @@ class FunnelEffect:
             self.root.after_cancel(self.timer)
             self.timer = None
         try:
+            if self.arrow_hidden:
+                self.trial_arrow.restore()
+                self.arrow_hidden = False
+            self.trial_arrow = None
             if self.cursor_motion is not None:
                 self.cursor_motion.close()
                 self.cursor_motion = None

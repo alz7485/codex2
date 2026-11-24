@@ -70,7 +70,7 @@ class EditorFlow(TestCase):
         self.assertEqual(saved.binding("ファンネル/フィンファンネル.cur")["overrides"]["idle"]["turn_period"], 3.2)
         self.ui.choose_category(self.entries["ファンネル"][0])
         self.root.update()
-        self.assertEqual(self.ui.idle_motion_controls.winfo_manager(), "")
+        self.assertEqual(self.ui.idle_motion_controls.winfo_manager(), "pack")
 
     def select(self, category):
         self.ui.category.set(category)

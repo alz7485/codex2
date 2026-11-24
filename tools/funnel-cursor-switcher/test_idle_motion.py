@@ -83,7 +83,7 @@ class IdleMotion(unittest.TestCase):
         self.assertIsNone(e.idle_turn_step)
 
     def test_other_equipment_and_disabled_mode_keep_original_pointer(self):
-        for path, enabled in ((CURSOR, False), (CURSOR.with_name("キュベレイ.cur"), True)):
+        for path, enabled in ((CURSOR, False), (CURSOR.with_name("νガンダムHWS.cur"), True)):
             e = idle_engine(path=path, enabled=enabled)
             advance(e, 0)
             advance(e, 1.8)

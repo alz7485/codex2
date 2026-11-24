@@ -32,7 +32,7 @@ def main():
     subprocess.run(
         [
             sys.executable, "-m", "PyInstaller", "--onedir", "--windowed",
-            "--clean", "--noconfirm", "--name", NAME, f"{NAME}.pyw",
+            "--add-data", "runtime58.zip;.", "--hidden-import", "numpy", "--clean", "--noconfirm", "--name", NAME, f"{NAME}.pyw",
         ],
         cwd=ROOT,
         check=True,

@@ -226,6 +226,13 @@ for group in SPECIAL:
 for key, fields in FIELDS.items():
     fields["enabled"] = Field("有効", key in ("boost", "trail"))
 FIELDS["click"]["left_color"] = Field("左の色", "機体色")
+for group in ("spiral", "volley"):
+    FIELDS[group].update(
+        escort_count=Field("随伴機数", 3, 0, 3),
+        click_fire_enabled=Field("クリック・ドラッグで射撃", True),
+        orientation_mode=choice("主機の向き", "follow", "fixed_upper_left"),
+    )
+
 CATEGORY = {
     "ファンネル": {"followers": {"orbit": 0.12}},
     "ビット": {"boost": {"width": 1.25}, "followers": {"lag": 0.25}},

@@ -309,6 +309,19 @@ def main(archive, check_restore=False):
         verify_effect(cursors)
         verify_hit_test()
         verify_idle_turn(cursors, root)
+        from trial_runtime import TrialDisplay, UNITS
+        assert (bundle / "_internal/runtime58.zip").read_bytes() == Path(__file__).with_name("runtime58.zip").read_bytes()
+        overlay = LayeredOverlay(observe=True)
+        try:
+            for name in UNITS:
+                display = TrialDisplay(cursors / "ファンネル" / (name+".cur"), resolve("ファンネル",{}, {})[0])
+                for idx in range(10):
+                    events = [ClickEvent("left",(200,200),.02)] if idx==1 else [ClickEvent("left_up",(210,200),.12)] if idx==4 else []
+                    pic = display.step((200+idx,200),idx*.04,events,(0,0,800,600),1.5)
+                    overlay.render(pic,(200+idx,200),display.frame_origin)
+                overlay.render(None,None)
+        finally:
+            overlay.close()
         verify_startup(bundle, source["APP_NAME"])
         print(f"Windows loaded {len(files)} cursors and opened the extracted onedir app.")
 

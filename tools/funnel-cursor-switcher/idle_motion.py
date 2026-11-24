@@ -20,8 +20,8 @@ PADDING = 8
 
 
 def idle_sheet(cursor):
-    if cursor and cursor.parent.name == "ファンネル" and cursor.stem == "フィンファンネル":
-        path = cursor.parent.parent.parent / "飛行アニメ" / cursor.parent.name / "フィンファンネル.待機回転.png"
+    if cursor and cursor.parent.name == "ファンネル" and cursor.stem in ("フィンファンネル", "キュベレイ", "サザビー"):
+        path = cursor.parent.parent.parent / "飛行アニメ" / cursor.parent.name / (cursor.stem + ".待機回転.png")
         if path.is_file():
             return path
     return None
@@ -42,7 +42,7 @@ def turn_frame(path, step, size=32):
     side = round(size * NATIVE_SIDE / 32)
     margin = round(size * PADDING / 32)
     if step % STEPS == 0 and size == 32:
-        original = path.parent.parent.parent / 'カーソル/ファンネル/フィンファンネル.png'
+        original = path.parents[2] / "カーソル" / path.parent.name / (path.name.removesuffix(".待機回転.png") + ".png")
         with Image.open(original) as image:
             frame = Image.new('RGBA', (side, side))
             frame.paste(image.convert('RGBA'), (margin, margin))
