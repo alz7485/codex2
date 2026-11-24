@@ -12,7 +12,7 @@ from tkinter import colorchooser, filedialog, messagebox, simpledialog, ttk
 from PIL import ImageTk
 
 from cursor_art import APPEARANCES, DEFAULT_APPEARANCE, load_sprite
-from effect_engine import ClickTracker, EffectEngine
+from effect_engine import ClickEvent, ClickTracker, EffectEngine
 from effect_settings import (
     BUTTONS,
     MODIFIERS,
@@ -82,7 +82,7 @@ class Preview:
         if self.engine and self.engine.special:
             config = self.engine.config[self.engine.special]
             if config["enabled"]:
-                pos = self.engine.pos or (self.canvas.winfo_width() // 2, self.canvas.winfo_height() // 2)
+                pos = self.manual or (self.canvas.winfo_width() // 2, self.canvas.winfo_height() // 2)
                 self.events.append(
                     self.tracker.press(
                         BUTTONS[config["button"]], pos, time.monotonic(), MODIFIERS[config["modifiers"]]
@@ -131,14 +131,21 @@ class Preview:
                         self.events.append(self.tracker.press("left_up",pos,now))
                 self.mark = mark
             if isinstance(self.engine,trial_runtime.TrialDisplay):
-                frame = self.engine.step(pos, now, self.events, (0,0,max(1,w),max(1,h)))
+                screen_w = max(w, self.canvas.winfo_screenwidth())
+                screen_h = max(h, self.canvas.winfo_screenheight())
+                offset = ((screen_w-w)//2, (screen_h-h)//2)
+                desktop_pos = (pos[0]+offset[0], pos[1]+offset[1])
+                desktop_events = [ClickEvent(e.kind, (e.pos[0]+offset[0], e.pos[1]+offset[1]),
+                                             e.time, e.modifiers) for e in self.events]
+                frame = self.engine.step(desktop_pos, now, desktop_events,
+                                         (0,0,screen_w,screen_h))
                 self.events.clear()
                 self.effect_photo = ImageTk.PhotoImage(frame, master=self.canvas) if frame else None
                 self.canvas.itemconfigure(self.pointer,image="")
                 self.canvas.itemconfigure(self.fx, image=self.effect_photo or "")
                 if frame:
                     x,y = self.engine.frame_origin
-                    self.canvas.coords(self.fx,x+frame.width/2,y+frame.height/2)
+                    self.canvas.coords(self.fx,x-offset[0]+frame.width/2,y-offset[1]+frame.height/2)
                 self.timer = self.canvas.after(25,self.tick)
                 return
             frame = self.engine.step(pos, now, self.events)
@@ -332,12 +339,16 @@ class Editor:
             w.state(["!disabled"] if self.path else ["disabled"])
         if trial_runtime.supported(self.path):
             group = special_group(self.key)
-            for widget in (self.sliders[group],self.numbers[group],self.primary_labels[group]):
+            fixed_groups = [group] + (["boost", "trail"] if self.path.stem != "フィンファンネル" else [])
+            for widget in [w for g in fixed_groups for w in (self.sliders[g], self.numbers[g], self.primary_labels[g])]:
                 widget.state(["disabled"])
         self.refreshing = False
         self.feedback()
 
     def show_special_controls(self):
+        for widget in self.rows.winfo_children():
+            if "row" in widget.grid_info():
+                widget._settings_row = int(widget.grid_info()["row"])
         if idle_sheet(self.path):
             self.idle_motion.set(self.values()[0]["idle"]["motion"])
             self.idle_motion_controls.pack(fill="x", before=self.rows, pady=(6, 0))
@@ -350,6 +361,23 @@ class Editor:
                     widget.grid()
                 else:
                     widget.grid_remove()
+        if trial_runtime.supported(self.path):
+            fin = self.path.stem == "フィンファンネル"
+            supported_groups = {"idle", "followers", group}
+            if not fin:
+                supported_groups |= {"boost", "trail", "click", "particles", "deploy", "rare"}
+            for name in NAMES:
+                row = int(self.row_checks[name].grid_info().get("row", -1))
+                if row < 0:
+                    row = getattr(self.row_checks[name], "_settings_row", -1)
+                if row < 0:
+                    continue
+                for widget in self.rows.winfo_children():
+                    info = widget.grid_info()
+                    widget_row = int(info.get("row", getattr(widget, "_settings_row", -2)))
+                    if widget_row == row:
+                        widget._settings_row = row
+                        widget.grid() if name in supported_groups else widget.grid_remove()
         if group:
             config = self.values()[0][group]
             self.special_title.configure(text=f"特殊演出　{config['modifiers']}＋{config['button']}")
@@ -457,6 +485,13 @@ class Editor:
         win.bind("<MouseWheel>", lambda ev: scroll.yview_scroll(int(-ev.delta / 120), "units"))
         values, origins = self.values()
         for idx, (k, f) in enumerate(FIELDS[g].items()):
+            if trial_runtime.supported(self.path):
+                allowed = {"followers": {"enabled", "count"},
+                           "boost": {"enabled"}, "trail": {"enabled"}}
+                if g in allowed and k not in allowed[g]:
+                    continue
+                if g == "idle" and k not in {"enabled", "delay", "motion", "turn_period", "turn_direction"}:
+                    continue
             if k in ("click_fire_enabled","orientation_mode","escort_count") and not trial_runtime.supported(self.path):
                 continue
             if trial_runtime.supported(self.path) and g == "followers" and k not in ("enabled","count"):

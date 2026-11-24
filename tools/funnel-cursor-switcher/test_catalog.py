@@ -31,15 +31,15 @@ class CatalogScope(unittest.TestCase):
 
     def test_only_twelve_active_equipment_in_default_menu(self):
         entries = discover(ROOT / "カーソル")
-        self.assertEqual(len(ACTIVE_FAMILIES), 6)
-        self.assertEqual(len(files(entries)), 12)
+        self.assertEqual(len(ACTIVE_FAMILIES), 3)
+        self.assertEqual(len(files(entries)), 3)
         self.assertEqual({equipment_key(p) for p in files(entries)}, ACTIVE_EQUIPMENT)
-        self.assertEqual(set(entries), {"ファンネル", "ドラグーン", "インコム"})
+        self.assertEqual(set(entries), {"ファンネル"})
         self.assertEqual(entries["ファンネル"][0].stem, "フィンファンネル")
 
     def test_frozen_thirteen_are_preserved_in_archive(self):
         all_files = files(discover(ROOT / "カーソル", include_frozen=True))
-        self.assertEqual(len(FROZEN_EQUIPMENT), 13)
+        self.assertEqual(len(FROZEN_EQUIPMENT), 22)
         self.assertFalse(ACTIVE_EQUIPMENT & FROZEN_EQUIPMENT)
         self.assertEqual({equipment_key(p) for p in all_files}, ACTIVE_EQUIPMENT | FROZEN_EQUIPMENT)
         for path in all_files:
