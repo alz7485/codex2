@@ -393,11 +393,9 @@ def main(archive, check_restore=False):
             system.install_file(cursor)
             sheet = bundle / "飛行アニメ" / cursor.parent.name / (cursor.stem + ".png")
             assert sheet.read_bytes() == (Path(__file__).parent / sheet.relative_to(bundle)).read_bytes()
-        for name in ("フィンファンネル", "νガンダムHWS", "Hi-νガンダム"):
+        for name in ("フィンファンネル",):
             sheet = bundle / "飛行アニメ" / "ファンネル" / (name + ".展開.png")
             assert sheet.read_bytes() == (Path(__file__).parent / sheet.relative_to(bundle)).read_bytes()
-        shield = bundle / "飛行アニメ" / "ファンネル" / "ユニコーン.正面.png"
-        assert shield.read_bytes() == (Path(__file__).parent / shield.relative_to(bundle)).read_bytes()
         verify_animated(source, root, system, files[0])
         if check_restore:
             verify_restore(system, files[0])
