@@ -1,4 +1,4 @@
-# ファンネル・カーソル切替 v1.7.0
+# ファンネル・カーソル切替 v1.7.1
  
 ## キュベレイ・サザビーのTrial58
 
@@ -9,7 +9,7 @@ Windows 10・11 向けの通常ポインター切替ツールです。現行対�
 
 ## 使い方
 
-1. `FunnelCursorSwitcher-v1.7.0-windows-x64.zip` の全体を展開します。
+1. `FunnelCursorSwitcher-v1.7.1-windows-x64.zip` の全体を展開します。
 2. `FunnelCursorSwitcher.exe` を起動します。
 3. たとえば「ファンネル」→「フィンファンネル」を選び、「適用」を押します。
 
@@ -38,7 +38,7 @@ Windows 10・11 向けの通常ポインター切替ツールです。現行対�
 - **管理**で、編集中の見た目に名前を付けて保存できます。名前付きプリセットの上書き・複製・改名・削除、JSONの読み込み・書き出しもここから行います。
 - 設定は共通値、分類、プリセット、カーソル個別値の順に重ねます。「詳細」の右欄が各値の設定元です。プリセットを変えても個別値を優先します。「初期値に戻す」で選択中のカーソルを分類の標準に戻せます。
 
-最小化してもデスクトップの演出は続きます。アプリを閉じると演出が消え、適用した通常ポインターはWindowsに残ります。次に起動すると、前回のカーソルが選ばれます。「適用」で演出を再開できます。
+最小化してもデスクトップの演出は続きます。アプリを閉じると演出が消え、適用した通常ポインターはWindowsに残ります。次に起動すると、前回のカーソルが選ばれます。キュベレイとサザビーは、前回適用した通常ポインターをWindowsが引き続き使用していれば演出も自動で再開します。別のポインターに切り替えた場合は「適用」で再開できます。
 
 [現行対象の動きの見本（GIF）](active-actions-preview.gif) ・ [変更履歴と検証記録](検証記録.md)
 
@@ -123,7 +123,7 @@ FunnelCursorSwitcher/
 .\build-onedir.cmd
 ```
 
-出力先は `dist\FunnelCursorSwitcher-v1.7.0-windows-x64.zip` です。既存の配布手順向けに `FunnelCursorSwitcher-windows-x64.zip` も同じ内容で生成します。バッチは仮想環境を作り、PyInstallerで次のコマンドを実行してから、現行12種のカーソル・飛行アニメ・専用演出素材をコピーしてZIPにします。凍結13種の素材、全25種のプレビュー、制作用原画は開発用リポジトリで保管します。
+出力先は `dist\FunnelCursorSwitcher-v1.7.1-windows-x64.zip` です。既存の配布手順向けに `FunnelCursorSwitcher-windows-x64.zip` も同じ内容で生成します。バッチは仮想環境を作り、PyInstallerで次のコマンドを実行してから、現行12種のカーソル・飛行アニメ・専用演出素材をコピーしてZIPにします。凍結13種の素材、全25種のプレビュー、制作用原画は開発用リポジトリで保管します。
 
 ```powershell
 .\.venv-build\Scripts\python.exe -m PyInstaller --onedir --windowed --clean --noconfirm --name FunnelCursorSwitcher FunnelCursorSwitcher.pyw

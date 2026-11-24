@@ -94,7 +94,7 @@ class Preview:
         self.tracker.previous = None
         if path is not None:
             sprite = load_sprite(path)
-            self.engine = (trial_runtime.TrialDisplay(path,config) if trial_runtime.supported(path) and any(v["enabled"] for v in config.values())
+            self.engine = (trial_runtime.TrialDisplay(path,config) if trial_runtime.enabled(path, config)
                            else EffectEngine(sprite, APPEARANCES.get(path.stem, DEFAULT_APPEARANCE), config, path))
             if self.engine.special:
                 self.test_button.pack(side="left")
@@ -371,6 +371,7 @@ class Editor:
             if dirty
             else "変更前のポインターを復元"
             if not self.path
+            else "演出停止中" if self.key == self.applied and self.live_values is None
             else "適用済み"
             if self.key == self.applied and self.values()[0] == self.live_values
             else "保存値を表示中"
@@ -417,6 +418,8 @@ class Editor:
 
     def all_enabled(self, value):
         if self.path:
+            if trial_runtime.supported(self.path):
+                self.edit(special_group(self.key), "click_fire_enabled", value)
             for g in FIELDS:
                 if g in SPECIAL and g != special_group(self.key):
                     continue
@@ -652,7 +655,20 @@ class Editor:
         ttk.Button(page, text="閉じる", command=win.destroy).grid(row=5, columnspan=2, sticky="e", pady=5)
 
     def effect_error(self, error):
+        self.live_values = None
+        self.state.set("演出停止中")
         self.status.set(f"カーソルは適用済みです。演出を停止しました。{error}")
+
+    def start_effects(self, target):
+        self.applied = self.key
+        self.live_values = self.values()[0] if target else None
+        if target:
+            try:
+                self.effect.start(target, self.values()[0])
+            except (OSError, ValueError, RuntimeError, ImportError, MemoryError) as error:
+                self.effect_error(error)
+        else:
+            self.effect.stop()
 
     def apply(self):
         target = self.path
@@ -663,15 +679,7 @@ class Editor:
             messagebox.showerror("カーソル切替", str(error), parent=self.root)
             return
         self.status.set(msg)
-        self.applied = self.key
-        self.live_values = self.values()[0] if target else None
-        if target:
-            try:
-                self.effect.start(target, self.values()[0])
-            except (OSError, ValueError, RuntimeError, MemoryError) as error:
-                self.effect_error(error)
-        else:
-            self.effect.stop()
+        self.start_effects(target)
 
         def change():
             self.store.active = self.key

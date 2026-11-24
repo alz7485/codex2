@@ -20,13 +20,25 @@ def supported(path):
     return path and path.parent.name == "ファンネル" and path.stem in UNITS
 
 
+def enabled(path, config):
+    if not supported(path):
+        return False
+    special = "spiral" if UNITS[path.stem] == "qubeley" else "volley"
+    return config[special]["click_fire_enabled"] or any(
+        fields["enabled"] for fields in config.values()
+    )
+
+
 @lru_cache(maxsize=1)
 def library():
-    # PyInstaller installs this signed-off copy as data beside this module.
-    temp = TemporaryDirectory(prefix="FunnelTrial58-")
-    root = Path(temp.name)
-    with ZipFile(Path(__file__).with_name("runtime58.zip")) as archive:
-        archive.extractall(root)
+    temp = None
+    if getattr(sys, "frozen", False):
+        root = Path(__file__).parent / "trial58"
+    else:
+        temp = TemporaryDirectory(prefix="FunnelTrial58-")
+        root = Path(temp.name)
+        with ZipFile(Path(__file__).with_name("runtime58.zip")) as archive:
+            archive.extractall(root)
     sys.path.insert(0, str(root / "effects_trial58"))
     from controller58 import Coordinator
     from visual58 import render_layer

@@ -2,6 +2,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+from zipfile import ZipFile
 
 from equipment_catalog import ACTIVE_EQUIPMENT
 
@@ -32,7 +33,7 @@ def main():
     subprocess.run(
         [
             sys.executable, "-m", "PyInstaller", "--onedir", "--windowed",
-            "--add-data", "runtime58.zip;.", "--hidden-import", "numpy", "--clean", "--noconfirm", "--name", NAME, f"{NAME}.pyw",
+            "--hidden-import", "numpy", "--clean", "--noconfirm", "--name", NAME, f"{NAME}.pyw",
         ],
         cwd=ROOT,
         check=True,
@@ -40,6 +41,8 @@ def main():
 
     dist = ROOT / "dist"
     bundle = dist / NAME
+    with ZipFile(ROOT / "runtime58.zip") as runtime:
+        runtime.extractall(bundle / "_internal" / "trial58")
     copy_runtime_assets(bundle)
     for name in ("VERSION", "README.md", "検証記録.md", "特殊アクション仕様.md", "開発対象.md",
                  "active-actions-preview.gif",

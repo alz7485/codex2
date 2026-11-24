@@ -74,6 +74,84 @@ def verify_startup(bundle, window_title):
                 app.wait(timeout=5)
 
 
+def verify_packaged_apply(bundle, source):
+    """Drive the extracted EXE's real Apply button on the disposable Windows runner."""
+    import tkinter as tk
+    from effect_editor import Editor
+    from effect_settings import Settings
+    from funnel_effect import WINDOW_TITLE
+
+    user = ctypes.WinDLL("user32", use_last_error=True)
+    H, I, P = wintypes.HWND, wintypes.UINT, wintypes.POINT
+    find = bind(user, "FindWindowW", H, wintypes.LPCWSTR, wintypes.LPCWSTR)
+    owner = bind(user, "GetWindowThreadProcessId", wintypes.DWORD, H, ctypes.POINTER(wintypes.DWORD))
+    visible = bind(user, "IsWindowVisible", wintypes.BOOL, H)
+    to_screen = bind(user, "ClientToScreen", wintypes.BOOL, H, ctypes.POINTER(P))
+    move = bind(user, "SetCursorPos", wintypes.BOOL, ctypes.c_int, ctypes.c_int)
+    click = bind(user, "mouse_event", None, wintypes.DWORD, wintypes.DWORD, wintypes.DWORD, wintypes.DWORD, ctypes.c_size_t)
+    foreground = bind(user, "SetForegroundWindow", wintypes.BOOL, H)
+    post = bind(user, "PostMessageW", wintypes.BOOL, H, I, wintypes.WPARAM, wintypes.LPARAM)
+    original_pos = P()
+    bind(user, "GetCursorPos", wintypes.BOOL, ctypes.POINTER(P))(ctypes.byref(original_pos))
+    def wait_window(title, app):
+        deadline = time.monotonic() + 35
+        while time.monotonic() < deadline and app.poll() is None:
+            w = find(None,title)
+            pid = wintypes.DWORD()
+            if w and owner(w,ctypes.byref(pid)) and pid.value == app.pid and visible(w):
+                return w
+            time.sleep(.1)
+        raise AssertionError(f"Visible packaged window missing: {title}, exit={app.poll()}")
+
+    with TemporaryDirectory() as profile:
+        env = dict(os.environ, LOCALAPPDATA=profile)
+        system = source["WindowsCursor"]()
+        system.store = Path(profile)/"FunnelCursorSwitcher"
+        system.backup = system.store/"arrow-original.json"
+        reg = system.registry
+        with reg.OpenKey(reg.HKEY_CURRENT_USER,source["REGISTRY_PATH"],0,reg.KEY_READ|reg.KEY_SET_VALUE) as key:
+            prior = system.read_arrow(key)
+            try:
+                for name in ("サザビー","キュベレイ"):
+                    path = bundle/"カーソル"/"ファンネル"/(name+".cur")
+                    store = Settings(system.store/"effects.json")
+                    store.active = "ファンネル/"+path.name
+                    store.write()
+                    # Measure the exact Tk layout at the runner's DPI.
+                    mirror = tk.Tk()
+                    editor = Editor(mirror,source["discover_cursors"](bundle/"カーソル"),system,"Layout probe")
+                    mirror.update()
+                    button = editor.apply_button
+                    offset = (button.winfo_rootx()-mirror.winfo_rootx()+button.winfo_width()//2,
+                              button.winfo_rooty()-mirror.winfo_rooty()+button.winfo_height()//2)
+                    editor.close()
+                    for reopening in (False,True):
+                        app = subprocess.Popen([str(bundle/"FunnelCursorSwitcher.exe")],cwd=profile,env=env)
+                        try:
+                            window = wait_window(source["APP_NAME"],app)
+                            if not reopening:
+                                foreground(window)
+                                time.sleep(.7)
+                                pt = P(*offset)
+                                assert to_screen(window,ctypes.byref(pt))
+                                assert move(pt.x,pt.y)
+                                click(2,0,0,0,0)
+                                click(4,0,0,0,0)
+                            wait_window(WINDOW_TITLE,app)
+                            assert system.currently_using(path), path
+                            post(window,0x10,0,0)
+                            assert app.wait(timeout=15) == 0
+                        finally:
+                            if app.poll() is None:
+                                app.terminate()
+                                app.wait(timeout=5)
+                    system.apply(None)
+            finally:
+                system.write_arrow(key,prior)
+                system.reload()
+                move(original_pos.x,original_pos.y)
+
+
 def verify_effect(cursors):
     user32 = ctypes.WinDLL("user32", use_last_error=True)
     is_visible = bind(user32, "IsWindowVisible", wintypes.BOOL, wintypes.HWND)
@@ -310,7 +388,9 @@ def main(archive, check_restore=False):
         verify_hit_test()
         verify_idle_turn(cursors, root)
         from trial_runtime import TrialDisplay, UNITS
-        assert (bundle / "_internal/runtime58.zip").read_bytes() == Path(__file__).with_name("runtime58.zip").read_bytes()
+        with ZipFile(Path(__file__).with_name("runtime58.zip")) as reference:
+            for member in reference.namelist():
+                assert (bundle / "_internal/trial58" / member).read_bytes() == reference.read(member), member
         overlay = LayeredOverlay(observe=True)
         try:
             for name in UNITS:
@@ -340,7 +420,10 @@ def main(archive, check_restore=False):
             finally:
                 live.stop()
                 tk_root.destroy()
-        verify_startup(bundle, source["APP_NAME"])
+        if check_restore:
+            verify_packaged_apply(bundle, source)
+        else:
+            verify_startup(bundle, source["APP_NAME"])
         print(f"Windows loaded {len(files)} cursors and opened the extracted onedir app.")
 
 

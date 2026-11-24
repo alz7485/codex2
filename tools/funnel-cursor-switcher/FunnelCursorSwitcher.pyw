@@ -14,8 +14,8 @@ from equipment_catalog import is_frozen
 from funnel_effect import enable_monitor_dpi
 
 
-APP_NAME = "ファンネル・カーソル切替"
 ROOT = Path(sys.executable if getattr(sys, "frozen", False) else __file__).resolve().parent
+APP_NAME = "ファンネル・カーソル切替 v" + (ROOT / "VERSION").read_text(encoding="utf-8").strip()
 CURSORS = ROOT / "カーソル"
 EXTENSIONS = {".cur", ".ani"}
 RESTORE = "元に戻す"
@@ -96,6 +96,15 @@ class WindowsCursor:
             and candidate.name.startswith("cursor-")
             and candidate.suffix.lower() in EXTENSIONS
         )
+
+    def currently_using(self, source):
+        """Resume visuals only for the exact normal cursor still applied by this app."""
+        with self.registry.OpenKey(self.registry.HKEY_CURRENT_USER, REGISTRY_PATH) as key:
+            setting = self.read_arrow(key)
+        if not self.backup.is_file() or not self.is_installed_cursor(setting):
+            return False
+        checksum = hashlib.sha256(source.read_bytes()).hexdigest()
+        return Path(os.path.expandvars(setting[0])).name == f"cursor-{checksum}{source.suffix.lower()}"
 
     def install_file(self, source):
         data = source.read_bytes()
@@ -183,7 +192,10 @@ def main():
         messagebox.showerror(APP_NAME, str(error), parent=root)
         root.destroy()
         return 1
-    Editor(root, entries, system_cursor, APP_NAME)
+    editor = Editor(root, entries, system_cursor, APP_NAME)
+    if editor.path and editor.key == editor.store.active and editor.path.stem in ("キュベレイ", "サザビー"):
+        if system_cursor.currently_using(editor.path):
+            editor.start_effects(editor.path)
     root.mainloop()
     return 0
 

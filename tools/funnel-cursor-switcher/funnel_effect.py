@@ -417,9 +417,7 @@ class FunnelEffect:
 
     def start(self, cursor, config):
         self.stop()
-        if not any(fields["enabled"] for fields in config.values()):
-            return
-        if trial_runtime.supported(cursor):
+        if trial_runtime.enabled(cursor, config):
             try:
                 self.animation = trial_runtime.TrialDisplay(cursor,config)
                 self.overlay = LayeredOverlay(True)
@@ -431,6 +429,8 @@ class FunnelEffect:
             except Exception:
                 self.stop()
                 raise
+            return
+        if not any(fields["enabled"] for fields in config.values()):
             return
         self.animation = EffectEngine(
             load_sprite(cursor), APPEARANCES.get(cursor.stem, DEFAULT_APPEARANCE), config, cursor
@@ -510,7 +510,7 @@ class FunnelEffect:
             if logical is None or self.animation.still > 0.6:
                 interval = 42 if frame is not None else 55
             self.timer = self.root.after(max(4, interval - round(cost * 1000)), self.tick)
-        except (OSError, ValueError, RuntimeError, MemoryError) as error:
+        except (OSError, ValueError, RuntimeError, ImportError, MemoryError) as error:
             self.stop()
             self.on_error(error)
 
