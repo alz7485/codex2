@@ -4,7 +4,7 @@ Windows 10・11 向けの通常ポインター切替ツールです。現行対�
 
 ## 使い方
 
-1. `FunnelCursorSwitcher-v1.6.2-windows-x64.zip` の全体を展開します。
+1. `FunnelCursorSwitcher-v1.6.3-windows-x64.zip` の全体を展開します。
 2. `FunnelCursorSwitcher.exe` を起動します。
 3. たとえば「ファンネル」→「フィンファンネル」を選び、「適用」を押します。
 
@@ -117,7 +117,7 @@ FunnelCursorSwitcher/
 .\build-onedir.cmd
 ```
 
-出力先は `dist\FunnelCursorSwitcher-v1.6.2-windows-x64.zip` です。既存の配布手順向けに `FunnelCursorSwitcher-windows-x64.zip` も同じ内容で生成します。バッチは仮想環境を作り、PyInstallerで次のコマンドを実行してから、カーソルフォルダをコピーしてZIPにします。
+出力先は `dist\FunnelCursorSwitcher-v1.6.3-windows-x64.zip` です。既存の配布手順向けに `FunnelCursorSwitcher-windows-x64.zip` も同じ内容で生成します。バッチは仮想環境を作り、PyInstallerで次のコマンドを実行してから、現行12種のカーソル・飛行アニメ・専用演出素材をコピーしてZIPにします。凍結13種の素材、全25種のプレビュー、制作用原画は開発用リポジトリで保管します。
 
 ```powershell
 .\.venv-build\Scripts\python.exe -m PyInstaller --onedir --windowed --clean --noconfirm --name FunnelCursorSwitcher FunnelCursorSwitcher.pyw

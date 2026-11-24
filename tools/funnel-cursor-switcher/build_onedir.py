@@ -3,10 +3,26 @@ import shutil
 import subprocess
 import sys
 
+from equipment_catalog import ACTIVE_EQUIPMENT
+
 
 ROOT = Path(__file__).resolve().parent
 NAME = "FunnelCursorSwitcher"
 VERSION = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
+
+
+def copy_runtime_assets(bundle):
+    for key in sorted(ACTIVE_EQUIPMENT):
+        cursor = ROOT / "カーソル" / key
+        flight = ROOT / "飛行アニメ" / key
+        sources = [cursor.with_suffix(".cur"), cursor.with_suffix(".png"), flight.with_suffix(".png")]
+        for sheet in flight.parent.glob(f"{flight.name}.*.png"):
+            if not sheet.stem.endswith("原画"):
+                sources.append(sheet)
+        for source in sources:
+            destination = bundle / source.relative_to(ROOT)
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, destination)
 
 
 def main():
@@ -24,10 +40,9 @@ def main():
 
     dist = ROOT / "dist"
     bundle = dist / NAME
-    shutil.copytree(ROOT / "カーソル", bundle / "カーソル", dirs_exist_ok=True)
-    shutil.copytree(ROOT / "飛行アニメ", bundle / "飛行アニメ", dirs_exist_ok=True)
+    copy_runtime_assets(bundle)
     for name in ("VERSION", "README.md", "検証記録.md", "特殊アクション仕様.md", "開発対象.md",
-                 "active-actions-preview.gif", "equipment-actions-preview.gif",
+                 "active-actions-preview.gif",
                  "shield-preview.gif", "shield-assembly.png", "spiral-preview.gif", "dragoon-preview.gif",
                  "barrier-preview.gif", "cannon-preview.gif", "volley-preview.gif", "fin-idle-preview.gif"):
         shutil.copy2(ROOT / name, bundle / name)

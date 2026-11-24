@@ -273,7 +273,7 @@ def main(archive, check_restore=False):
         bundle = root / "FunnelCursorSwitcher"
         assert (bundle / "_internal" / "_tk_data" / "tk.tcl").is_file()
         cursors = bundle / "カーソル"
-        for stem in ("フィンファンネル", "サザビー", "クィン・マンサ", "ナイチンゲール", "キュベレイ", "キュベレイMk-II（プル機）", "キュベレイMk-II（プルツー機）"):
+        for stem in ("フィンファンネル", "サザビー", "キュベレイ", "キュベレイMk-II（プル機）", "キュベレイMk-II（プルツー機）"):
             verify_base_frame(cursors / "ファンネル" / f"{stem}.cur")
         verify_base_frame(cursors / "ドラグーン" / "ストライクフリーダム.cur")
 
@@ -283,11 +283,17 @@ def main(archive, check_restore=False):
         system.backup = system.store / "arrow-original.json"
         active = source["discover_cursors"](cursors)
         assert {equipment_key(p) for paths in active.values() for p in paths} == ACTIVE_EQUIPMENT
-        # Check that frozen library artifacts still ship and remain loadable.
         entries = source["discover_cursors"](cursors, include_frozen=True)
         files = [cursor for category in entries.values() for cursor in category]
-        assert len(files) >= 25
-        assert APPEARANCES.keys() <= {cursor.stem for cursor in files}
+        assert len(files) == len(ACTIVE_EQUIPMENT)
+        assert {equipment_key(cursor) for cursor in files} == ACTIVE_EQUIPMENT
+        assert not (bundle / "equipment-actions-preview.gif").exists()
+        for folder in (cursors, bundle / "飛行アニメ"):
+            for asset in folder.rglob("*"):
+                if asset.is_file():
+                    key = asset.relative_to(folder).as_posix().split(".", 1)[0]
+                    assert key in ACTIVE_EQUIPMENT, asset
+                    assert not asset.stem.endswith("原画"), asset
         for cursor in files:
             system.install_file(cursor)
             sheet = bundle / "飛行アニメ" / cursor.parent.name / (cursor.stem + ".png")
