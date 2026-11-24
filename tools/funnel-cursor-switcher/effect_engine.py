@@ -10,7 +10,8 @@ from PIL import Image, ImageColor, ImageDraw
 from cursor_art import NOZZLES, OVERLAY_SIZE, anchors
 
 from effect_settings import BUTTONS, MODIFIERS, SPECIAL, special_group
-from flight_art import FlightArt
+from flight_art import FlightArt, field_photo, HEADINGS
+import fin_field_geometry as field_geometry
 from idle_motion import MOTION, STEPS, idle_sheet, turn_frame
 
 CENTER = OVERLAY_SIZE // 2
@@ -1263,8 +1264,7 @@ class FinPyramidField(DeltaField):
     # Hinge centres traced from the supplied front view, left to right.
     HINGES = ((0, 0), (9, 0), (18, -14), (27, -14), (35, -28), (43, -36))
     # Four base corners and the apex. The sixth unit stays off-screen.
-    STATIONS = ((-1,-1,-.54),(1,-1,-.54),(1,1,-.54),(-1,1,-.54),
-                (0,0,1.14))
+    STATIONS = field_geometry.VERTICES
     APPROACH = ((-170,-78),(108,-170),(170,64),(-102,170),(0,-182))
 
     def rack_layout(self, elapsed):
@@ -1280,14 +1280,26 @@ class FinPyramidField(DeltaField):
         return layout
 
     def project(self, station):
-        x, z, height = station
-        yaw, tilt = math.radians(22), math.radians(19)
-        lateral = x*math.cos(yaw) - z*math.sin(yaw)
-        depth = x*math.sin(yaw) + z*math.cos(yaw)
+        x, up, depth = field_geometry.camera_space(station)
         radius = self.c["radius"]*.83
-        return ((CENTER+radius*lateral,
-                 CENTER+radius*(depth*math.sin(tilt)-height*math.cos(tilt))),
-                depth*math.cos(tilt)+height*math.sin(tilt))
+        return (CENTER+radius*x, CENTER-radius*up), depth
+
+    def draw_beam(self, frame, a, b, strength):
+        # Each edge starts at the grille between the plates. Light fans from
+        # the small source, then narrows into the line between neighbouring units.
+        length = math.dist(a,b)
+        dx,dy = (b[0]-a[0])/length,(b[1]-a[1])/length
+        light = Image.new("RGBA",frame.size)
+        brush = ImageDraw.Draw(light)
+        reach = min(13, length*.24)
+        for start,sign in ((a,1),(b,-1)):
+            x,y = start
+            shoulder=(x+dx*reach*.42*sign,y+dy*reach*.42*sign)
+            end=(x+dx*reach*sign,y+dy*reach*sign)
+            brush.polygon([start,(shoulder[0]-dy*2.4,shoulder[1]+dx*2.4),end,
+                           (shoulder[0]+dy*2.4,shoulder[1]-dx*2.4)], fill=self.ink(.64*strength))
+        brush.line([a,b],fill=self.ink(.69*strength),width=1)
+        frame.alpha_composite(light)
 
     def draw(self, frame, draw):
         elapsed = self.e.now-self.event.time
@@ -1319,14 +1331,20 @@ class FinPyramidField(DeltaField):
                 ids = (i,(i+1)%4,4)
                 depth = sum(stations[j][1] for j in ids)/3
                 layers.append((depth,'face',ids))
+                for j in ((i+1)%4,4):
+                    distance = (stations[i][1]+stations[j][1])/2
+                    layers.append((distance,'beam',(i,j)))
         layers.extend((depth,'unit',i) for i,(_,depth) in enumerate(stations))
         for depth,kind,item in sorted(layers,key=lambda l:l[0]):
+            if kind == 'beam':
+                a,b = (stations[j][0] for j in item)
+                self.draw_beam(frame,a,b,strength)
+                continue
             if kind == 'face':
                 pts = [stations[j][0] for j in item]
                 surface = Image.new("RGBA", frame.size)
                 brush = ImageDraw.Draw(surface)
-                brush.polygon(pts,fill=self.ink(strength*(.12+.11*clamp(.5+depth))))
-                brush.line(pts+[pts[0]],fill=self.ink(strength*(.39+.27*clamp(.5+depth))),width=2)
+                brush.polygon(pts,fill=self.ink(strength*(.045+.085*clamp(.5+depth))))
                 frame.alpha_composite(surface)
                 continue
             target = stations[item][0]
@@ -1334,14 +1352,14 @@ class FinPyramidField(DeltaField):
             start = CENTER+dx,CENTER+dy
             pos = target if travel >= 1 else tuple(a+(b-a)*travel for a,b in zip(start,target))
             incoming = math.atan2(target[1]-start[1],target[0]-start[0])
-            inward = math.atan2(CENTER-target[1],CENTER-target[0])
+            inward = field_geometry.heading(item)
             heading = incoming+turn*((inward-incoming+math.pi)%TAU-math.pi)
             # All five enter at the same viewing distance. The rear pair
             # recedes during approach; hold each projected size once in place.
             viewing_depth = depth * travel
             scale = 1.0 / (1.0 - .28 * viewing_depth)
-            self.e.fly(frame, pos, heading, round(3 * opening), round(27 * scale),
-                       fade * self.c["opacity"], deploying=progress >= .39)
+            self.e.fly(frame, pos, heading, round(3 * opening), round(min(56, self.c["radius"]*.85) * scale),
+                       fade * self.c["opacity"], field_station=item)
 
 
 LAYERS = {
@@ -1416,8 +1434,13 @@ class EffectEngine:
             return tuple(value + PADDING for value in self.hot)
         return self.hot
 
-    def fly(self, frame, pos, heading, pose, size, opacity, deploying=False):
-        image = self.art.frame(heading, pose, size, deploying)
+    def fly(self, frame, pos, heading, pose, size, opacity, deploying=False, field_station=None):
+        if field_station is None:
+            image = self.art.frame(heading, pose, size, deploying)
+        else:
+            offset = round((heading-field_geometry.heading(field_station))*HEADINGS/TAU) % HEADINGS
+            path = self.art.sheet.with_name("フィンファンネル.バリア.png")
+            image = field_photo(path,field_station,pose,offset,size)
         self.stamp(frame, image, (pos[0] - image.width / 2, pos[1] - image.height / 2), opacity)
 
     @staticmethod

@@ -275,9 +275,12 @@ def patch(data, strict=False):
     return result
 
 
-def resolve(category, preset, overrides):
+def resolve(category, preset, overrides, cursor_key=None):
     values = {g: {k: f.default for k, f in fields.items()} for g, fields in FIELDS.items()}
     origins = {g: dict.fromkeys(fields, "共通") for g, fields in FIELDS.items()}
+    if cursor_key == "ファンネル/フィンファンネル.cur":
+        values["barrier"]["color"] = "#d479ca"
+        origins["barrier"]["color"] = "機体"
     for layer, title in ((CATEGORY.get(category, {}), "分類"), (preset, "プリセット"), (overrides, "個別")):
         for group, fields in layer.items():
             values[group].update(fields)

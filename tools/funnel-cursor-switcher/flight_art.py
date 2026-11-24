@@ -119,6 +119,23 @@ def front_rack_pose(path, size, bank, fold_lower, part):
     return canvas.rotate(bank, Image.Resampling.BICUBIC)
 
 
+@lru_cache(maxsize=1)
+def field_photos(path):
+    with Image.open(path) as atlas:
+        if atlas.size != (4*192, 5*192):
+            raise ValueError("フィンファンネルのバリア画像のサイズが不正です。")
+        return tuple(atlas.crop((p*192,s*192,(p+1)*192,(s+1)*192)).convert("RGBA")
+                     for s in range(5) for p in range(4))
+
+
+@lru_cache(maxsize=512)
+def field_photo(path, station, pose, offset, size):
+    photo = field_photos(path)[4*station+pose]
+    if offset:
+        photo = photo.rotate(-offset*360/HEADINGS,Image.Resampling.BICUBIC)
+    return photo.resize((size,size),Image.Resampling.LANCZOS)
+
+
 class FlightArt:
     def rear_frame(self, heading, size):
         """Use separately authored rear artwork when a funnel flies into depth."""

@@ -277,7 +277,7 @@ class Editor:
 
     def values(self):
         b = self.binding()
-        return resolve(self.category.get(), self.store.choices()[b["preset"]], b["overrides"])
+        return resolve(self.category.get(), self.store.choices()[b["preset"]], b["overrides"], self.key)
 
     def choose_category(self, target=None):
         paths = self.entries.get(self.category.get(), [])
@@ -368,7 +368,7 @@ class Editor:
             return
         b = self.binding()
         self.drafts[self.key] = b
-        base, _ = resolve(self.category.get(), self.store.choices()[b["preset"]], {})
+        base, _ = resolve(self.category.get(), self.store.choices()[b["preset"]], {}, self.key)
         overrides = b["overrides"].setdefault(g, {})
         if value == base[g][k]:
             overrides.pop(k, None)
@@ -591,8 +591,8 @@ class Editor:
                             if b["preset"] == selected:
                                 if action == "削除":
                                     category = ident.split("/", 1)[0]
-                                    full, _ = resolve(category, presets[selected], b["overrides"])
-                                    base, _ = resolve(category, {}, {})
+                                    full, _ = resolve(category, presets[selected], b["overrides"], ident)
+                                    base, _ = resolve(category, {}, {}, ident)
                                     b["overrides"] = difference(full, base)
                                 b["preset"] = dest
                     del presets[selected]

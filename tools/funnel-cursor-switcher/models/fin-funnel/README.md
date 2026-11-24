@@ -18,3 +18,10 @@ blender -b --python-exit-code 1 -P create_model.py -- /tmp/fin-model
 blender -b /tmp/fin-model/fin-funnel.blend --python-exit-code 1 -P models/fin-funnel/render_assets.py -- /tmp/fin-baked
 python build_fin_idle_art.py /tmp/fin-baked
 ```
+
+バリアの姿勢は四角錐の頂点ごとに、担当する2辺の方向に板を開いて撮影する。各コマの中心はヒンジ内側の格子に合わせてあり、アプリはこの位置を光の起点にする。
+
+```sh
+blender -b /tmp/fin-model/fin-funnel.blend --python-exit-code 1 -P models/fin-funnel/render_field.py -- /tmp/fin-field
+python models/fin-funnel/pack_field.py /tmp/fin-field
+```

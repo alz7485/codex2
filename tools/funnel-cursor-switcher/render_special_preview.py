@@ -47,7 +47,7 @@ def render(destination=None, all_actions=False, group=None, show_pointer=True, i
             if group == "barrier":
                 key = next((k for k in candidates if k.endswith("/フィンファンネル.cur")), key)
             path = ROOT / "カーソル" / key
-            config, _ = resolve(path.parent.name, {}, {})
+            config, _ = resolve(path.parent.name, {}, {}, key)
             for name in FIELDS:
                 config[name]["enabled"] = name == group
             engine = EffectEngine(load_sprite(path), APPEARANCES[path.stem], config, path, seed=73)

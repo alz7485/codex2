@@ -512,10 +512,13 @@ class Rendering(unittest.TestCase):
             rear, front = corners[:2], corners[2:]
             self.assertLess(max(sizes[xy] for xy,_ in rear), min(sizes[xy] for xy,_ in front))
             self.assertLessEqual(sizes[rear[0][0]], .55 * sizes[front[-1][0]])
+            from fin_field_geometry import rail_directions
             for c in fly.call_args_list:
-                x,y=c.args[1]
-                self.assertAlmostEqual(math.cos(c.args[2]),(CENTER-x)/math.hypot(CENTER-x,CENTER-y))
-                self.assertAlmostEqual(math.sin(c.args[2]),(CENTER-y)/math.hypot(CENTER-x,CENTER-y))
+                u,v = rail_directions(c.kwargs["field_station"])
+                # Mechanical long axis bisects the two adjacent 3D edge rays.
+                expected = math.atan2(-u[1]-v[1],u[0]+v[0])
+                self.assertAlmostEqual(math.cos(c.args[2]),math.cos(expected))
+                self.assertAlmostEqual(math.sin(c.args[2]),math.sin(expected))
         from PIL import Image
         # Visible red tip inlays at both ends of a straight unit,
         # and only above the hinge in the folded middle pair.
