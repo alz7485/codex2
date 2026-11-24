@@ -137,7 +137,24 @@ def verify_packaged_apply(bundle, source):
                                 assert move(pt.x,pt.y)
                                 click(2,0,0,0,0)
                                 click(4,0,0,0,0)
-                            wait_window(WINDOW_TITLE,app)
+                            if not reopening:
+                                until = time.monotonic()+3
+                                while time.monotonic()<until and not system.currently_using(path):
+                                    time.sleep(.1)
+                                if not system.currently_using(path):
+                                    # Some runner sessions suppress injected pointer clicks.
+                                    # Use the same Apply button through its keyboard binding.
+                                    keyevent = bind(user,"keybd_event",None,wintypes.BYTE,wintypes.BYTE,I,ctypes.c_size_t)
+                                    foreground(window)
+                                    keyevent(0x74,0,0,0)
+                                    keyevent(0x74,0,2,0)
+                            try:
+                                wait_window(WINDOW_TITLE,app)
+                            except AssertionError:
+                                log = system.store/"display.log"
+                                print(log.read_text(encoding="utf-8") if log.exists() else "No display log", flush=True)
+                                print("Registry matches selection:",system.currently_using(path),flush=True)
+                                raise
                             assert system.currently_using(path), path
                             post(window,0x10,0,0)
                             assert app.wait(timeout=15) == 0

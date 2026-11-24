@@ -1,6 +1,7 @@
 """Tk editor. Drafts belong to cursor IDs and never drive the desktop until Apply."""
 
 import math
+import logging
 import time
 import tkinter as tk
 from collections import Counter
@@ -266,7 +267,7 @@ class Editor:
             )
         )
         ttk.Label(footer, textvariable=self.state).pack(side="left")
-        self.apply_button = ttk.Button(footer, text="適用", command=self.apply)
+        self.apply_button = ttk.Button(footer, text="適用 (F5)", command=self.apply)
         self.apply_button.pack(side="right")
         ttk.Label(container, textvariable=self.status, wraplength=570).grid(
             row=2, columnspan=2, sticky="w", pady=(5, 0)
@@ -274,6 +275,7 @@ class Editor:
         self.category.bind("<<ComboboxSelected>>", lambda _: self.choose_category())
         self.cursor.bind("<<ComboboxSelected>>", lambda _: self.choose())
         self.preset.bind("<<ComboboxSelected>>", self.choose_preset)
+        root.bind("<F5>", lambda _: self.apply_button.invoke())
         root.protocol("WM_DELETE_WINDOW", self.close)
         active = self.store.active
         target = next((p for paths in entries.values() for p in paths if self.identity(p) == active), None)
@@ -655,6 +657,7 @@ class Editor:
         ttk.Button(page, text="閉じる", command=win.destroy).grid(row=5, columnspan=2, sticky="e", pady=5)
 
     def effect_error(self, error):
+        logging.getLogger("funnel.display").error("Desktop effect stopped: %s", error, exc_info=True)
         self.live_values = None
         self.state.set("演出停止中")
         self.status.set(f"カーソルは適用済みです。演出を停止しました。{error}")
@@ -672,6 +675,7 @@ class Editor:
 
     def apply(self):
         target = self.path
+        logging.getLogger("funnel.display").info("Apply %s", self.key)
         b = deepcopy(self.binding())
         try:
             msg = self.system.apply(target)

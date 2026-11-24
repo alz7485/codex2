@@ -1,4 +1,5 @@
 import ctypes
+import logging
 import time
 from collections import deque
 from ctypes import wintypes
@@ -420,6 +421,7 @@ class FunnelEffect:
         if trial_runtime.enabled(cursor, config):
             try:
                 self.animation = trial_runtime.TrialDisplay(cursor,config)
+                logging.getLogger("funnel.display").info("Desktop Trial58 %s, escorts=%d", cursor.stem, self.animation.control.count)
                 self.overlay = LayeredOverlay(True)
                 self.trial_arrow = WindowsArrow()
                 self.blank_path = self.cache_dir / f"trial58-transparent-{self.animation.hot[0]}-{self.animation.hot[1]}.cur"
@@ -460,7 +462,7 @@ class FunnelEffect:
         try:
             position = overlay.cursor_position()
             trial = self.trial_arrow is not None
-            if trial and (not overlay.read_cursor_info(ctypes.byref(overlay.cursor_info)) or overlay.cursor_info.flags != 1):
+            if trial and overlay.read_cursor_info(ctypes.byref(overlay.cursor_info)) and overlay.cursor_info.flags & 2:
                 position = None
             events = []
             if position is not None and overlay.update_monitor(position):
@@ -491,6 +493,7 @@ class FunnelEffect:
                 if frame is not None and not self.arrow_hidden:
                     self.trial_arrow.install(self.blank_path)
                     self.arrow_hidden = True
+                    logging.getLogger("funnel.display").info("Desktop frame displayed")
                 elif frame is None and self.arrow_hidden:
                     self.trial_arrow.restore()
                     self.arrow_hidden = False
@@ -510,7 +513,7 @@ class FunnelEffect:
             if logical is None or self.animation.still > 0.6:
                 interval = 42 if frame is not None else 55
             self.timer = self.root.after(max(4, interval - round(cost * 1000)), self.tick)
-        except (OSError, ValueError, RuntimeError, ImportError, MemoryError) as error:
+        except Exception as error:
             self.stop()
             self.on_error(error)
 

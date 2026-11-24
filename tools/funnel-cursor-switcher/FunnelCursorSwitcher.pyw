@@ -1,6 +1,8 @@
 import ctypes
 import hashlib
 import json
+import logging
+from logging.handlers import RotatingFileHandler
 import os
 from pathlib import Path
 import sys
@@ -192,7 +194,20 @@ def main():
         messagebox.showerror(APP_NAME, str(error), parent=root)
         root.destroy()
         return 1
+    try:
+        system_cursor.store.mkdir(parents=True, exist_ok=True)
+        handler = RotatingFileHandler(system_cursor.store / "display.log", maxBytes=65536, backupCount=1, encoding="utf-8")
+        logger = logging.getLogger("funnel.display")
+        logger.setLevel(logging.INFO)
+        logger.addHandler(handler)
+        logger.info("Start %s", APP_NAME)
+    except OSError:
+        pass
     editor = Editor(root, entries, system_cursor, APP_NAME)
+    def report_callback(exc, value, tb):
+        logging.getLogger("funnel.display").error("UI callback", exc_info=(exc, value, tb))
+        editor.status.set(f"表示処理でエラーが発生しました。{value}")
+    root.report_callback_exception = report_callback
     if editor.path and editor.key == editor.store.active and editor.path.stem in ("キュベレイ", "サザビー"):
         if system_cursor.currently_using(editor.path):
             editor.start_effects(editor.path)
