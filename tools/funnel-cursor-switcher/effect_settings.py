@@ -226,10 +226,10 @@ for group in SPECIAL:
 for key, fields in FIELDS.items():
     fields["enabled"] = Field("有効", key in ("boost", "trail"))
 FIELDS["click"]["left_color"] = Field("左の色", "機体色")
-for group in ("spiral", "volley"):
+for group in ("spiral", "volley", "barrier"):
     FIELDS[group].update(
         click_fire_enabled=Field("クリック・ドラッグで射撃", True),
-        orientation_mode=choice("主機の向き", "follow", "fixed_upper_left"),
+        orientation_mode=choice("主機の向き", * (("fixed_upper_left","follow") if group=="barrier" else ("follow","fixed_upper_left"))),
     )
 
 CATEGORY = {

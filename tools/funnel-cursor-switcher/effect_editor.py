@@ -95,7 +95,7 @@ class Preview:
         self.tracker.previous = None
         if path is not None:
             sprite = load_sprite(path)
-            self.engine = (trial_runtime.TrialDisplay(path,config) if trial_runtime.enabled(path, config)
+            self.engine = (trial_runtime.create_display(path,config) if trial_runtime.enabled(path, config)
                            else EffectEngine(sprite, APPEARANCES.get(path.stem, DEFAULT_APPEARANCE), config, path))
             if self.engine.special:
                 self.test_button.pack(side="left")
@@ -461,7 +461,7 @@ class Editor:
                 continue
             if trial_runtime.supported(self.path) and g == "followers" and k not in ("enabled","count"):
                 continue
-            if trial_runtime.supported(self.path) and g == special_group(self.key) and k in ("duration","count","radius","turns","color","opacity"):
+            if trial_runtime.supported(self.path) and g != "barrier" and g == special_group(self.key) and k in ("duration","count","radius","turns","color","opacity"):
                 continue
             if g == "idle" and k in ("motion", "turn_period", "turn_direction") and not idle_sheet(self.path):
                 continue

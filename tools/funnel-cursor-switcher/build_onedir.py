@@ -43,6 +43,8 @@ def main():
     bundle = dist / NAME
     with ZipFile(ROOT / "runtime58.zip") as runtime:
         runtime.extractall(bundle / "_internal" / "trial58")
+    with ZipFile(ROOT / "runtime77.zip") as runtime:
+        runtime.extractall(bundle / "_internal/fin77")
     copy_runtime_assets(bundle)
     for name in ("VERSION", "README.md", "検証記録.md", "特殊アクション仕様.md", "開発対象.md",
                  "active-actions-preview.gif",

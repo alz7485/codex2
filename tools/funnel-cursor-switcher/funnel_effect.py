@@ -420,8 +420,8 @@ class FunnelEffect:
         self.stop()
         if trial_runtime.enabled(cursor, config):
             try:
-                self.animation = trial_runtime.TrialDisplay(cursor,config)
-                logging.getLogger("funnel.display").info("Desktop Trial58 %s, escorts=%d", cursor.stem, self.animation.control.count)
+                self.animation = trial_runtime.create_display(cursor,config)
+                logging.getLogger("funnel.display").info("Desktop effect %s", cursor.stem)
                 self.overlay = LayeredOverlay(True)
                 self.trial_arrow = WindowsArrow()
                 self.blank_path = self.cache_dir / f"trial58-transparent-{self.animation.hot[0]}-{self.animation.hot[1]}.cur"
@@ -475,12 +475,12 @@ class FunnelEffect:
                     raise OSError("マウスの状態を読み取れませんでした。")
                 queue = overlay.observer.queue
                 if trial and len(queue) == queue.maxlen:
-                    self.animation.control.cancel_fire()
+                    self.animation.cancel_fire()
                     queue.clear()
                 while queue:
                     button, pos, stamp, modifiers = queue.popleft()
                     if trial and start - stamp >= 0.35:
-                        self.animation.control.cancel_fire()
+                        self.animation.cancel_fire()
                         continue
                     if position is not None and start - stamp < 0.35:
                         if trial:

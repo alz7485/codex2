@@ -1,5 +1,7 @@
-# ファンネル・カーソル切替 v1.7.1
+# ファンネル・カーソル切替 v1.8.0
  
+フィンファンネルはTrial77を使用します。バリアの詳細で色・保持時間・通常射撃・向きを変更できます。
+
 ## キュベレイ・サザビーのTrial58
 
 「随伴ファンネル」で1～3基を選べます。チェックを外すと0基になります。「特殊演出」行の「詳細」でクリック・ドラッグ射撃と主機の向き（移動方向に追従／左上固定）を変更し、「適用」で保存できます。短い左クリックは集光後に発射し、長押し・ドラッグは左ボタンを離すと発射します。射撃をオフにしても、設定した特殊操作で6基の演出を起動できます。特殊演出中は随伴機が退避し、終了後に戻ります。「待機モーション」で横回転を選べます。
@@ -9,7 +11,7 @@ Windows 10・11 向けの通常ポインター切替ツールです。現行対�
 
 ## 使い方
 
-1. `FunnelCursorSwitcher-v1.7.1-windows-x64.zip` の全体を展開します。
+1. `FunnelCursorSwitcher-v1.8.0-windows-x64.zip` の全体を展開します。
 2. `FunnelCursorSwitcher.exe` を起動します。
 3. たとえば「ファンネル」→「フィンファンネル」を選び、「適用」を押します。
 
@@ -123,7 +125,7 @@ FunnelCursorSwitcher/
 .\build-onedir.cmd
 ```
 
-出力先は `dist\FunnelCursorSwitcher-v1.7.1-windows-x64.zip` です。既存の配布手順向けに `FunnelCursorSwitcher-windows-x64.zip` も同じ内容で生成します。バッチは仮想環境を作り、PyInstallerで次のコマンドを実行してから、現行12種のカーソル・飛行アニメ・専用演出素材をコピーしてZIPにします。凍結13種の素材、全25種のプレビュー、制作用原画は開発用リポジトリで保管します。
+出力先は `dist\FunnelCursorSwitcher-v1.8.0-windows-x64.zip` です。既存の配布手順向けに `FunnelCursorSwitcher-windows-x64.zip` も同じ内容で生成します。バッチは仮想環境を作り、PyInstallerで次のコマンドを実行してから、現行12種のカーソル・飛行アニメ・専用演出素材をコピーしてZIPにします。凍結13種の素材、全25種のプレビュー、制作用原画は開発用リポジトリで保管します。
 
 ```powershell
 .\.venv-build\Scripts\python.exe -m PyInstaller --onedir --windowed --clean --noconfirm --name FunnelCursorSwitcher FunnelCursorSwitcher.pyw

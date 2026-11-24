@@ -112,7 +112,7 @@ def verify_packaged_apply(bundle, source):
         with reg.OpenKey(reg.HKEY_CURRENT_USER,source["REGISTRY_PATH"],0,reg.KEY_READ|reg.KEY_SET_VALUE) as key:
             prior = system.read_arrow(key)
             try:
-                for name in ("サザビー","キュベレイ"):
+                for name in ("サザビー","キュベレイ","フィンファンネル"):
                     path = bundle/"カーソル"/"ファンネル"/(name+".cur")
                     store = Settings(system.store/"effects.json")
                     store.active = "ファンネル/"+path.name

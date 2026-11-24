@@ -17,13 +17,13 @@ UNITS = {"キュベレイ": "qubeley", "サザビー": "sazabi"}
 
 
 def supported(path):
-    return path and path.parent.name == "ファンネル" and path.stem in UNITS
+    return path and path.parent.name == "ファンネル" and (path.stem in UNITS or path.stem == "フィンファンネル")
 
 
 def enabled(path, config):
     if not supported(path):
         return False
-    special = "spiral" if UNITS[path.stem] == "qubeley" else "volley"
+    special = {"フィンファンネル":"barrier","キュベレイ":"spiral","サザビー":"volley"}[path.stem]
     return config[special]["click_fire_enabled"] or any(
         fields["enabled"] for fields in config.values()
     )
@@ -93,6 +93,9 @@ class TrialDisplay:
         self.decorations.reset()
         self.pos = None
         self.still = 0
+
+    def cancel_fire(self):
+        self.control.cancel_fire()
 
     def primary(self, item, effects):
         assets = self.control.m["assets"][self.unit]
@@ -205,3 +208,75 @@ class TrialDisplay:
             frame.alpha_composite(image,(x-left,y-top))
         self.frame_origin = left,top
         return frame
+
+
+@lru_cache(maxsize=1)
+def fin_library():
+    if getattr(sys, "frozen", False):
+        return None, Path(__file__).parent / "fin77"
+    temp = TemporaryDirectory(prefix="FinTrial77-")
+    with ZipFile(Path(__file__).with_name("runtime77.zip")) as archive:
+        archive.extractall(temp.name)
+    return temp, Path(temp.name)
+
+
+class FinDisplay(TrialDisplay):
+    """Render Trial77 in monitor-local pixels, then place the cropped overlay globally."""
+    special = "barrier"
+
+    def __init__(self, path, config):
+        _, root = fin_library()
+        if str(root) not in sys.path:
+            sys.path.insert(0, str(root))
+        from integrated_trial77 import Integrated
+        self.config = config
+        idle = config["idle"]
+        opts = config[self.special]
+        self.count = config["followers"]["count"] if config["followers"]["enabled"] else 0
+        self.fx = Integrated(root, opts["click_fire_enabled"], self.count,
+                             opts["color"] if opts["color"] != "機体色" else "purple",
+                             idle["delay"], idle["turn_period"], idle["turn_direction"] == "逆回転")
+        self.hot = anchors(load_sprite(path), path)[0]
+        self.pos = None
+        self.frame_origin = (0, 0)
+
+    def reset(self):
+        self.fx.reset()
+        self.pos = None
+
+    def cancel_fire(self):
+        self.fx.cancel()
+
+    def step(self, pos, now, events, viewport, scale=1, show_primary=True):
+        if pos is None:
+            self.reset()
+            return None
+        left, top, right, bottom = viewport
+        bounds = (0, 0, right-left, bottom-top)
+        opts = self.config[self.special]
+        size = min(self.fx.flight.art.entries, key=lambda side: abs(side-32*scale))
+        for event in events:
+            button = "left" if event.kind == "double" else event.kind
+            if opts["enabled"] and button == BUTTONS[opts["button"]] and event.modifiers == MODIFIERS[opts["modifiers"]]:
+                self.fx.trigger_special(event.time,(event.pos[0]-left,event.pos[1]-top),bounds,
+                                        opts["radius"],opts["duration"],.58*scale,opts["opacity"])
+            elif button == "left":
+                self.fx.down(event.time)
+            elif button == "left_up":
+                self.fx.up(event.time)
+        self.pos = pos
+        idle = self.config["idle"]
+        state = self.fx.update(now,(pos[0]-left,pos[1]-top),size,
+                               opts["orientation_mode"]=="fixed_upper_left",bounds,
+                               idle_enabled=idle["enabled"] and idle["motion"]==MOTION,
+                               context=(viewport,scale))
+        background = Image.new("RGBA",bounds[2:])
+        frame = self.fx.draw(background,state) if show_primary else self.fx.barrier.draw(background,state["special"])
+        box = frame.getbbox()
+        if box:
+            self.frame_origin = left+box[0],top+box[1]
+            return frame.crop(box)
+
+
+def create_display(path, config):
+    return (FinDisplay if path.stem == "フィンファンネル" else TrialDisplay)(path, config)

@@ -54,12 +54,12 @@ def render(destination=None, all_actions=False, group=None, show_pointer=True, i
             if trial_runtime.supported(path):
                 for name in ("boost", "trail", "followers"):
                     config[name]["enabled"] = True
-                engine = trial_runtime.TrialDisplay(path,config)
+                engine = trial_runtime.create_display(path,config)
                 engine.step((125,90),-.01,[],(0,0,256,256),.75)
             else:
                 engine = EffectEngine(load_sprite(path), APPEARANCES[path.stem], config, path, seed=73)
             engines.append((group, path, engine))
-        frame_count = max(125, math.ceil(max(e.control.fleet["duration_ms"]/1000 if isinstance(e,trial_runtime.TrialDisplay) else max(layer.lifetime for layer in e.layers) for g, p, e in engines) * FPS) + 20)
+        frame_count = max(125, math.ceil(max(6.70 if isinstance(e,trial_runtime.FinDisplay) else e.control.fleet["duration_ms"]/1000 if isinstance(e,trial_runtime.TrialDisplay) else max(layer.lifetime for layer in e.layers) for g, p, e in engines) * FPS) + 20)
         for i in range(frame_count):
             now = i / FPS
             canvas = Image.new("RGB", (256 * columns, 296 * rows), "#16202c")
@@ -98,7 +98,7 @@ def render(destination=None, all_actions=False, group=None, show_pointer=True, i
                               "根元で光を溜める" if p < action.FIRE_AT else
                               "ビーム発射" if p < action.FIRE_END else
                               "先端を閉じて終了" if p < 1 else "")
-                if font and group == "barrier" and engine.layers[0].has_rack:
+                if font and group == "barrier" and not isinstance(engine,trial_runtime.FinDisplay) and engine.layers[0].has_rack:
                     action = engine.layers[0]
                     phase = action.field_progress(now)
                     opened_at = action.RACK_END + action.c["duration"] * action.OPEN_END
