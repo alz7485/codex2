@@ -38,9 +38,33 @@ jobs:
       - name: Verify extracted Windows app and cursor restore
         shell: cmd
         run: .venv-build\Scripts\python.exe verify_windows_release.py dist/FunnelCursorSwitcher-windows-x64.zip --check-system-restore
-      - name: Upload ready-to-run Windows app
+      - name: Package minimal runtime
+        shell: python
+        run: |
+          from pathlib import Path
+          from zipfile import ZipFile, ZIP_DEFLATED
+          root = Path("dist/FunnelCursorSwitcher")
+          archive = Path("dist/FunnelCursorSwitcher-v1.8.1-lite-windows-x64.zip")
+          with ZipFile(archive, "w", ZIP_DEFLATED, compresslevel=9) as z:
+              for p in sorted(root.rglob("*")):
+                  if not p.is_file():
+                      continue
+                  rel = p.relative_to(root)
+                  if rel.parts[0] not in ("_internal", "カーソル", "飛行アニメ", "FunnelCursorSwitcher.exe"):
+                      continue
+                  if "__pycache__" in rel.parts or p.suffix.lower() in (".md", ".gif", ".blend", ".obj", ".glb", ".html"):
+                      continue
+                  if p.name.startswith("test_") or p.name.startswith("verify_"):
+                      continue
+                  z.write(p, str(Path("FunnelCursorSwitcher") / rel))
+          print(archive, archive.stat().st_size)
+      - name: Verify minimal runtime
+        shell: cmd
+        run: .venv-build\Scripts\python.exe verify_windows_release.py dist/FunnelCursorSwitcher-v1.8.1-lite-windows-x64.zip --check-system-restore
+      - name: Upload lightweight ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: FunnelCursorSwitcher-v1.8.1-windows-x64
-          path: tools/funnel-cursor-switcher/dist/FunnelCursorSwitcher/
+          name: FunnelCursorSwitcher-v1.8.1-lite-windows-x64
+          path: tools/funnel-cursor-switcher/dist/FunnelCursorSwitcher-v1.8.1-lite-windows-x64.zip
+          compression-level: 0
           if-no-files-found: error
