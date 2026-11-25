@@ -141,34 +141,34 @@ def verify_packaged_apply(bundle, source):
                         app = subprocess.Popen([str(bundle/"FunnelCursorSwitcher.exe")],cwd=profile,env=env)
                         try:
                             window = wait_window(source["APP_NAME"],app)
+                            display_log=system.store/"display.log"
+                            def ready(minimum=0):
+                                until=time.monotonic()+35
+                                while time.monotonic()<until:
+                                    text=display_log.read_text(encoding="utf-8") if display_log.exists() else ""
+                                    current=text.rsplit("Start ",1)[-1]
+                                    if text.count("Apply ")>=minimum and "Preview static frame ready" in current.rsplit("Apply ",1)[-1]:
+                                        return text.count("Apply ")
+                                    time.sleep(.1)
+                                raise AssertionError("Settings preview did not settle after the current Apply")
+                            baseline=ready()
                             if not reopening:
                                 foreground(window)
-                                time.sleep(.7)
-                                pt = P(*offset)
+                                pt=P(*offset)
                                 assert to_screen(window,ctypes.byref(pt))
                                 assert move(pt.x,pt.y)
-                                click(2,0,0,0,0)
-                                click(4,0,0,0,0)
-                            if not reopening:
-                                until = time.monotonic()+3
-                                while time.monotonic()<until and not system.currently_using(path):
+                                click(2,0,0,0,0);click(4,0,0,0,0)
+                                until=time.monotonic()+4
+                                while time.monotonic()<until:
+                                    text=display_log.read_text(encoding="utf-8")
+                                    if text.count("Apply ")>baseline:break
                                     time.sleep(.1)
-                                if not system.currently_using(path):
-                                    # Some runner sessions suppress injected pointer clicks.
-                                    # Use the same Apply button through its keyboard binding.
-                                    keyevent = bind(user,"keybd_event",None,wintypes.BYTE,wintypes.BYTE,I,ctypes.c_size_t)
+                                else:
                                     foreground(window)
-                                    keyevent(0x74,0,0,0)
-                                    keyevent(0x74,0,2,0)
-                            until=time.monotonic()+25
-                            display_log=system.store/"display.log"
-                            while time.monotonic()<until:
-                                text=display_log.read_text(encoding="utf-8") if display_log.exists() else ""
-                                if "Preview static frame ready" in text.rsplit("Apply ",1)[-1]:
-                                    break
-                                time.sleep(.1)
-                            else:
-                                raise AssertionError("Settings preview did not settle after Apply")
+                                    keyevent(0x74,0,0,0);keyevent(0x74,0,2,0)
+                                # Registry equality alone is insufficient: startup already applied this path.
+                                # Wait for this explicit button action and its preview, not the previous one.
+                                ready(baseline+1)
                             foreground(window)
                             time.sleep(.3)
                             def visible_windows():
