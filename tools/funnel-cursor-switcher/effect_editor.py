@@ -9,7 +9,7 @@ from copy import deepcopy
 from pathlib import Path
 from tkinter import colorchooser, filedialog, messagebox, simpledialog, ttk
 
-from PIL import ImageTk
+from PIL import Image, ImageTk
 
 from cursor_art import APPEARANCES, DEFAULT_APPEARANCE, load_sprite
 from effect_engine import ClickEvent, ClickTracker, EffectEngine
@@ -36,16 +36,20 @@ from equipment_catalog import is_frozen
 import trial_runtime
 from idle_motion import idle_sheet
 import ui_theme as theme
+from preview_sequence import Sequence, ACTIONS
 
 
 class Preview:
     def __init__(self, parent):
-        self.canvas = tk.Canvas(parent, width=350, height=150, bg="#101820", highlightthickness=1, highlightbackground="#263544")
+        self.canvas = tk.Canvas(parent, width=350, height=125, bg="#101820", highlightthickness=1, highlightbackground="#263544")
         self.canvas.pack(fill="both", expand=True)
         self.fx = self.canvas.create_image(0, 0)
         self.pointer = self.canvas.create_image(0, 0, anchor="nw")
         controls = ttk.Frame(parent)
         controls.pack(fill="x", pady=4)
+        self.sequence = None
+        self.completed = False
+        self.path = self.base_config = None
         self.paused = False
         self.dirty_frame = True
         self.mode_buttons = []
@@ -54,7 +58,16 @@ class Preview:
             button = ttk.Radiobutton(controls,text=name,variable=self.mode,value=name,command=self.restart_demo)
             button.pack(side="left")
             self.mode_buttons.append(button)
-        self.test_button = theme.button(controls, text="演出テスト", command=self.try_special, name="play")
+        action_bar=ttk.Frame(parent)
+        action_bar.pack(fill="x",pady=(2,0))
+        self.action_buttons={}
+        for index,(kind,label,icon) in enumerate(ACTIONS):
+            button=theme.button(action_bar,text=label,name=icon,icon_size=12,style="Preview.TButton",
+                                command=lambda k=kind:self.play(k))
+            button.grid(row=index//3,column=index%3,sticky="ew",padx=(0,3),pady=(0,3))
+            action_bar.columnconfigure(index%3,weight=1)
+            self.action_buttons[kind]=button
+        self.test_button=self.action_buttons['special']
         self.canvas.bind("<Motion>", self.motion)
         self.canvas.bind("<Leave>", lambda _: setattr(self, "manual", None))
         self.canvas.bind("<ButtonPress-1>", lambda event: self.press(event, "left"))
@@ -68,13 +81,22 @@ class Preview:
         self.tick()
 
     def restart_demo(self):
+        if self.sequence or self.completed:
+            self.sequence=None;self.completed=False
+            if self.path:self._install(self.path,self.base_config)
+        self.manual=None
         self.start = time.monotonic()
         self.mark = (0, -1)
 
     def motion(self, event):
+        if self.sequence:return
+        if self.completed:
+            self.completed=False
+            self._install(self.path,self.base_config)
         self.manual = event.x, event.y
 
     def press(self, event, button):
+        if self.sequence:return
         self.motion(event)
         state = event.state
         modifiers = int(bool(state & 1)) | (2 if state & 4 else 0) | (4 if state & (0x8 | 0x20000) else 0)
@@ -82,54 +104,73 @@ class Preview:
             -32:
         ]
 
-    def try_special(self):
-        if self.engine and self.engine.special:
-            config = self.engine.config[self.engine.special]
-            if config["enabled"]:
-                pos = self.manual or (self.canvas.winfo_width() // 2, self.canvas.winfo_height() // 2)
-                self.events.append(
-                    self.tracker.press(
-                        BUTTONS[config["button"]], pos, time.monotonic(), MODIFIERS[config["modifiers"]]
-                    )
-                )
+    def try_special(self):self.play('special')
+
+    def play(self,kind):
+        if not self.path or not trial_runtime.supported(self.path):return
+        self.sequence=Sequence(kind,self.base_config,special_group(f"{self.path.parent.name}/{self.path.name}"))
+        self.completed=False
+        self.mode.set("停止")
+        self.events.clear();self.tracker.previous=None
+        self._install(self.path,self.sequence.config)
+        self.manual=(self.canvas.winfo_width()/2,self.canvas.winfo_height()/2)
+        self.sequence_clock=time.monotonic()
+        self.dirty_frame=True
+        self.update_action_buttons()
+
+    def update_action_buttons(self):
+        supported=bool(self.path and trial_runtime.supported(self.path))
+        for kind,button in self.action_buttons.items():
+            button.state(["!disabled"] if supported else ["disabled"])
+            button.configure(style="ActivePreview.TButton" if self.sequence and self.sequence.kind==kind else "Preview.TButton")
+        labels={"フィンファンネル":"バリア","キュベレイ":"螺旋放出","サザビー":"包囲射撃",
+                "アカツキ（シラヌイ）":"バリア"}
+        self.test_button.configure(text=labels.get(self.path.stem,"一斉射撃") if supported else "特殊")
+
+    def finish_sequence(self):
+        self.sequence=None;self.completed=True
+        self._install(self.path,self.base_config)
+        self.manual=(self.canvas.winfo_width()/2,self.canvas.winfo_height()/2)
+        self.dirty_frame=True
+        self.update_action_buttons()
 
     def pause_animation(self, paused):
         self.paused = paused
         if paused:
             self.mode.set("停止")
-            self.test_button.state(["disabled"])
+            if self.sequence:self.finish_sequence()
         for button in self.mode_buttons:
             button.state(["disabled"] if paused else ["!disabled"])
 
     def set(self, path, config):
-        self.dirty_frame = True
-        if self.engine and hasattr(self.engine, "close"):
-            self.engine.close()
-        self.events.clear()
-        self.test_button.pack_forget()
-        self.tracker.previous = None
-        if path is not None:
-            sprite = load_sprite(path)
-            self.engine = (trial_runtime.create_display(path,config) if trial_runtime.enabled(path, config)
-                           else EffectEngine(sprite, APPEARANCES.get(path.stem, DEFAULT_APPEARANCE), config, path))
-            if self.engine.special:
-                self.test_button.pack(side="left")
-                self.test_button.state(
-                    ["!disabled"] if config[self.engine.special]["enabled"] and not self.paused else ["disabled"]
-                )
-            self.photo = ImageTk.PhotoImage(sprite, master=self.canvas)
-            self.canvas.itemconfigure(self.pointer, image=self.photo)
-        else:
-            self.engine = None
-            self.canvas.itemconfigure(self.pointer, image="")
-        self.canvas.itemconfigure(self.fx, image="")
+        self.sequence=None;self.completed=False
+        self.manual=None
+        self.path=path;self.base_config=deepcopy(config)
+        self._install(path,config)
         self.restart_demo()
+        self.update_action_buttons()
+
+    def _install(self,path,config):
+        self.dirty_frame=True
+        if self.engine and hasattr(self.engine,"close"):self.engine.close()
+        self.events.clear();self.tracker.previous=None
+        if path is not None:
+            sprite=load_sprite(path)
+            self.engine=(trial_runtime.create_display(path,config) if trial_runtime.enabled(path,config)
+                         else EffectEngine(sprite,APPEARANCES.get(path.stem,DEFAULT_APPEARANCE),config,path))
+            self.photo=ImageTk.PhotoImage(sprite,master=self.canvas)
+            self.canvas.itemconfigure(self.pointer,image=self.photo)
+        else:
+            self.engine=None;self.canvas.itemconfigure(self.pointer,image="")
+        self.canvas.itemconfigure(self.fx,image="")
 
     def tick(self):
         delay = 80
-        if self.engine and self.canvas.winfo_viewable() and not self.canvas.tk.call("grab", "current") and (not self.paused or self.dirty_frame):
-            now = time.monotonic()
-            elapsed = now - self.start
+        if self.engine and self.canvas.winfo_viewable() and not self.canvas.tk.call("grab", "current") and (self.sequence or self.dirty_frame or (not self.paused and not self.completed)):
+            wall=time.monotonic()
+            sequence=self.sequence
+            now=sequence.time if sequence else wall
+            elapsed = 0 if sequence else now - self.start
             phase = elapsed % 6
             w, h = self.canvas.winfo_width(), self.canvas.winfo_height()
             mode = self.mode.get()
@@ -137,7 +178,7 @@ class Preview:
             x = w * 0.47 + min(70, w * 0.24) * math.sin(travel * 2.4)
             y = h * 0.46 + min(44, h * 0.22) * math.sin(travel * 4.8)
             pos = self.manual or (round(x), round(y))
-            if mode == "自動" and not self.manual:
+            if mode == "自動" and not self.manual and not sequence:
                 pulse = sum(phase >= t for t in (2.8, 3.45, 4.15, 4.34))
                 mark = int(elapsed // 6), pulse
                 if pulse and mark != self.mark:
@@ -145,25 +186,40 @@ class Preview:
                     if pulse != 2 and isinstance(self.engine,trial_runtime.TrialDisplay):
                         self.events.append(self.tracker.press("left_up",pos,now))
                 self.mark = mark
+            if sequence:
+                pos,self.events=sequence.sample((w/2,h/2),(w,h))
             if isinstance(self.engine,trial_runtime.TrialDisplay):
                 screen_w = max(w, self.canvas.winfo_screenwidth())
                 screen_h = max(h, self.canvas.winfo_screenheight())
-                offset = ((screen_w-w)//2, (screen_h-h)//2)
+                cinematic=bool(sequence and sequence.kind=='special')
+                if cinematic:screen_w,screen_h=640,384
+                offset = ((screen_w-w)/2, (screen_h-h)/2)
                 desktop_pos = (pos[0]+offset[0], pos[1]+offset[1])
                 desktop_events = [ClickEvent(e.kind, (e.pos[0]+offset[0], e.pos[1]+offset[1]),
                                              e.time, e.modifiers) for e in self.events]
                 frame = self.engine.step(desktop_pos, now, desktop_events,
                                          (0,0,screen_w,screen_h))
                 self.events.clear()
+                if frame and cinematic:
+                    factor=min(w/screen_w,h/screen_h)
+                    frame=frame.resize((max(1,round(frame.width*factor)),max(1,round(frame.height*factor))),Image.Resampling.LANCZOS)
                 self.effect_photo = ImageTk.PhotoImage(frame, master=self.canvas) if frame else None
                 self.canvas.itemconfigure(self.pointer,image="")
                 self.canvas.itemconfigure(self.fx, image=self.effect_photo or "")
                 if frame:
                     x,y = self.engine.frame_origin
-                    self.canvas.coords(self.fx,x-offset[0]+frame.width/2,y-offset[1]+frame.height/2)
+                    if cinematic:
+                        self.canvas.coords(self.fx,(w-screen_w*factor)/2+x*factor+frame.width/2,
+                                           (h-screen_h*factor)/2+y*factor+frame.height/2)
+                    else:self.canvas.coords(self.fx,x-offset[0]+frame.width/2,y-offset[1]+frame.height/2)
                 self.dirty_frame = False
-                if self.paused:
+                if self.paused and not sequence:
                     logging.getLogger("funnel.display").info("Preview static frame ready")
+                if sequence:
+                    if sequence.finished(self.engine):self.finish_sequence()
+                    else:
+                        sequence.advance(wall-self.sequence_clock)
+                        self.sequence_clock=wall
                 self.timer = self.canvas.after(25,self.tick)
                 return
             frame = self.engine.step(pos, now, self.events)
@@ -178,6 +234,7 @@ class Preview:
             hot = self.engine.pointer_hot
             self.canvas.coords(self.pointer, pos[0] - hot[0], pos[1] - hot[1])
             delay = 32 if self.engine.still < 0.5 else 50
+        if self.sequence:self.sequence_clock=time.monotonic()
         self.timer = self.canvas.after(delay, self.tick)
 
     def close(self):
@@ -228,7 +285,7 @@ class Editor:
         header=ttk.Frame(container)
         header.grid(row=0,columnspan=2,sticky="ew",pady=(0,12))
         ttk.Label(header,text="FUNNEL / CONTROL",style="Title.TLabel").pack(side="left")
-        ttk.Label(header,text="CURSOR SYSTEM  //  1.9.5",style="Muted.TLabel").pack(side="right")
+        ttk.Label(header,text="CURSOR SYSTEM  //  1.9.6",style="Muted.TLabel").pack(side="right")
         ttk.Label(left,text="01  /  EQUIPMENT",style="Section.TLabel").pack(anchor="w",pady=(0,8))
         # Keep selection models for settings compatibility; equipment is selected only by cards.
         self.category = ttk.Combobox(left,state="readonly",values=[*entries,self.restore])
@@ -254,9 +311,7 @@ class Editor:
         pane = ttk.Frame(left)
         pane.pack(fill="both", expand=True)
         self.preview = Preview(pane)
-        ttk.Label(left, text="枠内で移動、左・右・ダブルクリックを試せます。", wraplength=350).pack(
-            anchor="w"
-        )
+
         ttk.Label(right,text="03  /  FLIGHT SETTINGS",style="Section.TLabel").pack(anchor="w",pady=(0,12))
         preset_bar = ttk.Frame(right)
         preset_bar.pack(fill="x")

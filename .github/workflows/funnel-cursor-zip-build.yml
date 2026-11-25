@@ -18,6 +18,7 @@ on:
       - "build/funnel-cursor-v1.9.3-*"
       - "build/funnel-cursor-v1.9.4-*"
       - "build/funnel-cursor-v1.9.5-*"
+      - "build/funnel-cursor-v1.9.6-*"
 
 permissions:
   contents: read
@@ -50,11 +51,11 @@ jobs:
         run: .venv-build\Scripts\python.exe capture_current_ui.py
       - uses: actions/upload-artifact@v4
         with:
-          name: Cursor-UI-v1.9.5
+          name: Cursor-UI-v1.9.6
           path: tools/funnel-cursor-switcher/ui-screenshots/*.png
       - name: Verify updated editor and normal cursor sizing
         shell: cmd
-        run: .venv-build\Scripts\python.exe -m unittest -v test_editor test_trial58 test_catalog test_shiranui
+        run: .venv-build\Scripts\python.exe -m unittest -v test_editor test_trial58 test_catalog test_shiranui test_preview_sequence
       - name: Verify extracted Windows app and cursor restore
         shell: cmd
         run: .venv-build\Scripts\python.exe verify_windows_release.py dist/FunnelCursorSwitcher-windows-x64.zip --check-system-restore
@@ -64,7 +65,7 @@ jobs:
           from pathlib import Path
           from zipfile import ZipFile, ZIP_DEFLATED
           root = Path("dist/FunnelCursorSwitcher")
-          archive = Path("dist/FunnelCursorSwitcher-v1.9.5-lite-windows-x64.zip")
+          archive = Path("dist/FunnelCursorSwitcher-v1.9.6-lite-windows-x64.zip")
           with ZipFile(archive, "w", ZIP_DEFLATED, compresslevel=9) as z:
               for p in sorted(root.rglob("*")):
                   if not p.is_file():
@@ -80,12 +81,12 @@ jobs:
           print(archive, archive.stat().st_size)
       - name: Verify minimal runtime
         shell: cmd
-        run: .venv-build\Scripts\python.exe verify_windows_release.py dist/FunnelCursorSwitcher-v1.9.5-lite-windows-x64.zip --check-system-restore
+        run: .venv-build\Scripts\python.exe verify_windows_release.py dist/FunnelCursorSwitcher-v1.9.6-lite-windows-x64.zip --check-system-restore
       - name: Upload lightweight ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: FunnelCursorSwitcher-v1.9.5-lite-windows-x64
-          path: tools/funnel-cursor-switcher/dist/FunnelCursorSwitcher-v1.9.5-lite-windows-x64.zip
+          name: FunnelCursorSwitcher-v1.9.6-lite-windows-x64
+          path: tools/funnel-cursor-switcher/dist/FunnelCursorSwitcher-v1.9.6-lite-windows-x64.zip
           compression-level: 0
           if-no-files-found: error
       - uses: actions/upload-artifact@v4

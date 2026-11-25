@@ -45,6 +45,8 @@ def install(root):
     style.configure('Horizontal.TScale',background=BG,troughcolor='#263443',sliderlength=15,sliderthickness=13)
     style.map('Horizontal.TScale',background=[('disabled','#263443'),('!disabled',ACCENT)],troughcolor=[('disabled','#18232d'),('!disabled','#263443')],bordercolor=[('disabled','#263443'),('!disabled','#263443')])
     style.configure('Vertical.TScrollbar',background='#304252',troughcolor=BG,arrowcolor=TEXT)
+    style.configure('Preview.TButton',padding=(5,3),font=('Yu Gothic UI',8))
+    style.configure('ActivePreview.TButton',padding=(5,3),font=('Yu Gothic UI',8),background='#173b38')
     style.configure('TSeparator',background='#293340')
     def caption():
         try:
@@ -60,7 +62,19 @@ def install(root):
 def icon(master,name,color=TEXT,size=16):
     im=Image.new('RGBA',(64,64));d=ImageDraw.Draw(im)
     c=color;w=5
-    if name=='play':d.polygon([(21,12),(52,32),(21,52)],fill=c)
+    if name=='flight':
+        d.polygon([(8,36),(54,10),(37,55),(29,37)],outline=c,width=4)
+    elif name=='fire':
+        d.line((8,50,49,9),fill=c,width=6);d.line((20,54,54,20),fill=c,width=3)
+    elif name=='charge':
+        d.ellipse((8,8,56,56),outline=c,width=4);d.polygon([(36,10),(20,35),(31,35),(26,54),(47,27),(35,27)],fill=c)
+    elif name=='rotate':
+        d.arc((8,8,56,56),-35,260,fill=c,width=5);d.polygon([(45,3),(59,16),(41,20)],fill=c)
+    elif name=='followers':
+        for x,y in ((23,8),(5,35),(41,35)):d.polygon([(x+8,y),(x+16,y+18),(x,y+18)],outline=c,width=3)
+    elif name=='shield':
+        d.polygon([(32,5),(55,15),(50,43),(32,58),(14,43),(9,15)],outline=c,width=4)
+    elif name=='play':d.polygon([(21,12),(52,32),(21,52)],fill=c)
     elif name=='restore':
         d.arc((12,12,53,53),-70,235,fill=c,width=w);d.line((12,12,12,30,30,30),fill=c,width=w)
     elif name=='check':d.line((12,33,26,47,53,16),fill=c,width=7)
@@ -75,8 +89,8 @@ def icon(master,name,color=TEXT,size=16):
     return ImageTk.PhotoImage(im.resize((size,size),Image.Resampling.LANCZOS),master=master)
 
 
-def button(parent,text,command=None,name='settings',**kw):
-    picture=icon(parent,name,'#071410' if kw.get('style')=='Accent.TButton' else TEXT)
+def button(parent,text,command=None,name='settings',icon_size=16,**kw):
+    picture=icon(parent,name,'#071410' if kw.get('style')=='Accent.TButton' else TEXT,size=icon_size)
     widget=ttk.Button(parent,text=text,image=picture,compound='left',command=command,**kw)
     widget.icon=picture
     return widget

@@ -100,6 +100,31 @@ class EditorFlow(TestCase):
         self.assertEqual(dialog.cget("background"),"#090c11")
         dialog.destroy()
 
+    def test_preview_buttons_are_centered_once_and_do_not_apply(self):
+        from copy import deepcopy
+        ui=self.ui
+        ui.apply()
+        original=deepcopy(ui.preview.base_config)
+        ui.preview.action_buttons["fire"].invoke()
+        self.assertEqual(ui.preview.sequence.kind,"fire")
+        self.assertEqual(ui.preview.mode.get(),"停止")
+        self.assertTrue(ui.preview.paused)
+        self.assertEqual(ui.preview.base_config,original)
+        self.assertEqual(self.system.apply.call_count,1)
+        for age in (0.,.15,.21,2.6):
+            ui.preview.sequence.time=age
+            self.root.after_cancel(ui.preview.timer)
+            ui.preview.tick()
+        self.assertIsNone(ui.preview.sequence)
+        self.assertTrue(ui.preview.completed)
+        self.root.after_cancel(ui.preview.timer)
+        ui.preview.tick()
+        stamp=ui.preview.engine.control.last
+        self.root.after_cancel(ui.preview.timer)
+        ui.preview.tick()
+        self.assertEqual(ui.preview.engine.control.last,stamp)
+        self.assertEqual(ui.preview.base_config,original)
+
     def select(self, category):
         self.ui.category.set(category)
         self.ui.choose_category()
@@ -131,7 +156,9 @@ class EditorFlow(TestCase):
         ui.edit("spiral", "button", "中クリック")
         ui.update_preview()
         ui.preview.try_special()
-        event = ui.preview.events.pop()
+        ui.preview.sequence.time=.16
+        _,events=ui.preview.sequence.sample((100,100),(200,200))
+        event = events[0]
         self.assertEqual((event.kind, event.modifiers), ("middle", 6))
         ui.apply()
         self.assertEqual(
@@ -160,7 +187,7 @@ class EditorFlow(TestCase):
                     self.assertEqual(bool(widgets[0].winfo_ismapped()), key == group)
                 self.assertTrue(ui.preview.engine.config[group]["enabled"])
                 ui.preview.try_special()
-                self.assertTrue(ui.preview.events)
+                self.assertEqual(ui.preview.sequence.kind,"special")
                 ui.apply()
                 self.assertTrue(Settings(ui.store.path).binding(ui.key)["overrides"][group]["enabled"])
 
