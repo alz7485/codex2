@@ -182,6 +182,16 @@ def verify_packaged_apply(bundle, source):
                             click(2,0,0,0,0);click(4,0,0,0,0)
                             time.sleep(.5)
                             popups=visible_windows()-before
+                            if not popups:
+                                from PIL import ImageGrab
+                                ImageGrab.grab(window=int(window)).save(Path(__file__).parent/"dist/popup-failure.png")
+                                fg=bind(user,"GetForegroundWindow",H)()
+                                pid=wintypes.DWORD();owner(fg,ctypes.byref(pid))
+                                rect=wintypes.RECT()
+                                bind(user,"GetWindowRect",wintypes.BOOL,H,ctypes.POINTER(wintypes.RECT))(window,ctypes.byref(rect))
+                                print("Popup diagnostics",name.encode("ascii","backslashreplace").decode(),"point",point.x,point.y,"rect",rect.left,rect.top,rect.right,rect.bottom,"foreground PID",pid.value,"app PID",app.pid,flush=True)
+                                text=display_log.read_text(encoding="utf-8")
+                                print(text.rsplit("Start ",1)[-1].encode("ascii","backslashreplace").decode(),flush=True)
                             assert popups, "Category dropdown did not open after Apply"
                             time.sleep(.5)
                             assert popups & visible_windows(), "Category dropdown closed while rendering"

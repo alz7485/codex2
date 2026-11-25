@@ -319,7 +319,7 @@ class Editor:
             row=2, columnspan=2, sticky="w", pady=(5, 0)
         )
         for combo in (self.category,self.cursor,self.preset,self.idle_motion):
-            combo.configure(postcommand=lambda: self.effect.pause_for_settings())
+            combo.configure(postcommand=self.prepare_dropdown)
         self.category.bind("<<ComboboxSelected>>", lambda _: self.choose_category())
         self.cursor.bind("<<ComboboxSelected>>", lambda _: self.choose())
         self.preset.bind("<<ComboboxSelected>>", self.choose_preset)
@@ -769,6 +769,10 @@ class Editor:
                 self.effect_error(error)
         else:
             self.effect.stop()
+
+    def prepare_dropdown(self):
+        logging.getLogger("funnel.display").info("UI dropdown requested")
+        self.effect.pause_for_settings()
 
     def restore_now(self):
         self.effect.stop()
