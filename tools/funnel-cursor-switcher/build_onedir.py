@@ -43,6 +43,7 @@ def main():
         [
             sys.executable, "-m", "PyInstaller", "--onedir", "--windowed",
             "--hidden-import", "numpy", "--hidden-import", "runtime_render",
+            "--collect-submodules", "scipy._external",
             "--paths", str(ROOT / "hinu122"), "--clean", "--noconfirm", "--name", NAME, f"{NAME}.pyw",
         ],
         cwd=ROOT,
