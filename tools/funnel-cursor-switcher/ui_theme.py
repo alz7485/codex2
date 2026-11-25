@@ -21,6 +21,7 @@ def install(root):
                     bordercolor='#293340',lightcolor='#293340',darkcolor='#293340',focuscolor=ACCENT)
     style.configure('TFrame',background=BG)
     style.configure('TLabel',background=BG,foreground=TEXT)
+    style.map('TLabel',background=[('disabled',BG)],foreground=[('disabled','#718195')])
     style.configure('Muted.TLabel',foreground=MUTED)
     style.configure('Title.TLabel',font=('Segoe UI',20,'bold'))
     style.configure('Section.TLabel',font=('Segoe UI',9,'bold'),foreground=ACCENT)
@@ -42,6 +43,7 @@ def install(root):
         style.configure(name,fieldbackground=PANEL,background='#1a2430',foreground=TEXT,arrowcolor=TEXT,padding=5)
         style.map(name,fieldbackground=[('readonly',PANEL),('disabled',BG)],foreground=[('disabled','#667384'),('readonly',TEXT)],selectbackground=[('readonly','#245951')],selectforeground=[('readonly',TEXT)])
     style.configure('Horizontal.TScale',background=BG,troughcolor='#263443',sliderlength=15,sliderthickness=13)
+    style.map('Horizontal.TScale',background=[('disabled','#263443'),('!disabled',ACCENT)],troughcolor=[('disabled','#18232d'),('!disabled','#263443')],bordercolor=[('disabled','#263443'),('!disabled','#263443')])
     style.configure('Vertical.TScrollbar',background='#304252',troughcolor=BG,arrowcolor=TEXT)
     style.configure('TSeparator',background='#293340')
     def caption():
