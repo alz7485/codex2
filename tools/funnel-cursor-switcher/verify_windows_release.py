@@ -157,7 +157,7 @@ def verify_packaged_apply(bundle, source):
                             display_log=system.store/"display.log"
                             while time.monotonic()<until:
                                 text=display_log.read_text(encoding="utf-8") if display_log.exists() else ""
-                                if "Preview static frame ready" in text.rsplit("Start ",1)[-1]:
+                                if "Preview static frame ready" in text.rsplit("Apply ",1)[-1]:
                                     break
                                 time.sleep(.1)
                             else:
@@ -190,8 +190,13 @@ def verify_packaged_apply(bundle, source):
                                 rect=wintypes.RECT()
                                 bind(user,"GetWindowRect",wintypes.BOOL,H,ctypes.POINTER(wintypes.RECT))(window,ctypes.byref(rect))
                                 print("Popup diagnostics",name.encode("ascii","backslashreplace").decode(),"point",point.x,point.y,"rect",rect.left,rect.top,rect.right,rect.bottom,"foreground PID",pid.value,"app PID",app.pid,flush=True)
+                                under=bind(user,"WindowFromPoint",H,P)(point)
+                                upid=wintypes.DWORD();owner(under,ctypes.byref(upid))
+                                cls=ctypes.create_unicode_buffer(256)
+                                bind(user,"GetClassNameW",ctypes.c_int,H,wintypes.LPWSTR,ctypes.c_int)(under,cls,256)
+                                print("Mouse target",under,upid.value,cls.value,flush=True)
                                 text=display_log.read_text(encoding="utf-8")
-                                print(text.rsplit("Start ",1)[-1].encode("ascii","backslashreplace").decode(),flush=True)
+                                print(text.rsplit("Apply ",1)[-1].encode("ascii","backslashreplace").decode(),flush=True)
                             assert popups, "Category dropdown did not open after Apply"
                             time.sleep(.5)
                             assert popups & visible_windows(), "Category dropdown closed while rendering"
