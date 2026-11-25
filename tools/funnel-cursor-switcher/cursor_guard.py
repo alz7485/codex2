@@ -3,6 +3,7 @@ from contextlib import contextmanager
 import ctypes
 from ctypes import wintypes
 import os
+import json
 from pathlib import Path
 import subprocess
 import sys
@@ -45,6 +46,26 @@ def start():
     _guard = subprocess.Popen(args, creationflags=0x08000000, cwd=str(Path(sys.executable).parent),
                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
+def restore_registered_cursor(store):
+    import winreg
+    with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Control Panel\Cursors", 0,
+                        winreg.KEY_QUERY_VALUE | winreg.KEY_SET_VALUE) as key:
+        try:
+            current, kind = winreg.QueryValueEx(key, "Arrow")
+        except FileNotFoundError:
+            return
+        current_path = Path(os.path.expandvars(current))
+        if current_path.parent != store or not current_path.name.startswith("cursor-"):
+            return
+        original = json.loads((store/"arrow-original.json").read_text(encoding="utf-8"))
+        if original is None:
+            winreg.DeleteValue(key,"Arrow")
+        elif (isinstance(original,list) and len(original)==2 and isinstance(original[0],str)
+              and original[1] in (winreg.REG_SZ,winreg.REG_EXPAND_SZ)):
+            winreg.SetValueEx(key,"Arrow",0,original[1],original[0])
+        else:
+            raise ValueError("Invalid original cursor backup")
+
 def watch(parent_pid):
     kernel = ctypes.WinDLL("kernel32", use_last_error=True)
     kernel.OpenProcess.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
@@ -62,6 +83,7 @@ def watch(parent_pid):
         try:
             if owner.read_text(encoding="ascii") != str(parent_pid):
                 return
+            restore_registered_cursor(owner.parent)
             user = ctypes.WinDLL("user32", use_last_error=True)
             user.SystemParametersInfoW.argtypes = (wintypes.UINT, wintypes.UINT, ctypes.c_void_p, wintypes.UINT)
             if not user.SystemParametersInfoW(0x0057, 0, None, 0):

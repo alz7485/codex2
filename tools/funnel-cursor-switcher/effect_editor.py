@@ -114,7 +114,7 @@ class Preview:
 
     def tick(self):
         delay = 80
-        if self.engine and self.canvas.winfo_viewable():
+        if self.engine and self.canvas.winfo_viewable() and not self.canvas.tk.call("grab", "current"):
             now = time.monotonic()
             elapsed = now - self.start
             phase = elapsed % 6
@@ -297,13 +297,18 @@ class Editor:
         ttk.Label(footer, textvariable=self.state).pack(side="left")
         self.apply_button = ttk.Button(footer, text="適用 (F5)", command=self.apply)
         self.apply_button.pack(side="right")
+        self.restore_button = ttk.Button(footer,text="元に戻す",command=self.restore_now)
+        self.restore_button.pack(side="right",padx=(0,6))
         ttk.Label(container, textvariable=self.status, wraplength=570).grid(
             row=2, columnspan=2, sticky="w", pady=(5, 0)
         )
+        for combo in (self.category,self.cursor,self.preset,self.idle_motion):
+            combo.configure(postcommand=lambda: self.effect.pause_for_settings())
         self.category.bind("<<ComboboxSelected>>", lambda _: self.choose_category())
         self.cursor.bind("<<ComboboxSelected>>", lambda _: self.choose())
         self.preset.bind("<<ComboboxSelected>>", self.choose_preset)
         root.bind("<F5>", lambda _: self.apply_button.invoke())
+        root.bind("<Control-Alt-r>", lambda _: self.restore_now())
         root.protocol("WM_DELETE_WINDOW", self.close)
         active = self.store.active
         target = next((p for paths in entries.values() for p in paths if self.identity(p) == active), None)
@@ -747,6 +752,12 @@ class Editor:
         else:
             self.effect.stop()
 
+    def restore_now(self):
+        self.effect.stop()
+        self.category.set(self.restore)
+        self.choose_category()
+        self.apply()
+
     def apply(self):
         target = self.path
         logging.getLogger("funnel.display").info("Apply %s", self.key)
@@ -778,4 +789,9 @@ class Editor:
             self.root.after_cancel(self.preview_job)
         self.preview.close()
         self.effect.stop()
+        try:
+            self.system.apply(None)
+        except (OSError, ValueError) as error:
+            messagebox.showerror("カーソル復元",str(error),parent=self.root)
+            return
         self.root.destroy()

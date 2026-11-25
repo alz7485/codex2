@@ -1,5 +1,6 @@
 import ctypes
 import logging
+import os
 import time
 from collections import deque
 from ctypes import wintypes
@@ -196,6 +197,9 @@ class LayeredOverlay:
         boolean, integer, word = wintypes.BOOL, ctypes.c_int, wintypes.DWORD
         pointer = ctypes.c_void_p
         self.get_cursor_pos = bind(user, "GetCursorPos", boolean, ctypes.POINTER(wintypes.POINT))
+        self.foreground_window = bind(user, "GetForegroundWindow", hwnd)
+        self.window_process = bind(user, "GetWindowThreadProcessId", word, hwnd, ctypes.POINTER(word))
+        self.process_id = os.getpid()
         self.monitor = self.observer = None
         self.dpi_checked = -1
         self.scale = 1
@@ -349,6 +353,11 @@ class LayeredOverlay:
         self.monitor = monitor
         return changed or self.scale != previous_scale
 
+    def settings_active(self):
+        window = self.foreground_window()
+        process = wintypes.DWORD()
+        return bool(window and self.window_process(window,ctypes.byref(process)) and process.value == self.process_id)
+
     def cursor_position(self):
         point = wintypes.POINT()
         if self.get_cursor_pos(ctypes.byref(point)):
@@ -416,6 +425,7 @@ class FunnelEffect:
         self.overlay = self.timer = self.animation = None
         self.cursor_motion = self.trial_arrow = None
         self.arrow_hidden = False
+        self.ui_paused = False
         self.cache_dir = cache_dir or Path(gettempdir()) / "FunnelCursorSwitcher-idle"
 
     def start(self, cursor, config):
@@ -459,11 +469,37 @@ class FunnelEffect:
             self.stop()
             raise
 
+    def pause_for_settings(self):
+        overlay = self.overlay
+        if overlay is None:
+            return
+        if not self.ui_paused:
+            self.animation.reset()
+            overlay.tracker.previous = None
+            self.ui_paused = True
+        if overlay.observer:
+            overlay.observer.queue.clear()
+        overlay.render(None,None)
+        if self.arrow_hidden:
+            self.trial_arrow.restore()
+            self.arrow_hidden = False
+        if self.cursor_motion:
+            self.cursor_motion.update(False)
+
     def tick(self):
         self.timer = None
         start = time.monotonic()
         overlay = self.overlay
         try:
+            if overlay.settings_active():
+                self.pause_for_settings()
+                self.timer = self.root.after(80,self.tick)
+                return
+            if self.ui_paused:
+                self.animation.reset()
+                if overlay.observer:
+                    overlay.observer.queue.clear()
+                self.ui_paused = False
             position = overlay.cursor_position()
             trial = self.trial_arrow is not None
             if trial and overlay.read_cursor_info(ctypes.byref(overlay.cursor_info)) and overlay.cursor_info.flags & 2:

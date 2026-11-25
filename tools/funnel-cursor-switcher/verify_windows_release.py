@@ -91,6 +91,8 @@ def verify_packaged_apply(bundle, source):
     click = bind(user, "mouse_event", None, wintypes.DWORD, wintypes.DWORD, wintypes.DWORD, wintypes.DWORD, ctypes.c_size_t)
     foreground = bind(user, "SetForegroundWindow", wintypes.BOOL, H)
     post = bind(user, "PostMessageW", wintypes.BOOL, H, I, wintypes.WPARAM, wintypes.LPARAM)
+    minimize = bind(user,"ShowWindow",wintypes.BOOL,H,ctypes.c_int)
+    keyevent = bind(user,"keybd_event",None,wintypes.BYTE,wintypes.BYTE,I,ctypes.c_size_t)
     original_pos = P()
     bind(user, "GetCursorPos", wintypes.BOOL, ctypes.POINTER(P))(ctypes.byref(original_pos))
     def wait_window(title, app):
@@ -124,6 +126,8 @@ def verify_packaged_apply(bundle, source):
                     button = editor.apply_button
                     offset = (button.winfo_rootx()-mirror.winfo_rootx()+button.winfo_width()//2,
                               button.winfo_rooty()-mirror.winfo_rooty()+button.winfo_height()//2)
+                    category_offset = (editor.category.winfo_rootx()-mirror.winfo_rootx()+editor.category.winfo_width()-10,
+                                       editor.category.winfo_rooty()-mirror.winfo_rooty()+editor.category.winfo_height()//2)
                     editor.close()
                     for reopening in (False,True):
                         print("Packaged Apply", name.encode("ascii","backslashreplace").decode(), reopening, flush=True)
@@ -149,6 +153,31 @@ def verify_packaged_apply(bundle, source):
                                     foreground(window)
                                     keyevent(0x74,0,0,0)
                                     keyevent(0x74,0,2,0)
+                            foreground(window)
+                            time.sleep(.3)
+                            def visible_windows():
+                                result = set()
+                                callback_type = ctypes.WINFUNCTYPE(wintypes.BOOL,H,wintypes.LPARAM)
+                                def collect(w,unused):
+                                    pid=wintypes.DWORD()
+                                    if visible(w) and owner(w,ctypes.byref(pid)) and pid.value==app.pid:
+                                        result.add(w)
+                                    return True
+                                callback=callback_type(collect)
+                                bind(user,"EnumWindows",wintypes.BOOL,callback_type,wintypes.LPARAM)(callback,0)
+                                return result
+                            before=visible_windows()
+                            point=P(*category_offset)
+                            assert to_screen(window,ctypes.byref(point))
+                            move(point.x,point.y)
+                            click(2,0,0,0,0);click(4,0,0,0,0)
+                            time.sleep(.5)
+                            popups=visible_windows()-before
+                            assert popups, "Category dropdown did not open after Apply"
+                            time.sleep(.5)
+                            assert popups & visible_windows(), "Category dropdown closed while rendering"
+                            keyevent(0x1B,0,0,0);keyevent(0x1B,0,2,0)
+                            minimize(window,6)
                             try:
                                 wait_window(WINDOW_TITLE,app)
                             except AssertionError:
@@ -169,9 +198,11 @@ def verify_packaged_apply(bundle, source):
                                 while owner_file.exists() and time.monotonic()<until:
                                     time.sleep(.1)
                                 assert not owner_file.exists(), "Cursor guard did not restore after forced termination"
+                                assert system.read_arrow(key)==prior, "Original OS cursor not restored after crash"
                             else:
                                 post(window,0x10,0,0)
                                 assert app.wait(timeout=15) == 0
+                                assert system.read_arrow(key)==prior, "Original OS cursor not restored on exit"
                         finally:
                             if app.poll() is None:
                                 app.terminate()

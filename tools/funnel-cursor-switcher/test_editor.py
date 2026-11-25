@@ -196,3 +196,10 @@ class EditorFlow(TestCase):
                      if w.winfo_class()=="TCheckbutton")
         check.invoke()
         self.assertFalse(self.ui.values()[0]["followers"]["fire_enabled"])
+
+    def test_restore_button_does_not_require_dropdown(self):
+        self.ui.restore_button.invoke()
+        self.fx.stop.assert_called()
+        self.system.apply.assert_called_with(None)
+        self.assertIsNone(self.ui.path)
+        self.assertFalse(self.ui.store.active)
