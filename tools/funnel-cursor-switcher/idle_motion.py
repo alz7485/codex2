@@ -20,7 +20,7 @@ PADDING = 8
 
 
 def idle_sheet(cursor):
-    if cursor and ((cursor.parent.name == "ファンネル" and cursor.stem in ("フィンファンネル", "キュベレイ", "サザビー", "Hi-νガンダム", "Hi-νガンダムHWS")) or (cursor.parent.name == "ドラグーン" and cursor.stem == "ストライクフリーダム")):
+    if cursor and ((cursor.parent.name == "ファンネル" and cursor.stem in ("フィンファンネル", "キュベレイ", "サザビー", "Hi-νガンダム", "Hi-νガンダムHWS")) or (cursor.parent.name == "ドラグーン" and cursor.stem in ("ストライクフリーダム","アカツキ（シラヌイ）"))):
         path = cursor.parent.parent.parent / "飛行アニメ" / cursor.parent.name / (cursor.stem + ".待機回転.png")
         if path.is_file():
             return path

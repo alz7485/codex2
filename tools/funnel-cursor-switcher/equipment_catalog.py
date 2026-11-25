@@ -7,7 +7,7 @@ ACTIVE_FAMILIES = {
     "フィンファンネル系": ("ファンネル/フィンファンネル", "ファンネル/Hi-νガンダム", "ファンネル/Hi-νガンダムHWS"),
     "キュベレイ系": ("ファンネル/キュベレイ",),
     "サザビー": ("ファンネル/サザビー",),
-    "ドラグーン": ("ドラグーン/ストライクフリーダム",),
+    "ドラグーン": ("ドラグーン/ストライクフリーダム", "ドラグーン/アカツキ（シラヌイ）"),
 }
 ACTIVE_EQUIPMENT = frozenset(key for family in ACTIVE_FAMILIES.values() for key in family)
 FROZEN_EQUIPMENT = frozenset((

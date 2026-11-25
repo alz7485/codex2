@@ -32,7 +32,7 @@ class CatalogScope(unittest.TestCase):
     def test_only_twelve_active_equipment_in_default_menu(self):
         entries = discover(ROOT / "カーソル")
         self.assertEqual(len(ACTIVE_FAMILIES), 4)
-        self.assertEqual(len(files(entries)), 6)
+        self.assertEqual(len(files(entries)), 7)
         self.assertEqual({equipment_key(p) for p in files(entries)}, ACTIVE_EQUIPMENT)
         self.assertEqual(set(entries), {"ファンネル", "ドラグーン"})
         self.assertEqual(entries["ファンネル"][0].stem, "フィンファンネル")

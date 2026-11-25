@@ -185,7 +185,7 @@ SPECIAL = {
         f"ファンネル/{name}.cur" for name in
         ("サザビー", "ヤクト・ドーガ", "ナイチンゲール", "クシャトリヤ", "クィン・マンサ", "α・アジール")
     } | {"ビット/エルメス.cur", "ファンネル/Hi-νガンダム.cur", "ファンネル/Hi-νガンダムHWS.cur"},
-    "dragoon": {f"ドラグーン/{name}.cur" for name in ("ストライクフリーダム", "レジェンドガンダム")},
+    "dragoon": {f"ドラグーン/{name}.cur" for name in ("ストライクフリーダム", "レジェンドガンダム", "アカツキ（シラヌイ）")},
     "pods": {"機動兵装ポッド/カオスガンダム.cur"},
     "rifle": {"ビット/ガンダムサバーニャ.cur"},
     "shield": {"ファンネル/ユニコーン.cur"},
@@ -287,7 +287,7 @@ def patch(data, strict=False):
 def resolve(category, preset, overrides, cursor_key=None):
     values = {g: {k: f.default for k, f in fields.items()} for g, fields in FIELDS.items()}
     origins = {g: dict.fromkeys(fields, "共通") for g, fields in FIELDS.items()}
-    if cursor_key == "ドラグーン/ストライクフリーダム.cur":
+    if cursor_key in ("ドラグーン/ストライクフリーダム.cur","ドラグーン/アカツキ（シラヌイ）.cur"):
         values["idle"].update(enabled=True,motion="横回転",delay=.9,turn_period=3.8)
         origins["idle"].update(dict.fromkeys(("enabled","motion","delay","turn_period"),"機体"))
     if cursor_key == "ファンネル/フィンファンネル.cur":

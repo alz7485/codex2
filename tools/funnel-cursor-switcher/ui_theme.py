@@ -93,8 +93,8 @@ def thumbnail(master,path):
         if box:source=source.crop(box)
         if max(source.size)<48:source=source.resize((source.width*2,source.height*2),Image.Resampling.NEAREST)
         source.thumbnail((68,44),Image.Resampling.LANCZOS)
-        im=Image.new('RGBA',(100,50))
-        im.alpha_composite(source,((100-source.width)//2,(50-source.height)//2))
+        im=Image.new('RGBA',(84,50))
+        im.alpha_composite(source,((84-source.width)//2,(50-source.height)//2))
     except (OSError,ValueError):
-        im=Image.new('RGBA',(100,50));d=ImageDraw.Draw(im);d.polygon([(32,12),(66,29),(43,34),(38,49)],outline=ACCENT,width=2)
+        im=Image.new('RGBA',(84,50));d=ImageDraw.Draw(im);d.polygon([(32,12),(66,29),(43,34),(38,49)],outline=ACCENT,width=2)
     return ImageTk.PhotoImage(im,master=master)

@@ -18,7 +18,7 @@ UNITS = {"キュベレイ": "qubeley", "サザビー": "sazabi"}
 
 
 def supported(path):
-    if path and path.parent.name == "ドラグーン" and path.stem == "ストライクフリーダム":
+    if path and path.parent.name == "ドラグーン" and path.stem in ("ストライクフリーダム","アカツキ（シラヌイ）"):
         return True
     return path and path.parent.name == "ファンネル" and (path.stem in UNITS or path.stem in ("フィンファンネル", "Hi-νガンダム", "Hi-νガンダムHWS"))
 
@@ -349,6 +349,9 @@ class FinDisplay(TrialDisplay):
 
 
 def create_display(path, config):
+    if path.parent.name == "ドラグーン" and path.stem == "アカツキ（シラヌイ）":
+        from shiranui_runtime import ShiranuiDisplay
+        return ShiranuiDisplay(path,config)
     if path.parent.name == "ドラグーン" and path.stem == "ストライクフリーダム":
         from dragoon_runtime import DragoonDisplay
         return DragoonDisplay(path,config)

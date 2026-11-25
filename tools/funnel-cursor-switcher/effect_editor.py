@@ -228,7 +228,7 @@ class Editor:
         header=ttk.Frame(container)
         header.grid(row=0,columnspan=2,sticky="ew",pady=(0,12))
         ttk.Label(header,text="FUNNEL / CONTROL",style="Title.TLabel").pack(side="left")
-        ttk.Label(header,text="CURSOR SYSTEM  //  1.9.4",style="Muted.TLabel").pack(side="right")
+        ttk.Label(header,text="CURSOR SYSTEM  //  1.9.5",style="Muted.TLabel").pack(side="right")
         ttk.Label(left,text="01  /  EQUIPMENT",style="Section.TLabel").pack(anchor="w",pady=(0,8))
         # Keep selection models for settings compatibility; equipment is selected only by cards.
         self.category = ttk.Combobox(left,state="readonly",values=[*entries,self.restore])
@@ -236,17 +236,17 @@ class Editor:
         self.equipment_panel=ttk.Frame(left)
         self.equipment_panel.pack(fill="x")
         self.equipment_buttons={}
-        order=("フィンファンネル","キュベレイ","サザビー","Hi-νガンダム","Hi-νガンダムHWS","ストライクフリーダム")
+        order=("フィンファンネル","キュベレイ","サザビー","Hi-νガンダム","Hi-νガンダムHWS","ストライクフリーダム","アカツキ（シラヌイ）")
         equipment=sorted((p for paths in entries.values() for p in paths),key=lambda p:order.index(p.stem) if p.stem in order else len(order))
         for index,path in enumerate(equipment):
             photo=theme.thumbnail(left,path)
             label={"Hi-νガンダム":"Hi-ν", "Hi-νガンダムHWS":"Hi-ν HWS",
-                   "ストライクフリーダム":"ドラグーン"}.get(path.stem,path.stem)
+                   "ストライクフリーダム":"ドラグーン", "アカツキ（シラヌイ）":"シラヌイ"}.get(path.stem,path.stem)
             card=ttk.Button(self.equipment_panel,text=label,image=photo,compound="top",
                             style="Card.TButton",command=lambda p=path:self.select_equipment(p))
             card.picture=photo
-            card.grid(row=index//3,column=index%3,sticky="nsew",padx=(0,5),pady=(0,5))
-            self.equipment_panel.columnconfigure(index%3,weight=1)
+            card.grid(row=index//4,column=index%4,sticky="nsew",padx=(0,5),pady=(0,5))
+            self.equipment_panel.columnconfigure(index%4,weight=1)
             self.equipment_buttons[path]=card
         self.selected_name=tk.StringVar()
         ttk.Label(left,textvariable=self.selected_name,style="Muted.TLabel").pack(anchor="w",pady=(4,8))
@@ -452,7 +452,7 @@ class Editor:
                 else:
                     widget.grid_remove()
         if trial_runtime.supported(self.path):
-            fin = self.path.stem in ("フィンファンネル", "Hi-νガンダム", "Hi-νガンダムHWS", "ストライクフリーダム")
+            fin = self.path.stem in ("フィンファンネル", "Hi-νガンダム", "Hi-νガンダムHWS", "ストライクフリーダム","アカツキ（シラヌイ）")
             supported_groups = {"idle", "followers", group}
             if not fin:
                 supported_groups |= {"boost", "trail", "click", "particles", "deploy", "rare"}
@@ -475,6 +475,7 @@ class Editor:
         if group:
             config = self.values()[0][group]
             self.special_title.configure(text=f"特殊演出　{config['modifiers']}＋{config['button']}")
+            self.row_checks[group].configure(text="シラヌイ八面体バリア" if self.path.stem=="アカツキ（シラヌイ）" else NAMES[group])
             self.special_title.grid()
         else:
             self.special_title.grid_remove()

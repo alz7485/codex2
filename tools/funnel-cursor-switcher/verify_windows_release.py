@@ -120,7 +120,7 @@ def verify_packaged_apply(bundle, source):
         with reg.OpenKey(reg.HKEY_CURRENT_USER,source["REGISTRY_PATH"],0,reg.KEY_READ|reg.KEY_SET_VALUE) as key:
             prior = system.read_arrow(key)
             try:
-                units=[("ファンネル",n) for n in ("サザビー","キュベレイ","フィンファンネル","Hi-νガンダム","Hi-νガンダムHWS")]+[("ドラグーン","ストライクフリーダム")]
+                units=[("ファンネル",n) for n in ("サザビー","キュベレイ","フィンファンネル","Hi-νガンダム","Hi-νガンダムHWS")]+[("ドラグーン","ストライクフリーダム"),("ドラグーン","アカツキ（シラヌイ）")]
                 for category,name in units:
                     path = bundle/"カーソル"/category/(name+".cur")
                     store = Settings(system.store/"effects.json")

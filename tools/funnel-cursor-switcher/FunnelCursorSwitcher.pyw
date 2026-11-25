@@ -219,7 +219,7 @@ def main():
         logging.getLogger("funnel.display").error("UI callback", exc_info=(exc, value, tb))
         editor.status.set(f"表示処理でエラーが発生しました。{value}")
     root.report_callback_exception = report_callback
-    if editor.path and editor.key == editor.store.active and editor.path.stem in ("キュベレイ", "サザビー", "フィンファンネル", "Hi-νガンダム", "Hi-νガンダムHWS", "ストライクフリーダム"):
+    if editor.path and editor.key == editor.store.active and editor.path.stem in ("キュベレイ", "サザビー", "フィンファンネル", "Hi-νガンダム", "Hi-νガンダムHWS", "ストライクフリーダム", "アカツキ（シラヌイ）"):
         editor.apply()
     root.mainloop()
     return 0
