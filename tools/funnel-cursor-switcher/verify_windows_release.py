@@ -126,6 +126,7 @@ def verify_packaged_apply(bundle, source):
                               button.winfo_rooty()-mirror.winfo_rooty()+button.winfo_height()//2)
                     editor.close()
                     for reopening in (False,True):
+                        print("Packaged Apply", name.encode("ascii","backslashreplace").decode(), reopening, flush=True)
                         app = subprocess.Popen([str(bundle/"FunnelCursorSwitcher.exe")],cwd=profile,env=env)
                         try:
                             window = wait_window(source["APP_NAME"],app)
@@ -152,7 +153,7 @@ def verify_packaged_apply(bundle, source):
                                 wait_window(WINDOW_TITLE,app)
                             except AssertionError:
                                 log = system.store/"display.log"
-                                print(log.read_text(encoding="utf-8") if log.exists() else "No display log", flush=True)
+                                print(log.read_text(encoding="utf-8").encode("ascii","backslashreplace").decode() if log.exists() else "No display log", flush=True)
                                 print("Registry matches selection:",system.currently_using(path),flush=True)
                                 raise
                             assert system.currently_using(path), path

@@ -42,7 +42,8 @@ def start():
     if not getattr(sys, "frozen", False):
         args.append(str(Path(__file__).with_name("FunnelCursorSwitcher.pyw")))
     args.extend(["--cursor-guard", str(os.getpid())])
-    _guard = subprocess.Popen(args, creationflags=0x08000000)
+    _guard = subprocess.Popen(args, creationflags=0x08000000, cwd=str(Path(sys.executable).parent),
+                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 def watch(parent_pid):
     kernel = ctypes.WinDLL("kernel32", use_last_error=True)
