@@ -108,19 +108,20 @@ class EditorFlow(TestCase):
         ui.preview.action_buttons["fire"].invoke()
         self.assertEqual(ui.preview.sequence.kind,"fire")
         self.assertEqual(ui.preview.mode.get(),"停止")
+        self.assertEqual(ui.preview.manual,(ui.preview.canvas.winfo_width()/2,ui.preview.canvas.winfo_height()/2))
         self.assertTrue(ui.preview.paused)
         self.assertEqual(ui.preview.base_config,original)
         self.assertEqual(self.system.apply.call_count,1)
         for age in (0.,.15,.21,2.6):
             ui.preview.sequence.time=age
-            self.root.after_cancel(ui.preview.timer)
+            ui.preview.canvas.after_cancel(ui.preview.timer)
             ui.preview.tick()
         self.assertIsNone(ui.preview.sequence)
         self.assertTrue(ui.preview.completed)
-        self.root.after_cancel(ui.preview.timer)
+        ui.preview.canvas.after_cancel(ui.preview.timer)
         ui.preview.tick()
         stamp=ui.preview.engine.control.last
-        self.root.after_cancel(ui.preview.timer)
+        ui.preview.canvas.after_cancel(ui.preview.timer)
         ui.preview.tick()
         self.assertEqual(ui.preview.engine.control.last,stamp)
         self.assertEqual(ui.preview.base_config,original)
