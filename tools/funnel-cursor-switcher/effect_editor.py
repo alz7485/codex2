@@ -40,7 +40,7 @@ import ui_theme as theme
 
 class Preview:
     def __init__(self, parent):
-        self.canvas = tk.Canvas(parent, width=350, height=190, bg="#101820", highlightthickness=1, highlightbackground="#263544")
+        self.canvas = tk.Canvas(parent, width=350, height=150, bg="#101820", highlightthickness=1, highlightbackground="#263544")
         self.canvas.pack(fill="both", expand=True)
         self.fx = self.canvas.create_image(0, 0)
         self.pointer = self.canvas.create_image(0, 0, anchor="nw")
@@ -201,17 +201,32 @@ class Editor:
         self.restore = "元に戻す"
         while self.restore in entries:
             self.restore += "（設定）"
-        container = ttk.Frame(root, padding=20)
+        container = ttk.Frame(root, padding=16)
         container.pack(fill="both", expand=True)
         left = ttk.Frame(container)
         left.grid(row=1, column=0, sticky="nsew", padx=(0, 24))
-        right = ttk.Frame(container)
-        right.grid(row=1, column=1, sticky="nsew")
+        right_host=ttk.Frame(container)
+        right_host.grid(row=1,column=1,sticky="nsew")
+        self.settings_canvas=tk.Canvas(right_host,width=440,height=1,bg=theme.BG,highlightthickness=0,yscrollincrement=24)
+        scroll=ttk.Scrollbar(right_host,orient="vertical",command=self.settings_canvas.yview)
+        scroll.pack(side="right",fill="y")
+        self.settings_canvas.configure(yscrollcommand=scroll.set)
+        self.settings_canvas.pack(side="left",fill="both",expand=True)
+        right=ttk.Frame(self.settings_canvas)
+        settings_window=self.settings_canvas.create_window(0,0,window=right,anchor="nw")
+        right.bind("<Configure>",lambda _:self.settings_canvas.configure(scrollregion=self.settings_canvas.bbox("all")))
+        self.settings_canvas.bind("<Configure>",lambda e:self.settings_canvas.itemconfigure(settings_window,width=e.width))
+        def scroll_settings(event):
+            if self.root.tk.call("grab","current"):return
+            if (right_host.winfo_rootx()<=event.x_root<right_host.winfo_rootx()+right_host.winfo_width()
+                and right_host.winfo_rooty()<=event.y_root<right_host.winfo_rooty()+right_host.winfo_height()):
+                self.settings_canvas.yview_scroll(-1 if event.delta>0 else 1,"units")
+        root.bind("<MouseWheel>",scroll_settings,add="+")
         container.columnconfigure(0, weight=1, minsize=354)
         container.columnconfigure(1, weight=1, minsize=390)
         container.rowconfigure(1, weight=1)
         header=ttk.Frame(container)
-        header.grid(row=0,columnspan=2,sticky="ew",pady=(0,20))
+        header.grid(row=0,columnspan=2,sticky="ew",pady=(0,12))
         ttk.Label(header,text="FUNNEL / CONTROL",style="Title.TLabel").pack(side="left")
         ttk.Label(header,text="CURSOR SYSTEM  //  1.9.4",style="Muted.TLabel").pack(side="right")
         ttk.Label(left,text="01  /  EQUIPMENT",style="Section.TLabel").pack(anchor="w",pady=(0,8))
@@ -221,7 +236,9 @@ class Editor:
         self.equipment_panel=ttk.Frame(left)
         self.equipment_panel.pack(fill="x")
         self.equipment_buttons={}
-        for index,path in enumerate(p for paths in entries.values() for p in paths):
+        order=("フィンファンネル","キュベレイ","サザビー","Hi-νガンダム","Hi-νガンダムHWS","ストライクフリーダム")
+        equipment=sorted((p for paths in entries.values() for p in paths),key=lambda p:order.index(p.stem) if p.stem in order else len(order))
+        for index,path in enumerate(equipment):
             photo=theme.thumbnail(left,path)
             label={"Hi-νガンダム":"Hi-ν", "Hi-νガンダムHWS":"Hi-ν HWS",
                    "ストライクフリーダム":"ドラグーン"}.get(path.stem,path.stem)
@@ -232,7 +249,7 @@ class Editor:
             self.equipment_panel.columnconfigure(index%3,weight=1)
             self.equipment_buttons[path]=card
         self.selected_name=tk.StringVar()
-        ttk.Label(left,textvariable=self.selected_name,style="Muted.TLabel").pack(anchor="w",pady=(6,14))
+        ttk.Label(left,textvariable=self.selected_name,style="Muted.TLabel").pack(anchor="w",pady=(4,8))
         ttk.Label(left,text="02  /  LIVE PREVIEW",style="Section.TLabel").pack(anchor="w",pady=(0,8))
         pane = ttk.Frame(left)
         pane.pack(fill="both", expand=True)

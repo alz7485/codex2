@@ -101,6 +101,12 @@ def verify_packaged_apply(bundle, source):
             w = find(None,title)
             pid = wintypes.DWORD()
             if w and owner(w,ctypes.byref(pid)) and pid.value == app.pid and visible(w):
+                if title==source["APP_NAME"]:
+                    rect=wintypes.RECT()
+                    bind(user,"GetWindowRect",wintypes.BOOL,H,ctypes.POINTER(wintypes.RECT))(w,ctypes.byref(rect))
+                    if rect.right-rect.left<500:
+                        time.sleep(.1)
+                        continue
                 return w
             time.sleep(.1)
         raise AssertionError(f"Visible packaged window missing: {title}, exit={app.poll()}")

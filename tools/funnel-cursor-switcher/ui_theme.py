@@ -11,14 +11,13 @@ ACCENT='#69e2cd'
 
 def install(root):
     root.configure(background=BG)
-    root.option_add('*Font', ('Yu Gothic UI', 9))
     for option,value in {'Background':BG,'Foreground':TEXT,'insertBackground':TEXT,
                          'selectBackground':'#245951','selectForeground':TEXT,
                          'Listbox.background':PANEL,'Listbox.foreground':TEXT}.items():
         root.option_add('*'+option,value)
     style=ttk.Style(root)
     style.theme_use('clam')
-    style.configure('.',background=BG,foreground=TEXT,fieldbackground=PANEL,
+    style.configure('.',font=('Yu Gothic UI',9),background=BG,foreground=TEXT,fieldbackground=PANEL,
                     bordercolor='#293340',lightcolor='#293340',darkcolor='#293340',focuscolor=ACCENT)
     style.configure('TFrame',background=BG)
     style.configure('TLabel',background=BG,foreground=TEXT)
@@ -30,7 +29,7 @@ def install(root):
               foreground=[('disabled','#667384')],bordercolor=[('focus',ACCENT),('active','#506779')])
     style.configure('Accent.TButton',background='#69e2cd',foreground='#071410',font=('Yu Gothic UI',9,'bold'))
     style.map('Accent.TButton',background=[('pressed','#39ac98'),('active','#93f0df')],foreground=[('disabled','#55736d'),('!disabled','#071410')])
-    style.configure('Card.TButton',background=PANEL,padding=(5,8),font=('Yu Gothic UI',9),borderwidth=1)
+    style.configure('Card.TButton',background=PANEL,padding=(5,5),font=('Yu Gothic UI',9),borderwidth=1)
     style.map('Card.TButton',background=[('selected','#173b38'),('active','#1d2c39')],
               bordercolor=[('selected',ACCENT),('focus',ACCENT),('active','#647889')],
               foreground=[('selected','#ffffff'),('!disabled',TEXT)])
@@ -45,14 +44,15 @@ def install(root):
     style.configure('Horizontal.TScale',background=BG,troughcolor='#263443',sliderlength=15,sliderthickness=13)
     style.configure('Vertical.TScrollbar',background='#304252',troughcolor=BG,arrowcolor=TEXT)
     style.configure('TSeparator',background='#293340')
-    try:
-        import ctypes
-        root.update_idletasks()
-        hwnd=ctypes.windll.user32.GetParent(root.winfo_id())
-        value=ctypes.c_int(1)
-        ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd,20,ctypes.byref(value),ctypes.sizeof(value))
-    except (AttributeError,OSError):
-        pass
+    def caption():
+        try:
+            import ctypes
+            hwnd=ctypes.windll.user32.GetParent(root.winfo_id())
+            value=ctypes.c_int(1)
+            ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd,20,ctypes.byref(value),ctypes.sizeof(value))
+        except (AttributeError,OSError):
+            pass
+    root.after_idle(caption)
 
 
 def icon(master,name,color=TEXT,size=16):
@@ -83,14 +83,16 @@ def button(parent,text,command=None,name='settings',**kw):
 def thumbnail(master,path):
     from cursor_art import load_sprite
     try:
-        source=load_sprite(path)
+        sheet=path.parents[2]/'飛行アニメ'/path.parent.name/(path.stem+'.待機回転.png')
+        if sheet.is_file():
+            with Image.open(sheet) as image:source=image.convert('RGBA').crop((0,0,144,144))
+        else:source=load_sprite(path)
         box=source.getbbox()
         if box:source=source.crop(box)
-        source.thumbnail((68,52),Image.Resampling.LANCZOS)
-        if max(source.size)<48:
-            source=source.resize((source.width*2,source.height*2),Image.Resampling.NEAREST)
-        im=Image.new('RGBA',(100,58))
-        im.alpha_composite(source,((100-source.width)//2,(58-source.height)//2))
+        if max(source.size)<48:source=source.resize((source.width*2,source.height*2),Image.Resampling.NEAREST)
+        source.thumbnail((68,44),Image.Resampling.LANCZOS)
+        im=Image.new('RGBA',(100,50))
+        im.alpha_composite(source,((100-source.width)//2,(50-source.height)//2))
     except (OSError,ValueError):
-        im=Image.new('RGBA',(100,58));d=ImageDraw.Draw(im);d.polygon([(32,12),(66,29),(43,34),(38,49)],outline=ACCENT,width=2)
+        im=Image.new('RGBA',(100,50));d=ImageDraw.Draw(im);d.polygon([(32,12),(66,29),(43,34),(38,49)],outline=ACCENT,width=2)
     return ImageTk.PhotoImage(im,master=master)
