@@ -21,6 +21,8 @@ jobs:
   build:
     if: startsWith(github.event.head_commit.message, 'Build latest funnel cursor ZIP')
     runs-on: windows-latest
+    env:
+      VTK_DEFAULT_OPENGL_WINDOW: vtkOSOpenGLRenderWindow
     defaults:
       run:
         working-directory: tools/funnel-cursor-switcher

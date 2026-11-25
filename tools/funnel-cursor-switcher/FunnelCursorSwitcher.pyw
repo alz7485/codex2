@@ -7,6 +7,7 @@ if __name__ == "__main__" and len(sys.argv) == 3 and sys.argv[1] == "--cursor-gu
 
 import ctypes
 import hashlib
+import faulthandler
 import json
 import logging
 from logging.handlers import RotatingFileHandler
@@ -208,6 +209,9 @@ def main():
         logger.setLevel(logging.INFO)
         logger.addHandler(handler)
         logger.info("Start %s", APP_NAME)
+        global crash_output
+        crash_output = (system_cursor.store / "display-crash.log").open("a", encoding="utf-8")
+        faulthandler.enable(crash_output, all_threads=True)
     except OSError:
         pass
     editor = Editor(root, entries, system_cursor, APP_NAME)

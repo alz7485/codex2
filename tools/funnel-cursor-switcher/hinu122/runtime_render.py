@@ -4,26 +4,34 @@ from pathlib import Path
 import math
 import os
 import sys
+import ctypes
 import numpy as np
 import trimesh
 from types import SimpleNamespace
 from vtkmodules.vtkCommonCore import vtkPoints
-from vtkmodules.vtkCommonDataModel import vtkPolyData, vtkCellArray
+from vtkmodules.vtkCommonDataModel import vtkPolyData, vtkCellArray, vtkImageData
 from vtkmodules.vtkCommonMath import vtkMatrix4x4
 from vtkmodules.vtkFiltersCore import vtkPolyDataNormals
 from vtkmodules.vtkRenderingCore import (
     vtkRenderer,
     vtkRenderWindow,
     vtkWindowToImageFilter,
+    vtkTexture,
     vtkActor,
     vtkLight,
     vtkPolyDataMapper,
 )
-_mesa_directory = (Path(__file__).parent if getattr(sys, "frozen", False) else Path(__file__).parents[1]) / "mesa"
+
+_mesa_directory = (
+    Path(__file__).parent
+    if getattr(sys, "frozen", False)
+    else Path(__file__).parents[1]
+) / "mesa"
 _mesa_handles = []
 if sys.platform == "win32" and _mesa_directory.is_dir():
     os.environ["PATH"] = str(_mesa_directory) + os.pathsep + os.environ.get("PATH", "")
     _mesa_handles.append(os.add_dll_directory(str(_mesa_directory)))
+    _mesa_handles.append(ctypes.WinDLL(str(_mesa_directory / "osmesa.dll")))
 
 import vtkmodules.vtkRenderingOpenGL2
 
@@ -93,10 +101,70 @@ def vtkmat(array):
     return result
 
 
+def studio_texture(soft=False):
+    from vtkmodules.util.numpy_support import numpy_to_vtk
+
+    w, h = 256, 128
+    lon = (np.arange(w) + 0.5) * 2 * np.pi / w - np.pi
+    lat = (np.arange(h) + 0.5) * np.pi / h - np.pi / 2
+    a, b = np.meshgrid(lon, lat)
+    dirs = np.stack([np.cos(b) * np.cos(a), np.sin(b), np.cos(b) * np.sin(a)], -1)
+    env = np.ones((h, w, 3), np.float32) * np.array(
+        [0.095, 0.102, 0.115] if soft else [0.055, 0.065, 0.08], np.float32
+    )
+    panels = (
+        [
+            ((-4, -6, 5), 0.65, 0.90, 2.6, (1.0, 0.96, 0.93)),
+            ((5, -2, 1), 0.35, 0.80, 1.65, (0.88, 0.95, 1.0)),
+            ((1, 4, 5), 0.70, 0.38, 2.0, (1.0, 1.0, 1.0)),
+            ((-1, 2, -5), 0.45, 0.65, 1.10, (0.92, 0.95, 1.0)),
+        ]
+        if soft
+        else [
+            ((-4, -6, 5), 0.52, 0.80, 3.0, (1.0, 0.94, 0.89)),
+            ((5, -2, 1), 0.19, 0.72, 1.9, (0.80, 0.91, 1.0)),
+            ((1, 4, 5), 0.62, 0.23, 2.5, (1.0, 1.0, 1.0)),
+            ((-1, 2, -5), 0.35, 0.55, 0.85, (0.87, 0.93, 1.0)),
+        ]
+    )
+    for direction, wide, tall, strength, tint in panels:
+        n = np.array(direction, float)
+        n /= np.linalg.norm(n)
+        u = np.cross(n, [0, 0, 1.0])
+        u /= np.linalg.norm(u)
+        v = np.cross(n, u)
+        front = dirs @ n
+        x = np.arctan2(dirs @ u, front)
+        y = np.arctan2(dirs @ v, front)
+        exponent = 2.8 if soft else 4
+        spot = (
+            np.exp(-(np.abs(x / wide) ** exponent + np.abs(y / tall) ** exponent))
+            * strength
+            * (front > 0)
+        )
+        env += spot[..., None] * np.asarray(tint, np.float32)
+    img = vtk.vtkImageData()
+    img.SetDimensions(w, h, 1)
+    img.GetPointData().SetScalars(
+        numpy_to_vtk(np.ascontiguousarray(env.reshape(-1, 3)), deep=True)
+    )
+    tex = vtk.vtkTexture()
+    tex.SetInputData(img)
+    tex.SetColorModeToDirectScalars()
+    tex.InterpolateOn()
+    tex.MipmapOn()
+    return tex
+
+
+_render_window_type = None
+
+
 class Renderer:
     def __init__(self, kind):
         self.kind = kind
-        self.rw = rw = vtk.vtkRenderWindow()
+        global _render_window_type
+        self.rw = rw = (_render_window_type or vtk.vtkRenderWindow)()
+        _render_window_type = type(rw)
         rw.SetOffScreenRendering(1)
         rw.SetMultiSamples(0)
         rw.SetAlphaBitPlanes(1)
@@ -104,6 +172,11 @@ class Renderer:
         ren.SetBackground(0, 0, 0)
         ren.SetBackgroundAlpha(0)
         ren.AutomaticLightCreationOff()
+        self.environment = studio_texture(False)
+        ren.SetEnvironmentTexture(self.environment, False)
+        ren.UseImageBasedLightingOn()
+        ren.GetEnvMapPrefiltered().SetPrefilterLevels(4)
+        self.materials = {}
         rw.AddRenderer(ren)
         s = trimesh.load(R / f"{kind}_Trial119.glb", force="scene", process=False)
         parts = {}
@@ -147,6 +220,7 @@ class Renderer:
                 pr.SetEmissiveFactor(0.025, 0.065, 0.12)
             ren.AddActor(a)
             actors.append((k[0], a))
+            self.materials[a] = (k[1], tuple(pr.GetEmissiveFactor()))
         for pos, intensity in [
             ((-5, 8, -7), 1.3),
             ((7, 2, -1), 0.65),
@@ -169,6 +243,7 @@ class Renderer:
                 b.GetProperty().DeepCopy(a.GetProperty())
                 ren.AddActor(b)
                 clones.append((side, b))
+                self.materials[b] = self.materials[a]
             groups.append(clones)
         self.ren, self.cam, self.groups = ren, cam, groups
 
@@ -201,6 +276,7 @@ class Renderer:
         for side, a in self.groups[index]:
             a.SetVisibility(opacity > 0)
             a.GetProperty().SetOpacity(opacity)
+            a.GetProperty().SetEmissiveFactor(*self.materials[a][1])
             a.SetUserMatrix(vtkmat(m @ matrix(side, fold if side == "Port" else -fold)))
 
     def hide(self):
@@ -347,6 +423,12 @@ class Renderer:
             for side, a in self.groups[i]:
                 a.SetVisibility(True)
                 a.SetUserMatrix(vtkmat(u.part_matrix(side)))
+                name, baseline = self.materials[a]
+                a.GetProperty().SetEmissiveFactor(
+                    *material_emission(
+                        name, baseline, self.kind, getattr(u, "fire", FirePose())
+                    )
+                )
             fx.append(u)
         body, depth = self.capture()
         out = Image.new("RGBA", size)

@@ -154,6 +154,9 @@ def verify_packaged_apply(bundle, source):
                             except AssertionError:
                                 log = system.store/"display.log"
                                 print(log.read_text(encoding="utf-8").encode("ascii","backslashreplace").decode() if log.exists() else "No display log", flush=True)
+                                crash_log = system.store/"display-crash.log"
+                                if crash_log.exists():
+                                    print(crash_log.read_text(encoding="utf-8").encode("ascii","backslashreplace").decode(), flush=True)
                                 print("Registry matches selection:",system.currently_using(path),flush=True)
                                 raise
                             assert system.currently_using(path), path
