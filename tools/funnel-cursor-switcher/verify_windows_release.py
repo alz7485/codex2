@@ -153,6 +153,15 @@ def verify_packaged_apply(bundle, source):
                                     foreground(window)
                                     keyevent(0x74,0,0,0)
                                     keyevent(0x74,0,2,0)
+                            until=time.monotonic()+25
+                            display_log=system.store/"display.log"
+                            while time.monotonic()<until:
+                                text=display_log.read_text(encoding="utf-8") if display_log.exists() else ""
+                                if "Preview static frame ready" in text.rsplit("Start ",1)[-1]:
+                                    break
+                                time.sleep(.1)
+                            else:
+                                raise AssertionError("Settings preview did not settle after Apply")
                             foreground(window)
                             time.sleep(.3)
                             def visible_windows():

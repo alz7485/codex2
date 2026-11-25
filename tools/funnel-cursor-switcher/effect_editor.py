@@ -45,11 +45,14 @@ class Preview:
         self.pointer = self.canvas.create_image(0, 0, anchor="nw")
         controls = ttk.Frame(parent)
         controls.pack(fill="x", pady=4)
+        self.paused = False
+        self.dirty_frame = True
+        self.mode_buttons = []
         self.mode = tk.StringVar(value="自動")
         for name in ("自動", "移動", "停止"):
-            ttk.Radiobutton(
-                controls, text=name, variable=self.mode, value=name, command=self.restart_demo
-            ).pack(side="left")
+            button = ttk.Radiobutton(controls,text=name,variable=self.mode,value=name,command=self.restart_demo)
+            button.pack(side="left")
+            self.mode_buttons.append(button)
         self.test_button = ttk.Button(controls, text="特殊演出を試す", command=self.try_special)
         self.canvas.bind("<Motion>", self.motion)
         self.canvas.bind("<Leave>", lambda _: setattr(self, "manual", None))
@@ -89,7 +92,16 @@ class Preview:
                     )
                 )
 
+    def pause_animation(self, paused):
+        self.paused = paused
+        if paused:
+            self.mode.set("停止")
+            self.test_button.state(["disabled"])
+        for button in self.mode_buttons:
+            button.state(["disabled"] if paused else ["!disabled"])
+
     def set(self, path, config):
+        self.dirty_frame = True
         if self.engine and hasattr(self.engine, "close"):
             self.engine.close()
         self.events.clear()
@@ -102,7 +114,7 @@ class Preview:
             if self.engine.special:
                 self.test_button.pack(side="left")
                 self.test_button.state(
-                    ["!disabled"] if config[self.engine.special]["enabled"] else ["disabled"]
+                    ["!disabled"] if config[self.engine.special]["enabled"] and not self.paused else ["disabled"]
                 )
             self.photo = ImageTk.PhotoImage(sprite, master=self.canvas)
             self.canvas.itemconfigure(self.pointer, image=self.photo)
@@ -114,7 +126,7 @@ class Preview:
 
     def tick(self):
         delay = 80
-        if self.engine and self.canvas.winfo_viewable() and not self.canvas.tk.call("grab", "current"):
+        if self.engine and self.canvas.winfo_viewable() and not self.canvas.tk.call("grab", "current") and (not self.paused or self.dirty_frame):
             now = time.monotonic()
             elapsed = now - self.start
             phase = elapsed % 6
@@ -148,6 +160,9 @@ class Preview:
                 if frame:
                     x,y = self.engine.frame_origin
                     self.canvas.coords(self.fx,x-offset[0]+frame.width/2,y-offset[1]+frame.height/2)
+                self.dirty_frame = False
+                if self.paused:
+                    logging.getLogger("funnel.display").info("Preview static frame ready")
                 self.timer = self.canvas.after(25,self.tick)
                 return
             frame = self.engine.step(pos, now, self.events)
@@ -157,6 +172,7 @@ class Preview:
             self.idle_photo = (ImageTk.PhotoImage(self.engine.pointer_image, master=self.canvas)
                                if self.engine.idle_turn_step is not None else None)
             self.canvas.itemconfigure(self.pointer, image=self.idle_photo or self.photo)
+            self.dirty_frame = False
             self.canvas.coords(self.fx, *pos)
             hot = self.engine.pointer_hot
             self.canvas.coords(self.pointer, pos[0] - hot[0], pos[1] - hot[1])
@@ -738,10 +754,12 @@ class Editor:
     def effect_error(self, error):
         logging.getLogger("funnel.display").error("Desktop effect stopped: %s", error, exc_info=True)
         self.live_values = None
+        self.preview.pause_animation(False)
         self.state.set("演出停止中")
         self.status.set(f"カーソルは適用済みです。演出を停止しました。{error}")
 
     def start_effects(self, target):
+        self.preview.pause_animation(bool(target))
         self.applied = self.key
         self.live_values = self.values()[0] if target else None
         if target:
@@ -767,7 +785,7 @@ class Editor:
         except (OSError, ValueError) as error:
             messagebox.showerror("カーソル切替", str(error), parent=self.root)
             return
-        self.status.set(msg)
+        self.status.set(msg + ("（適用中はプレビューを静止表示）" if target else ""))
         self.start_effects(target)
 
         def change():
