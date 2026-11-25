@@ -35,11 +35,12 @@ from funnel_effect import FunnelEffect
 from equipment_catalog import is_frozen
 import trial_runtime
 from idle_motion import idle_sheet
+import ui_theme as theme
 
 
 class Preview:
     def __init__(self, parent):
-        self.canvas = tk.Canvas(parent, width=245, height=175, bg="#182330", highlightthickness=0)
+        self.canvas = tk.Canvas(parent, width=350, height=190, bg="#101820", highlightthickness=1, highlightbackground="#263544")
         self.canvas.pack(fill="both", expand=True)
         self.fx = self.canvas.create_image(0, 0)
         self.pointer = self.canvas.create_image(0, 0, anchor="nw")
@@ -53,7 +54,7 @@ class Preview:
             button = ttk.Radiobutton(controls,text=name,variable=self.mode,value=name,command=self.restart_demo)
             button.pack(side="left")
             self.mode_buttons.append(button)
-        self.test_button = ttk.Button(controls, text="特殊演出を試す", command=self.try_special)
+        self.test_button = theme.button(controls, text="演出テスト", command=self.try_special, name="play")
         self.canvas.bind("<Motion>", self.motion)
         self.canvas.bind("<Leave>", lambda _: setattr(self, "manual", None))
         self.canvas.bind("<ButtonPress-1>", lambda event: self.press(event, "left"))
@@ -196,37 +197,56 @@ class Editor:
         self.live_values = None
         self.effect = FunnelEffect(root, self.effect_error, system.store / "idle-animations")
         root.title(title)
+        theme.install(root)
         self.restore = "元に戻す"
         while self.restore in entries:
             self.restore += "（設定）"
-        container = ttk.Frame(root, padding=12)
+        container = ttk.Frame(root, padding=20)
         container.pack(fill="both", expand=True)
         left = ttk.Frame(container)
-        left.grid(row=0, column=0, sticky="nsew", padx=(0, 14))
+        left.grid(row=1, column=0, sticky="nsew", padx=(0, 24))
         right = ttk.Frame(container)
-        right.grid(row=0, column=1, sticky="nsew")
-        container.columnconfigure(0, weight=1)
-        container.columnconfigure(1, weight=1)
-        container.rowconfigure(0, weight=1)
-        ttk.Label(left, text="分類").pack(anchor="w")
-        self.category = ttk.Combobox(left, state="readonly", values=[*entries, self.restore], width=29)
-        self.category.pack(fill="x")
-        ttk.Label(left, text="カーソル").pack(anchor="w", pady=(8, 0))
-        self.cursor = ttk.Combobox(left, state="readonly", width=29)
-        self.cursor.pack(fill="x")
-        ttk.Label(left, text="プレビュー").pack(anchor="w", pady=(12, 4))
+        right.grid(row=1, column=1, sticky="nsew")
+        container.columnconfigure(0, weight=1, minsize=354)
+        container.columnconfigure(1, weight=1, minsize=390)
+        container.rowconfigure(1, weight=1)
+        header=ttk.Frame(container)
+        header.grid(row=0,columnspan=2,sticky="ew",pady=(0,20))
+        ttk.Label(header,text="FUNNEL / CONTROL",style="Title.TLabel").pack(side="left")
+        ttk.Label(header,text="CURSOR SYSTEM  //  1.9.4",style="Muted.TLabel").pack(side="right")
+        ttk.Label(left,text="01  /  EQUIPMENT",style="Section.TLabel").pack(anchor="w",pady=(0,8))
+        # Keep selection models for settings compatibility; equipment is selected only by cards.
+        self.category = ttk.Combobox(left,state="readonly",values=[*entries,self.restore])
+        self.cursor = ttk.Combobox(left,state="readonly")
+        self.equipment_panel=ttk.Frame(left)
+        self.equipment_panel.pack(fill="x")
+        self.equipment_buttons={}
+        for index,path in enumerate(p for paths in entries.values() for p in paths):
+            photo=theme.thumbnail(left,path)
+            label={"Hi-νガンダム":"Hi-ν", "Hi-νガンダムHWS":"Hi-ν HWS",
+                   "ストライクフリーダム":"ドラグーン"}.get(path.stem,path.stem)
+            card=ttk.Button(self.equipment_panel,text=label,image=photo,compound="top",
+                            style="Card.TButton",command=lambda p=path:self.select_equipment(p))
+            card.picture=photo
+            card.grid(row=index//3,column=index%3,sticky="nsew",padx=(0,5),pady=(0,5))
+            self.equipment_panel.columnconfigure(index%3,weight=1)
+            self.equipment_buttons[path]=card
+        self.selected_name=tk.StringVar()
+        ttk.Label(left,textvariable=self.selected_name,style="Muted.TLabel").pack(anchor="w",pady=(6,14))
+        ttk.Label(left,text="02  /  LIVE PREVIEW",style="Section.TLabel").pack(anchor="w",pady=(0,8))
         pane = ttk.Frame(left)
         pane.pack(fill="both", expand=True)
         self.preview = Preview(pane)
-        ttk.Label(left, text="枠内で移動、左・右・ダブルクリックを試せます。", wraplength=245).pack(
+        ttk.Label(left, text="枠内で移動、左・右・ダブルクリックを試せます。", wraplength=350).pack(
             anchor="w"
         )
+        ttk.Label(right,text="03  /  FLIGHT SETTINGS",style="Section.TLabel").pack(anchor="w",pady=(0,12))
         preset_bar = ttk.Frame(right)
         preset_bar.pack(fill="x")
         ttk.Label(preset_bar, text="プリセット").pack(side="left")
         self.preset = ttk.Combobox(preset_bar, state="readonly", width=14)
         self.preset.pack(side="left", padx=4, expand=True, fill="x")
-        ttk.Button(preset_bar, text="管理", width=5, command=self.manage).pack(side="right")
+        theme.button(preset_bar, text="管理", width=5, command=self.manage).pack(side="right")
         self.rows = ttk.Frame(right)
         self.idle_motion_controls = ttk.Frame(right)
         ttk.Label(self.idle_motion_controls, text="待機モーション").pack(side="left")
@@ -234,8 +254,9 @@ class Editor:
                                         values=("なし", "横回転"), width=9)
         self.idle_motion.pack(side="left", padx=4)
         self.idle_motion.bind("<<ComboboxSelected>>", self.choose_idle_motion)
-        ttk.Button(self.idle_motion_controls, text="設定", width=5,
-                   command=lambda: self.details("idle")).pack(side="right")
+        self.idle_settings_button = theme.button(self.idle_motion_controls, text="設定", width=5,
+                   command=lambda: self.details("idle"))
+        self.idle_settings_button.pack(side="right")
         self.rows.pack(fill="both", expand=True, pady=(8, 2))
         self.rows.columnconfigure(2, weight=1)
         self.flags, self.sliders, self.numbers = {}, {}, {}
@@ -269,7 +290,7 @@ class Editor:
             slider.grid(row=idx, column=2, sticky="ew", padx=(5, 0))
             self.numbers[group] = ttk.Label(self.rows, width=5, anchor="e")
             self.numbers[group].grid(row=idx, column=3)
-            ttk.Button(self.rows, text="詳細", width=5, command=lambda g=group: self.details(g)).grid(
+            theme.button(self.rows, text="詳細", width=5, command=lambda g=group: self.details(g)).grid(
                 row=idx, column=4, pady=2
             )
             if group in SPECIAL:
@@ -298,25 +319,25 @@ class Editor:
             ("全OFF", lambda: self.all_enabled(False)),
             ("初期値に戻す", self.reset),
         ):
-            ttk.Button(bar, text=label, command=cmd, width=11 if label.startswith("初期") else 6).pack(
+            theme.button(bar, text=label, command=cmd, name="restore" if label.startswith("初期") else "power", width=11 if label.startswith("初期") else 6).pack(
                 side="left", padx=(0, 3)
             )
         footer = ttk.Frame(container)
-        footer.grid(row=1, columnspan=2, sticky="ew", pady=(12, 0))
+        footer.grid(row=2, columnspan=2, sticky="ew", pady=(12, 0))
         self.state = tk.StringVar()
         self.status = tk.StringVar(
             value=self.store.warning or (
                 "前回の装備は凍結中です。現行対象を選んで「適用」を押してください。"
-                if is_frozen(self.store.active) else "分類とカーソルを選んで「適用」を押してください。"
+                if is_frozen(self.store.active) else "画像から装備を選んで「適用」を押してください。"
             )
         )
         ttk.Label(footer, textvariable=self.state).pack(side="left")
-        self.apply_button = ttk.Button(footer, text="適用 (F5)", command=self.apply)
+        self.apply_button = theme.button(footer, text="適用 (F5)", command=self.apply, name="check",style="Accent.TButton")
         self.apply_button.pack(side="right")
-        self.restore_button = ttk.Button(footer,text="元に戻す",command=self.restore_now)
+        self.restore_button = theme.button(footer,text="元に戻す",command=self.restore_now,name="restore")
         self.restore_button.pack(side="right",padx=(0,6))
-        ttk.Label(container, textvariable=self.status, wraplength=570).grid(
-            row=2, columnspan=2, sticky="w", pady=(5, 0)
+        ttk.Label(container, textvariable=self.status, wraplength=760).grid(
+            row=3, columnspan=2, sticky="w", pady=(8, 0)
         )
         for combo in (self.category,self.cursor,self.preset,self.idle_motion):
             combo.configure(postcommand=self.prepare_dropdown)
@@ -330,6 +351,10 @@ class Editor:
         target = next((p for paths in entries.values() for p in paths if self.identity(p) == active), None)
         self.category.set(target.parent.name if target else next(iter(entries), self.restore))
         self.choose_category(target)
+
+    def select_equipment(self,path):
+        self.category.set(path.parent.name)
+        self.choose_category(path)
 
     @staticmethod
     def identity(path):
@@ -361,6 +386,10 @@ class Editor:
 
     def refresh(self):
         self.refreshing = True
+        self.selected_name.set(self.path.stem if self.path else "変更前のカーソル")
+        for path,card in self.equipment_buttons.items():
+            card.state(["selected"] if path==self.path else ["!selected"])
+
         self.preset.configure(
             values=list(self.store.choices()), state="readonly" if self.path else "disabled"
         )
@@ -524,6 +553,8 @@ class Editor:
     def subwindow(self, title):
         win = tk.Toplevel(self.root)
         win.title(title)
+        win.configure(background=theme.BG)
+        win.bind("<Escape>",lambda _:win.destroy())
         win.transient(self.root)
         win.grab_set()
         return win
@@ -533,7 +564,7 @@ class Editor:
             return
         win = self.subwindow(NAMES[g])
         scroll = tk.Canvas(
-            win, width=450, height=min(390, self.root.winfo_screenheight() - 145), highlightthickness=0
+            win, width=490, height=min(390, self.root.winfo_screenheight() - 145), bg=theme.BG, highlightthickness=0
         )
         scrollbar = ttk.Scrollbar(win, orient="vertical", command=scroll.yview)
         scroll.configure(yscrollcommand=scrollbar.set)
@@ -593,8 +624,8 @@ class Editor:
                         lab.configure(text=selected)
                         fn(selected)
 
-                ttk.Button(w, text="色", width=3, command=set_color).pack(side="left")
-                ttk.Button(w, text="機体色", width=6, command=lambda fn=set_color: fn(True)).pack(side="left")
+                theme.button(w, text="色", width=3, command=set_color).pack(side="left")
+                theme.button(w, text="機体色", width=6, command=lambda fn=set_color: fn(True)).pack(side="left")
             else:
                 label = ttk.Label(page, text=format(value, ".3g"), width=6)
                 label.grid(row=idx, column=2)
@@ -608,7 +639,7 @@ class Editor:
 
                 w.configure(command=slide)
             w.grid(row=idx, column=1, sticky="w", padx=6)
-        ttk.Button(page, text="閉じる", command=win.destroy).grid(
+        theme.button(page, name="close", text="閉じる", command=win.destroy).grid(
             row=len(FIELDS[g]), column=0, sticky="w", pady=8
         )
 
@@ -746,10 +777,10 @@ class Editor:
                 ("JSONに書き出す", "書き出す"),
             )
         ):
-            ttk.Button(page, text=label, command=lambda a=action: operation(a)).grid(
+            theme.button(page, text=label, command=lambda a=action: operation(a)).grid(
                 row=1 + i // 2, column=i % 2, sticky="ew", pady=2
             )
-        ttk.Button(page, text="閉じる", command=win.destroy).grid(row=5, columnspan=2, sticky="e", pady=5)
+        theme.button(page, name="close", text="閉じる", command=win.destroy).grid(row=5, columnspan=2, sticky="e", pady=5)
 
     def effect_error(self, error):
         logging.getLogger("funnel.display").error("Desktop effect stopped: %s", error, exc_info=True)

@@ -31,8 +31,7 @@ with TemporaryDirectory() as profile:
     names.append(("06-dragoon","ストライクフリーダム"))
     for filename,name in names:
         category="ドラグーン" if filename=="06-dragoon" else "ファンネル"
-        ui.category.set(category)
-        ui.choose_category(root_path/"カーソル"/category/(name+".cur"))
+        ui.equipment_buttons[root_path/"カーソル"/category/(name+".cur")].invoke()
         ui.update_preview()
         window.lift()
         window.update()

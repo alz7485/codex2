@@ -72,6 +72,34 @@ class EditorFlow(TestCase):
         self.root.update()
         self.assertEqual(self.ui.idle_motion_controls.winfo_manager(), "pack")
 
+    def test_image_cards_select_across_categories_after_apply(self):
+        ui=self.ui
+        self.root.update()
+        self.assertFalse(ui.category.winfo_ismapped())
+        self.assertFalse(ui.cursor.winfo_ismapped())
+        self.assertEqual(set(ui.equipment_buttons),{p for paths in self.entries.values() for p in paths})
+        ui.apply()
+        other=self.entries["自作"][0]
+        ui.equipment_buttons[other].invoke()
+        self.root.update()
+        self.assertEqual(ui.path,other)
+        self.assertEqual(ui.category.get(),"自作")
+        self.assertIn("selected",ui.equipment_buttons[other].state())
+        self.assertTrue(ui.preview.paused)
+        self.assertEqual(self.system.apply.call_count,1)
+        ui.restore_button.invoke()
+        self.system.apply.assert_called_with(None)
+
+    def test_dark_theme_and_settings_dialog_remain_usable(self):
+        from tkinter import ttk
+        self.assertEqual(ttk.Style(self.root).lookup("TLabel","foreground"),"#f1f5f9")
+        self.ui.apply()
+        self.ui.idle_settings_button.invoke()
+        self.root.update()
+        dialog=next(w for w in self.root.winfo_children() if isinstance(w,tk.Toplevel))
+        self.assertEqual(dialog.cget("background"),"#090c11")
+        dialog.destroy()
+
     def select(self, category):
         self.ui.category.set(category)
         self.ui.choose_category()

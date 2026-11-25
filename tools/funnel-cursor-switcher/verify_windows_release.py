@@ -127,8 +127,8 @@ def verify_packaged_apply(bundle, source):
                     button = editor.apply_button
                     offset = (button.winfo_rootx()-mirror.winfo_rootx()+button.winfo_width()//2,
                               button.winfo_rooty()-mirror.winfo_rooty()+button.winfo_height()//2)
-                    category_offset = (editor.category.winfo_rootx()-mirror.winfo_rootx()+editor.category.winfo_width()-10,
-                                       editor.category.winfo_rooty()-mirror.winfo_rooty()+editor.category.winfo_height()//2)
+                    settings_offset = (editor.idle_settings_button.winfo_rootx()-mirror.winfo_rootx()+editor.idle_settings_button.winfo_width()//2,
+                                       editor.idle_settings_button.winfo_rooty()-mirror.winfo_rooty()+editor.idle_settings_button.winfo_height()//2)
                     editor.close()
                     for reopening in (False,True):
                         print("Packaged Apply", name.encode("ascii","backslashreplace").decode(), reopening, flush=True)
@@ -177,7 +177,7 @@ def verify_packaged_apply(bundle, source):
                                 bind(user,"EnumWindows",wintypes.BOOL,callback_type,wintypes.LPARAM)(callback,0)
                                 return result
                             before=visible_windows()
-                            point=P(*category_offset)
+                            point=P(*settings_offset)
                             assert to_screen(window,ctypes.byref(point))
                             move(point.x,point.y)
                             click(2,0,0,0,0);click(4,0,0,0,0)
@@ -198,9 +198,9 @@ def verify_packaged_apply(bundle, source):
                                 print("Mouse target",under,upid.value,cls.value,flush=True)
                                 text=display_log.read_text(encoding="utf-8")
                                 print(text.rsplit("Apply ",1)[-1].encode("ascii","backslashreplace").decode(),flush=True)
-                            assert popups, "Category dropdown did not open after Apply"
+                            assert popups, "Settings dialog did not open after Apply"
                             time.sleep(.5)
-                            assert popups & visible_windows(), "Category dropdown closed while rendering"
+                            assert popups & visible_windows(), "Settings dialog closed while rendering"
                             keyevent(0x1B,0,0,0);keyevent(0x1B,0,2,0)
                             minimize(window,6)
                             try:
