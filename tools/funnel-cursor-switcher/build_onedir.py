@@ -39,12 +39,17 @@ def main():
         with ZipFile(ROOT / "hinu122/model-assets.zip") as models:
             models.extractall(ROOT / "hinu122")
 
+    if (ROOT / "assets193").is_dir():
+        data=b"".join(base64.b64decode(part.read_text()) for part in sorted((ROOT/"assets193").glob("*.b64")))
+        with ZipFile(BytesIO(data)) as assets:
+            assets.extractall(ROOT)
+
     subprocess.run(
         [
             sys.executable, "-m", "PyInstaller", "--onedir", "--windowed",
-            "--hidden-import", "numpy", "--hidden-import", "runtime_render",
+            "--hidden-import", "numpy", "--hidden-import", "runtime_render", "--hidden-import", "dragoon_render",
             "--collect-submodules", "scipy._external",
-            "--paths", str(ROOT / "hinu122"), "--clean", "--noconfirm", "--name", NAME, f"{NAME}.pyw",
+            "--paths", str(ROOT / "hinu122"), "--paths", str(ROOT / "dragoon146"), "--clean", "--noconfirm", "--name", NAME, f"{NAME}.pyw",
         ],
         cwd=ROOT,
         check=True,
@@ -60,6 +65,7 @@ def main():
         models.extractall(bundle / "_internal")
     shutil.copy2(ROOT / "hinu122/routes114.json", bundle / "_internal/routes114.json")
     shutil.copytree(ROOT / "mesa", bundle / "_internal/mesa", dirs_exist_ok=True)
+    shutil.copy2(ROOT / "dragoon146/StrikeFreedom_Dragoon_Trial133.glb", bundle / "_internal/StrikeFreedom_Dragoon_Trial133.glb")
     copy_runtime_assets(bundle)
     for name in ("VERSION", "README.md"):
         shutil.copy2(ROOT / name, bundle / name)

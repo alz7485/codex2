@@ -114,10 +114,11 @@ def verify_packaged_apply(bundle, source):
         with reg.OpenKey(reg.HKEY_CURRENT_USER,source["REGISTRY_PATH"],0,reg.KEY_READ|reg.KEY_SET_VALUE) as key:
             prior = system.read_arrow(key)
             try:
-                for name in ("サザビー","キュベレイ","フィンファンネル","Hi-νガンダム","Hi-νガンダムHWS"):
-                    path = bundle/"カーソル"/"ファンネル"/(name+".cur")
+                units=[("ファンネル",n) for n in ("サザビー","キュベレイ","フィンファンネル","Hi-νガンダム","Hi-νガンダムHWS")]+[("ドラグーン","ストライクフリーダム")]
+                for category,name in units:
+                    path = bundle/"カーソル"/category/(name+".cur")
                     store = Settings(system.store/"effects.json")
-                    store.active = "ファンネル/"+path.name
+                    store.active = category+"/"+path.name
                     store.write()
                     # Measure the exact Tk layout at the runner's DPI.
                     mirror = tk.Tk()

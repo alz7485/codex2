@@ -18,13 +18,15 @@ UNITS = {"キュベレイ": "qubeley", "サザビー": "sazabi"}
 
 
 def supported(path):
+    if path and path.parent.name == "ドラグーン" and path.stem == "ストライクフリーダム":
+        return True
     return path and path.parent.name == "ファンネル" and (path.stem in UNITS or path.stem in ("フィンファンネル", "Hi-νガンダム", "Hi-νガンダムHWS"))
 
 
 def enabled(path, config):
     if not supported(path):
         return False
-    special = {"フィンファンネル":"barrier","キュベレイ":"spiral","サザビー":"volley","Hi-νガンダム":"volley","Hi-νガンダムHWS":"volley"}[path.stem]
+    special = "dragoon" if path.parent.name == "ドラグーン" else {"フィンファンネル":"barrier","キュベレイ":"spiral","サザビー":"volley","Hi-νガンダム":"volley","Hi-νガンダムHWS":"volley"}[path.stem]
     return config[special]["click_fire_enabled"] or any(
         fields["enabled"] for fields in config.values()
     )
@@ -347,6 +349,9 @@ class FinDisplay(TrialDisplay):
 
 
 def create_display(path, config):
+    if path.parent.name == "ドラグーン" and path.stem == "ストライクフリーダム":
+        from dragoon_runtime import DragoonDisplay
+        return DragoonDisplay(path,config)
     if path.stem in ("Hi-νガンダム", "Hi-νガンダムHWS"):
         from hinu_runtime import HiNuDisplay
         return HiNuDisplay(path, config)

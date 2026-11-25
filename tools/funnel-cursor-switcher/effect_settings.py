@@ -233,6 +233,8 @@ for group in ("spiral", "volley", "barrier"):
         orientation_mode=choice("主機の向き", * (("fixed_upper_left","follow") if group=="barrier" else ("follow","fixed_upper_left"))),
     )
 
+FIELDS["dragoon"]["click_fire_enabled"] = Field("クリック・ドラッグで射撃",True)
+
 CATEGORY = {
     "ファンネル": {"followers": {"orbit": 0.12}},
     "ビット": {"boost": {"width": 1.25}, "followers": {"lag": 0.25}},
@@ -285,6 +287,9 @@ def patch(data, strict=False):
 def resolve(category, preset, overrides, cursor_key=None):
     values = {g: {k: f.default for k, f in fields.items()} for g, fields in FIELDS.items()}
     origins = {g: dict.fromkeys(fields, "共通") for g, fields in FIELDS.items()}
+    if cursor_key == "ドラグーン/ストライクフリーダム.cur":
+        values["idle"].update(enabled=True,motion="横回転",delay=.9,turn_period=3.8)
+        origins["idle"].update(dict.fromkeys(("enabled","motion","delay","turn_period"),"機体"))
     if cursor_key == "ファンネル/フィンファンネル.cur":
         values["barrier"]["color"] = "#d479ca"
         origins["barrier"]["color"] = "機体"

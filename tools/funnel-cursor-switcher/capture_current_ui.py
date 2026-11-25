@@ -28,9 +28,11 @@ with TemporaryDirectory() as profile:
     ui.preview.mode.set("停止")
     window.geometry("+50+50")
     names = [("01-fin","フィンファンネル"),("02-qubeley","キュベレイ"),("03-sazabi","サザビー"),("04-hinu","Hi-νガンダム"),("05-hinu-hws","Hi-νガンダムHWS")]
+    names.append(("06-dragoon","ストライクフリーダム"))
     for filename,name in names:
-        ui.category.set("ファンネル")
-        ui.choose_category(root_path/"カーソル/ファンネル"/(name+".cur"))
+        category="ドラグーン" if filename=="06-dragoon" else "ファンネル"
+        ui.category.set(category)
+        ui.choose_category(root_path/"カーソル"/category/(name+".cur"))
         ui.update_preview()
         window.lift()
         window.update()

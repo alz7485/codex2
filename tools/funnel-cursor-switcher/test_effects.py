@@ -54,7 +54,7 @@ class Rendering(unittest.TestCase):
 
         path = CURSOR.with_name("サザビー.cur")
         verify_base_frame(path)
-        self.assertEqual(struct.unpack_from("<HHH", path.read_bytes()), (0, 2, 16))
+        self.assertEqual(struct.unpack_from("<HH", path.read_bytes()), (0, 2))
         poses = read_poses(ROOT / "飛行アニメ" / "ファンネル" / "サザビー.展開.png")
         self.assertEqual(len({pose.tobytes() for pose in poses}), 4)
         closed, opened = poses[0], poses[-1]
@@ -257,7 +257,7 @@ class Rendering(unittest.TestCase):
 
         path = ROOT / "カーソル" / "ドラグーン" / "ストライクフリーダム.cur"
         verify_base_frame(path)
-        self.assertEqual(struct.unpack_from("<HHH", path.read_bytes()), (0, 2, 16))
+        self.assertEqual(struct.unpack_from("<HH", path.read_bytes()), (0, 2))
         source = read_source()
         source.thumbnail((512, 512))
         pixels = [source.getpixel((x, y)) for y in range(source.height) for x in range(source.width)

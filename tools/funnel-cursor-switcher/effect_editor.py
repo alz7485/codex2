@@ -406,7 +406,7 @@ class Editor:
                 else:
                     widget.grid_remove()
         if trial_runtime.supported(self.path):
-            fin = self.path.stem in ("フィンファンネル", "Hi-νガンダム", "Hi-νガンダムHWS")
+            fin = self.path.stem in ("フィンファンネル", "Hi-νガンダム", "Hi-νガンダムHWS", "ストライクフリーダム")
             supported_groups = {"idle", "followers", group}
             if not fin:
                 supported_groups |= {"boost", "trail", "click", "particles", "deploy", "rare"}

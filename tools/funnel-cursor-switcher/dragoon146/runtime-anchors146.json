@@ -1,0 +1,63 @@
+{
+  "model": "StrikeFreedom_Dragoon_Trial133.glb",
+  "model_sha256": "b14e02d9d09476622b6fa05c1dc41534ec3772772e3b940b3782583528eb58ac",
+  "tip": [
+    -0.1855,
+    0.0,
+    -3.38
+  ],
+  "beam": {
+    "origin": [
+      -0.1855,
+      0.0,
+      -3.38
+    ],
+    "direction": [
+      0.0,
+      0.0,
+      -1.0
+    ]
+  },
+  "ports": {
+    "rear": {
+      "origin": [
+        0.151,
+        0.0,
+        3.22
+      ],
+      "direction": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "width": 0.11
+    },
+    "left": {
+      "origin": [
+        -0.102,
+        0.0,
+        1.8
+      ],
+      "direction": [
+        -1.0,
+        0.0,
+        0.0
+      ],
+      "width": 0.055
+    },
+    "right": {
+      "origin": [
+        0.776,
+        0.0,
+        1.8
+      ],
+      "direction": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "width": 0.055
+    }
+  },
+  "status": "provisional FX anchors; runtime source of truth flight_trial135.py and combat_trial137.py; model133.json historical"
+}
