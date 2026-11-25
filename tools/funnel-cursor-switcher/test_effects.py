@@ -639,9 +639,7 @@ class Rendering(unittest.TestCase):
                 self.assertEqual(fly.call_count, 3)
                 self.assertTrue(all(call.kwargs["deploying"] for call in fly.call_args_list))
             self.assertIsNone(e.step((0, 0), action.lifetime + 0.01))
-        hi_nu = engine(["barrier"], cursor=CURSOR.with_name("Hi-νガンダム.cur")).layers[0]
-        self.assertFalse(hi_nu.has_rack)
-        self.assertEqual(hi_nu.lifetime, hi_nu.c["duration"])
+        self.assertEqual(special_group("ファンネル/Hi-νガンダム.cur"), "volley")
 
     def test_independent_and_combined(self):
         for special, paths in SPECIAL.items():

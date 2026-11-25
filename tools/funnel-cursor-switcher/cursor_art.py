@@ -18,6 +18,7 @@ NOZZLES = {
 APPEARANCES = {
     "フィンファンネル": ("twin", ("#d6fb43", "#a3d722")),
     "サザビー": ("fan", ("#ff7128", "#ffc33d", "#ff4551")),
+    "Hi-νガンダムHWS": ("twin", ("#bca8ff", "#e3d7ff")),
     "Hi-νガンダム": ("twin", ("#8c91ff", "#bd7fff")),
     "キュベレイ": ("needle", ("#62d4ff",)),
     "ヤクト・ドーガ": ("fan", ("#ffbe3a", "#ffe86a", "#f89f2c")),

@@ -1,12 +1,13 @@
 """Bridge the two Trial58 equipment controllers to the editor and Windows overlay."""
 from functools import lru_cache
+from copy import deepcopy
 from pathlib import Path
 import math
 import sys
 from tempfile import TemporaryDirectory
 from zipfile import ZipFile
 
-from PIL import Image
+from PIL import Image, ImageDraw
 
 from cursor_art import APPEARANCES, anchors, load_sprite
 from effect_engine import ClickEvent, EffectEngine
@@ -17,13 +18,13 @@ UNITS = {"キュベレイ": "qubeley", "サザビー": "sazabi"}
 
 
 def supported(path):
-    return path and path.parent.name == "ファンネル" and (path.stem in UNITS or path.stem == "フィンファンネル")
+    return path and path.parent.name == "ファンネル" and (path.stem in UNITS or path.stem in ("フィンファンネル", "Hi-νガンダム", "Hi-νガンダムHWS"))
 
 
 def enabled(path, config):
     if not supported(path):
         return False
-    special = {"フィンファンネル":"barrier","キュベレイ":"spiral","サザビー":"volley"}[path.stem]
+    special = {"フィンファンネル":"barrier","キュベレイ":"spiral","サザビー":"volley","Hi-νガンダム":"volley","Hi-νガンダムHWS":"volley"}[path.stem]
     return config[special]["click_fire_enabled"] or any(
         fields["enabled"] for fields in config.values()
     )
@@ -74,6 +75,10 @@ class TrialDisplay:
         self.control = coordinator(self.unit, count,
                                    click_fire_enabled=options["click_fire_enabled"],
                                    orientation_mode=options["orientation_mode"])
+        from primary_fire import PrimaryFire
+        from escort_options import EscortOptions
+        self.escort_options = EscortOptions(config["followers"], PrimaryFire)
+        self.escort_trails = []
         # Keep independent existing decorations available alongside the Trial58 hull and VFX.
         groups = {"particles", "deploy", "rare", "click"}
         if config["idle"]["motion"] != MOTION:
@@ -90,12 +95,16 @@ class TrialDisplay:
 
     def reset(self):
         self.control.reset()
+        self.escort_options.reset()
+        for trail in self.escort_trails:
+            trail.reset()
         self.decorations.reset()
         self.pos = None
         self.still = 0
 
     def cancel_fire(self):
         self.control.cancel_fire()
+        self.escort_options.reset()
 
     def primary(self, item, effects):
         assets = self.control.m["assets"][self.unit]
@@ -150,13 +159,32 @@ class TrialDisplay:
             button = "left" if event.kind == "double" else event.kind
             if (options["enabled"] and button == BUTTONS[options["button"]]
                     and event.modifiers == MODIFIERS[options["modifiers"]]):
+                self.escort_options.reset()
                 c.trigger_special(event.time,event.pos)
             elif button == "left":
+                if options["click_fire_enabled"]:
+                    self.escort_options.input(button,event.time)
                 c.button_down(event.time)
             elif button == "left_up":
+                if options["click_fire_enabled"]:
+                    self.escort_options.input(button,event.time)
                 if not c.button_up(event.time) and c.last and event.time-c.last[0] > .15:
                     c.cancel_fire()
         result = c.update(now,pos,scale,True,viewport)
+        primary = next((i for i in result["items"] if i["id"] == -1), None)
+        if result["reset"] or result["fleet"]:
+            self.escort_options.reset()
+            for trail in self.escort_trails:
+                trail.reset()
+        if primary:
+            escorts, extra = self.escort_options.transform([i for i in result["items"] if i["id"] != -1], primary, now)
+            while len(self.escort_trails) < len(escorts):
+                trail = deepcopy(c.trails[min(len(self.escort_trails)+1,len(c.trails)-1)])
+                trail.reset()
+                self.escort_trails.append(trail)
+            for trail,item in zip(self.escort_trails,escorts):
+                trail.update(now,item["nozzle"],item["speed"],item["power"]*item["opacity"])
+            result = dict(result, items=[primary, *escorts], primary_effects=[*result["primary_effects"], *extra])
         if result["reset"] or self.pos != pos or events:
             self.last_input = now
         self.still = now-self.last_input
@@ -169,7 +197,8 @@ class TrialDisplay:
             self.idle_turn_step = int((self.still-idle["delay"])*STEPS/idle["turn_period"])*direction % STEPS
         layers = []
         if self.config["trail"]["enabled"]:
-            layers.extend(tr.render(viewport,scale) for tr in c.trails[:len(result["items"])])
+            layers.extend(tr.render(viewport,scale) for tr in c.trails[:1])
+            layers.extend(tr.render(viewport,scale*self.escort_options.ratio) for tr in self.escort_trails)
         if self.decorations.layers:
             logical = tuple(x/scale for x in pos)
             clicks = [ClickEvent(e.kind, tuple(v/scale for v in e.pos), e.time, e.modifiers)
@@ -183,7 +212,7 @@ class TrialDisplay:
             layers.append(self.fleet_layer(result["fleet"],scale))
         effects = result["primary_effects"]
         items = {i["id"]:i for i in result["items"]}
-        layers.extend(self.item_layer(items[i],effects,scale) for i in result["draw_order"] if i != -1 or show_primary)
+        layers.extend(self.item_layer(items[i],[e for e in effects if e.get("owner",-1)==i],scale) for i in result["draw_order"] if i != -1 or show_primary)
         layers.append(self.beams(self.unit,effects,viewport))
         visible = []
         for image, point in layers:
@@ -236,16 +265,41 @@ class FinDisplay(TrialDisplay):
         self.fx = Integrated(root, opts["click_fire_enabled"], self.count,
                              opts["color"] if opts["color"] != "機体色" else "purple",
                              idle["delay"], idle["turn_period"], idle["turn_direction"] == "逆回転")
+        library()
+        from primary_fire import PrimaryFire
+        from escort_options import EscortOptions
+        self.escort_options = EscortOptions(config["followers"], PrimaryFire)
+        fleet = self.fx.flight.fleet
+        update = fleet.update
+        def update_escorts(t, xy, scale, bounds=None, visible=True):
+            states = update(t, xy, scale, bounds, visible)
+            if not visible:
+                self.escort_options.reset()
+                return states
+            for state in states:
+                pose = self.fx.flight.charge_poses[state["pose"]]
+                cx,cy = self.fx.flight.manifest["pivot"]
+                c,s = math.cos(state["heading"]),math.sin(state["heading"])
+                def project(point):
+                    x,y=(point[0]-cx)*state["scale"],(point[1]-cy)*state["scale"]
+                    return (state["xy"][0]+c*x-s*y,state["xy"][1]+s*x+c*y)
+                state["grid"] = project(pose["grid"])
+                state["channel"] = [project(point) for point in pose["channel"]]
+            primary = dict(heading=math.radians(-135) if opts["orientation_mode"] == "fixed_upper_left" else self.fx.flight.heading)
+            return self.escort_options.transform(states, primary, t, fin=True)[0]
+        fleet.update = update_escorts
         self.hot = anchors(load_sprite(path), path)[0]
         self.pos = None
         self.frame_origin = (0, 0)
 
     def reset(self):
+        self.escort_options.reset()
         self.fx.reset()
         self.pos = None
 
     def cancel_fire(self):
         self.fx.cancel()
+        self.escort_options.reset()
 
     def step(self, pos, now, events, viewport, scale=1, show_primary=True):
         if pos is None:
@@ -261,8 +315,12 @@ class FinDisplay(TrialDisplay):
                 self.fx.trigger_special(event.time,(event.pos[0]-left,event.pos[1]-top),bounds,
                                         opts["radius"],opts["duration"],.58*scale,opts["opacity"])
             elif button == "left":
+                if opts["click_fire_enabled"]:
+                    self.escort_options.input(button,event.time)
                 self.fx.down(event.time)
             elif button == "left_up":
+                if opts["click_fire_enabled"]:
+                    self.escort_options.input(button,event.time)
                 self.fx.up(event.time)
         self.pos = pos
         idle = self.config["idle"]
@@ -272,6 +330,9 @@ class FinDisplay(TrialDisplay):
                                context=(viewport,scale))
         background = Image.new("RGBA",bounds[2:])
         frame = self.fx.draw(background,state) if show_primary else self.fx.barrier.draw(background,state["special"])
+        if not state["special"]:
+            from escort_options import draw_fin_shots
+            frame = draw_fin_shots(frame, state.get("escorts", ()))
         box = frame.getbbox()
         if box:
             self.frame_origin = left+box[0],top+box[1]
@@ -279,4 +340,7 @@ class FinDisplay(TrialDisplay):
 
 
 def create_display(path, config):
+    if path.stem in ("Hi-νガンダム", "Hi-νガンダムHWS"):
+        from hinu_runtime import HiNuDisplay
+        return HiNuDisplay(path, config)
     return (FinDisplay if path.stem == "フィンファンネル" else TrialDisplay)(path, config)

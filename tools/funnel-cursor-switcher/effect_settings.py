@@ -130,7 +130,9 @@ FIELDS = {
         opacity=ALPHA,
     ),
     "followers": dict(
-        count=Field("機数", 2, 1, 3),
+        count=Field("機数", 2, 0, 3),
+        size_percent=Field("随伴サイズ %", 100, 50, 120),
+        fire_enabled=Field("随伴機も射撃", True),
         style=choice("外観", "装備画像", "光の菱形", "輪郭"),
         scale=Field("画像倍率", 0.42, 0.20, 0.70),
         distance=Field("距離 px", 42, 24, 68),
@@ -178,12 +180,11 @@ SPECIAL = {
     "barrier": {
         "ファンネル/フィンファンネル.cur",
         "ファンネル/νガンダムHWS.cur",
-        "ファンネル/Hi-νガンダム.cur",
     },
     "volley": {
         f"ファンネル/{name}.cur" for name in
         ("サザビー", "ヤクト・ドーガ", "ナイチンゲール", "クシャトリヤ", "クィン・マンサ", "α・アジール")
-    } | {"ビット/エルメス.cur"},
+    } | {"ビット/エルメス.cur", "ファンネル/Hi-νガンダム.cur", "ファンネル/Hi-νガンダムHWS.cur"},
     "dragoon": {f"ドラグーン/{name}.cur" for name in ("ストライクフリーダム", "レジェンドガンダム")},
     "pods": {"機動兵装ポッド/カオスガンダム.cur"},
     "rifle": {"ビット/ガンダムサバーニャ.cur"},

@@ -1,4 +1,6 @@
 from pathlib import Path
+import base64
+from io import BytesIO
 import shutil
 import subprocess
 import sys
@@ -30,10 +32,18 @@ def main():
     if sys.platform != "win32" or sys.maxsize <= 2**32:
         raise SystemExit("Build with 64-bit Python on Windows.")
 
+    if (ROOT / "assets190").is_dir():
+        data = b"".join(base64.b64decode(part.read_text()) for part in sorted((ROOT / "assets190").glob("*.b64")))
+        with ZipFile(BytesIO(data)) as assets:
+            assets.extractall(ROOT)
+        with ZipFile(ROOT / "hinu122/model-assets.zip") as models:
+            models.extractall(ROOT / "hinu122")
+
     subprocess.run(
         [
             sys.executable, "-m", "PyInstaller", "--onedir", "--windowed",
-            "--hidden-import", "numpy", "--clean", "--noconfirm", "--name", NAME, f"{NAME}.pyw",
+            "--hidden-import", "numpy", "--hidden-import", "runtime_render",
+            "--paths", str(ROOT / "hinu122"), "--clean", "--noconfirm", "--name", NAME, f"{NAME}.pyw",
         ],
         cwd=ROOT,
         check=True,
@@ -45,6 +55,9 @@ def main():
         runtime.extractall(bundle / "_internal" / "trial58")
     with ZipFile(ROOT / "runtime77.zip") as runtime:
         runtime.extractall(bundle / "_internal/fin77")
+    with ZipFile(ROOT / "hinu122/model-assets.zip") as models:
+        models.extractall(bundle / "_internal")
+    shutil.copy2(ROOT / "hinu122/routes114.json", bundle / "_internal/routes114.json")
     copy_runtime_assets(bundle)
     for name in ("VERSION", "README.md"):
         shutil.copy2(ROOT / name, bundle / name)

@@ -90,6 +90,8 @@ class Preview:
                 )
 
     def set(self, path, config):
+        if self.engine and hasattr(self.engine, "close"):
+            self.engine.close()
         self.events.clear()
         self.test_button.pack_forget()
         self.tracker.previous = None
@@ -162,6 +164,8 @@ class Preview:
         self.timer = self.canvas.after(delay, self.tick)
 
     def close(self):
+        if getattr(self, "engine", None) and hasattr(self.engine, "close"):
+            self.engine.close()
         self.canvas.after_cancel(self.timer)
 
 
@@ -325,7 +329,7 @@ class Editor:
         self.preset.set(self.binding()["preset"] if self.path else "")
         values, _ = self.values()
         for g in FIELDS:
-            rotating = g == "idle" and bool(idle_sheet(self.path)) and values[g]["motion"] == "横回転"
+            rotating = g == "idle" and bool(idle_sheet(self.path))
             key = "turn_period" if rotating else next(iter(FIELDS[g]))
             field = FIELDS[g][key]
             self.row_checks[g].configure(text="待機横回転" if rotating else NAMES[g])
@@ -362,7 +366,7 @@ class Editor:
                 else:
                     widget.grid_remove()
         if trial_runtime.supported(self.path):
-            fin = self.path.stem == "フィンファンネル"
+            fin = self.path.stem in ("フィンファンネル", "Hi-νガンダム", "Hi-νガンダムHWS")
             supported_groups = {"idle", "followers", group}
             if not fin:
                 supported_groups |= {"boost", "trail", "click", "particles", "deploy", "rare"}
@@ -486,7 +490,7 @@ class Editor:
         values, origins = self.values()
         for idx, (k, f) in enumerate(FIELDS[g].items()):
             if trial_runtime.supported(self.path):
-                allowed = {"followers": {"enabled", "count"},
+                allowed = {"followers": {"enabled", "count", "size_percent", "fire_enabled"},
                            "boost": {"enabled"}, "trail": {"enabled"}}
                 if g in allowed and k not in allowed[g]:
                     continue
@@ -494,7 +498,7 @@ class Editor:
                     continue
             if k in ("click_fire_enabled","orientation_mode","escort_count") and not trial_runtime.supported(self.path):
                 continue
-            if trial_runtime.supported(self.path) and g == "followers" and k not in ("enabled","count"):
+            if trial_runtime.supported(self.path) and g == "followers" and k not in ("enabled","count","size_percent","fire_enabled"):
                 continue
             if trial_runtime.supported(self.path) and g != "barrier" and g == special_group(self.key) and k in ("duration","count","radius","turns","color","opacity"):
                 continue

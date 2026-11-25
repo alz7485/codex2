@@ -438,6 +438,8 @@ class FunnelEffect:
             load_sprite(cursor), APPEARANCES.get(cursor.stem, DEFAULT_APPEARANCE), config, cursor
         )
         if not self.animation.layers:
+            if self.animation and hasattr(self.animation, "close"):
+                self.animation.close()
             self.animation = None
             return
         observe = any(config[k]["enabled"] for k in ("click", "followers", "deploy", "particles"))
@@ -533,4 +535,6 @@ class FunnelEffect:
             if self.overlay is not None:
                 self.overlay.close()
                 self.overlay = None
+            if self.animation and hasattr(self.animation, "close"):
+                self.animation.close()
             self.animation = None
