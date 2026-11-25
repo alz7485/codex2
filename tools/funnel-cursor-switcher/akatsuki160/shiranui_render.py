@@ -11,7 +11,6 @@ from motion149 import transform as deploy_transform
 from effects160 import draw_effects
 from combat_effects160 import draw_combat
 from field_effects158 import draw_field
-from functools import lru_cache
 
 class Renderer(shared.Renderer):
     def __init__(self):
@@ -67,9 +66,13 @@ class Renderer(shared.Renderer):
         self.cam.SetViewUp(0,1,0)
         self.cam.SetClippingRange(500,1500)
 
-    @lru_cache(maxsize=256)
     def deployment(self,age):
-        return {name:deploy_transform(name,age) for name,_ in self.groups[0]}
+        # Per-renderer cache: closing a display also releases its geometry and pose data.
+        if not hasattr(self,'_poses'):self._poses={}
+        if age not in self._poses:
+            if len(self._poses)>=256:self._poses.clear()
+            self._poses[age]={name:deploy_transform(name,age) for name,_ in self.groups[0]}
+        return self._poses[age]
 
     @staticmethod
     def luminous(rgb):

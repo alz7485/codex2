@@ -580,7 +580,7 @@ class Editor:
     def details(self, g):
         if not self.path:
             return
-        win = self.subwindow(NAMES[g])
+        win = self.subwindow("シラヌイ八面体バリア" if g=="dragoon" and self.path.stem=="アカツキ（シラヌイ）" else NAMES[g])
         scroll = tk.Canvas(
             win, width=490, height=min(390, self.root.winfo_screenheight() - 145), bg=theme.BG, highlightthickness=0
         )
