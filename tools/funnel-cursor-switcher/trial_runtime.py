@@ -78,6 +78,13 @@ class TrialDisplay:
         from primary_fire import PrimaryFire
         from escort_options import EscortOptions
         self.escort_options = EscortOptions(config["followers"], PrimaryFire)
+        probe = coordinator(self.unit, 0).update(0, (0,0), 1, True, (-500,-500,500,500))
+        item = next(i for i in probe["items"] if i["id"] == -1)
+        body = scaled(self.primary(item, []), item["scale"]).rotate(
+            -math.degrees(item["draw_heading"]), Image.Resampling.BICUBIC, expand=True)
+        body_box = body.getchannel("A").point(lambda a: 255 if a >= 144 else 0).getbbox()
+        native_box = load_sprite(path).getchannel("A").point(lambda a: 255 if a >= 144 else 0).getbbox()
+        self.normal_scale = max(native_box[2]-native_box[0],native_box[3]-native_box[1]) / max(body_box[2]-body_box[0],body_box[3]-body_box[1])
         self.escort_trails = []
         # Keep independent existing decorations available alongside the Trial58 hull and VFX.
         groups = {"particles", "deploy", "rare", "click"}
@@ -170,7 +177,7 @@ class TrialDisplay:
                     self.escort_options.input(button,event.time)
                 if not c.button_up(event.time) and c.last and event.time-c.last[0] > .15:
                     c.cancel_fire()
-        result = c.update(now,pos,scale,True,viewport)
+        result = c.update(now,pos,scale*self.normal_scale,True,viewport)
         primary = next((i for i in result["items"] if i["id"] == -1), None)
         if result["reset"] or result["fleet"]:
             self.escort_options.reset()
@@ -197,8 +204,8 @@ class TrialDisplay:
             self.idle_turn_step = int((self.still-idle["delay"])*STEPS/idle["turn_period"])*direction % STEPS
         layers = []
         if self.config["trail"]["enabled"]:
-            layers.extend(tr.render(viewport,scale) for tr in c.trails[:1])
-            layers.extend(tr.render(viewport,scale*self.escort_options.ratio) for tr in self.escort_trails)
+            layers.extend(tr.render(viewport,scale*self.normal_scale) for tr in c.trails[:1])
+            layers.extend(tr.render(viewport,scale*self.normal_scale*self.escort_options.ratio) for tr in self.escort_trails)
         if self.decorations.layers:
             logical = tuple(x/scale for x in pos)
             clicks = [ClickEvent(e.kind, tuple(v/scale for v in e.pos), e.time, e.modifiers)

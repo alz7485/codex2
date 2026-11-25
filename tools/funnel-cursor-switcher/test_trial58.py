@@ -38,3 +38,15 @@ class TrialIntegration(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class NativePreviewSize(unittest.TestCase):
+    def test_normal_body_uses_native_cursor_size_at_each_dpi(self):
+        for name, scale in product(UNITS, (1, 1.5, 2)):
+            path = ROOT / "カーソル" / "ファンネル" / (name+".cur")
+            cfg = resolve("ファンネル",{}, {"boost":{"enabled":False},"trail":{"enabled":False},
+                                           "followers":{"enabled":False}})[0]
+            display = TrialDisplay(path,cfg)
+            image = display.step((300,300),0,[],(0,0,800,700),scale)
+            box = image.getchannel("A").point(lambda a:255 if a>=144 else 0).getbbox()
+            extent = max(box[2]-box[0],box[3]-box[1])
+            self.assertLessEqual(abs(extent-32*scale),3,(name,scale,extent))

@@ -186,3 +186,13 @@ class EditorFlow(TestCase):
         ui.update_preview()
         ui.preview.press(Mock(x=50, y=60, state=0), "right")
         self.assertEqual(ui.preview.events[-1].kind, "right")
+
+    def test_shared_escort_options_visible_and_bound_on_main_screen(self):
+        self.assertEqual(self.ui.follower_options.winfo_manager(), "grid")
+        self.ui.follower_size.set("120")
+        self.ui.change_follower_size()
+        self.assertEqual(self.ui.values()[0]["followers"]["size_percent"],120)
+        check = next(w for w in self.ui.follower_options.winfo_children()
+                     if w.winfo_class()=="TCheckbutton")
+        check.invoke()
+        self.assertFalse(self.ui.values()[0]["followers"]["fire_enabled"])

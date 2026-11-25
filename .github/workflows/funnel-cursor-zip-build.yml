@@ -13,6 +13,7 @@ on:
       - "build/funnel-cursor-v1.7.1-*"
       - "build/funnel-cursor-v1.8.0-*"
       - "build/funnel-cursor-v1.9.0-*"
+      - "build/funnel-cursor-v1.9.1-*"
 
 permissions:
   contents: read
@@ -40,6 +41,9 @@ jobs:
       - name: Build Windows ZIP
         shell: cmd
         run: build-onedir.cmd
+      - name: Verify updated editor and normal cursor sizing
+        shell: cmd
+        run: .venv-build\Scripts\python.exe -m unittest -v test_editor test_trial58
       - name: Verify extracted Windows app and cursor restore
         shell: cmd
         run: .venv-build\Scripts\python.exe verify_windows_release.py dist/FunnelCursorSwitcher-windows-x64.zip --check-system-restore
@@ -49,7 +53,7 @@ jobs:
           from pathlib import Path
           from zipfile import ZipFile, ZIP_DEFLATED
           root = Path("dist/FunnelCursorSwitcher")
-          archive = Path("dist/FunnelCursorSwitcher-v1.9.0-lite-windows-x64.zip")
+          archive = Path("dist/FunnelCursorSwitcher-v1.9.1-lite-windows-x64.zip")
           with ZipFile(archive, "w", ZIP_DEFLATED, compresslevel=9) as z:
               for p in sorted(root.rglob("*")):
                   if not p.is_file():
@@ -65,11 +69,18 @@ jobs:
           print(archive, archive.stat().st_size)
       - name: Verify minimal runtime
         shell: cmd
-        run: .venv-build\Scripts\python.exe verify_windows_release.py dist/FunnelCursorSwitcher-v1.9.0-lite-windows-x64.zip --check-system-restore
+        run: .venv-build\Scripts\python.exe verify_windows_release.py dist/FunnelCursorSwitcher-v1.9.1-lite-windows-x64.zip --check-system-restore
       - name: Upload lightweight ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: FunnelCursorSwitcher-v1.9.0-lite-windows-x64
-          path: tools/funnel-cursor-switcher/dist/FunnelCursorSwitcher-v1.9.0-lite-windows-x64.zip
+          name: FunnelCursorSwitcher-v1.9.1-lite-windows-x64
+          path: tools/funnel-cursor-switcher/dist/FunnelCursorSwitcher-v1.9.1-lite-windows-x64.zip
           compression-level: 0
           if-no-files-found: error
+      - name: Capture updated UI
+        shell: cmd
+        run: .venv-build\Scripts\python.exe capture_current_ui.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Cursor-UI-v1.9.1
+          path: tools/funnel-cursor-switcher/ui-screenshots/*.png

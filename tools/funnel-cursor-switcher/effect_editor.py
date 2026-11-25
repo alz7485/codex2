@@ -258,6 +258,23 @@ class Editor:
             )
             if group in SPECIAL:
                 self.special_widgets[group] = self.rows.grid_slaves(row=idx)
+        follower_row = int(self.row_checks["followers"].grid_info()["row"])
+        for widget in self.rows.winfo_children():
+            row = int(widget.grid_info().get("row", -1))
+            if row > follower_row:
+                widget.grid_configure(row=row+1)
+        self.follower_options = ttk.Frame(self.rows)
+        self.follower_options.grid(row=follower_row+1,column=0,columnspan=5,sticky="w",pady=(0,5))
+        ttk.Label(self.follower_options,text="随伴サイズ (%)").pack(side="left")
+        self.follower_size = tk.StringVar(master=root, value="100")
+        size = ttk.Spinbox(self.follower_options,from_=50,to=120,increment=1,width=4,
+                           textvariable=self.follower_size,command=self.change_follower_size)
+        size.pack(side="left",padx=(5,12))
+        size.bind("<Return>",self.change_follower_size)
+        size.bind("<FocusOut>",self.change_follower_size)
+        self.follower_fire = tk.BooleanVar(master=root, value=True)
+        ttk.Checkbutton(self.follower_options,text="随伴機も射撃",variable=self.follower_fire,
+                        command=lambda: self.edit("followers","fire_enabled",self.follower_fire.get())).pack(side="left")
         bar = ttk.Frame(right)
         bar.pack(fill="x", pady=(4, 0))
         for label, cmd in (
@@ -328,6 +345,8 @@ class Editor:
         )
         self.preset.set(self.binding()["preset"] if self.path else "")
         values, _ = self.values()
+        self.follower_size.set(str(values["followers"]["size_percent"]))
+        self.follower_fire.set(values["followers"]["fire_enabled"])
         for g in FIELDS:
             rotating = g == "idle" and bool(idle_sheet(self.path))
             key = "turn_period" if rotating else next(iter(FIELDS[g]))
@@ -382,12 +401,28 @@ class Editor:
                     if widget_row == row:
                         widget._settings_row = row
                         widget.grid() if name in supported_groups else widget.grid_remove()
+        if trial_runtime.supported(self.path):
+            self.follower_options.grid()
+        else:
+            self.follower_options.grid_remove()
         if group:
             config = self.values()[0][group]
             self.special_title.configure(text=f"特殊演出　{config['modifiers']}＋{config['button']}")
             self.special_title.grid()
         else:
             self.special_title.grid_remove()
+
+    def change_follower_size(self, _=None):
+        if not self.path or self.refreshing:
+            return
+        try:
+            value = int(self.follower_size.get())
+        except ValueError:
+            value = 0
+        if 50 <= value <= 120:
+            self.edit("followers","size_percent",value)
+        else:
+            self.follower_size.set(str(self.values()[0]["followers"]["size_percent"]))
 
     def choose_idle_motion(self, _=None):
         self.edit("idle", "motion", self.idle_motion.get())
