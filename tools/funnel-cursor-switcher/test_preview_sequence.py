@@ -34,3 +34,11 @@ class PreviewSequences(TestCase):
         engine.volley.active=True;self.assertFalse(q.finished(engine))
         q.time=10.;self.assertFalse(q.finished(engine))
         engine.volley.active=False;self.assertTrue(q.finished(engine))
+
+    def test_idle_plays_one_turn_including_the_acceleration_ramp(self):
+        cfg=self.config();period=cfg['idle']['turn_period']
+        for unit,ramp in (('フィンファンネル',0),('サザビー',0),('Hi-νガンダム',.225),('ストライクフリーダム',.225)):
+            q=Sequence('idle',cfg,'barrier',unit)
+            self.assertAlmostEqual(q.duration,.15+period+ramp)
+            for _ in range(1000):q.advance(.04)
+            self.assertEqual(q.time,q.duration)

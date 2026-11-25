@@ -108,7 +108,7 @@ class Preview:
 
     def play(self,kind):
         if not self.path or not trial_runtime.supported(self.path):return
-        self.sequence=Sequence(kind,self.base_config,special_group(f"{self.path.parent.name}/{self.path.name}"))
+        self.sequence=Sequence(kind,self.base_config,special_group(f"{self.path.parent.name}/{self.path.name}"),self.path.stem)
         self.completed=False
         self.mode.set("停止")
         self.events.clear();self.tracker.previous=None

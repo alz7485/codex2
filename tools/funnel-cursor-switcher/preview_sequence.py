@@ -8,7 +8,7 @@ ACTIONS=(('move','移動','flight'),('fire','射撃','fire'),('charge','溜め�
          ('idle','待機回転','rotate'),('followers','随伴','followers'),('special','特殊','shield'))
 
 class Sequence:
-    def __init__(self,kind,config,special):
+    def __init__(self,kind,config,special,unit=None):
         self.kind=kind;self.special=special;self.time=0.;self.previous=-1.;self.seen_special=False
         self.config=deepcopy(config)
         c=self.config
@@ -22,8 +22,9 @@ class Sequence:
         if special:
             c[special]['click_fire_enabled']=kind in ('fire','charge')
             c[special]['enabled']=kind=='special'
+        ramp=.225 if unit in ('Hi-νガンダム','Hi-νガンダムHWS','ストライクフリーダム','アカツキ（シラヌイ）') else 0.
         self.duration={'move':2.3,'fire':2.5,'charge':3.,'followers':2.7,
-                       'idle':.15+c['idle']['turn_period']+.45,'special':30.}[kind]
+                       'idle':.15+c['idle']['turn_period']+ramp,'special':30.}[kind]
 
     def sample(self,center,extent):
         t=self.time;pos=center;events=[]
@@ -42,7 +43,7 @@ class Sequence:
         self.previous=t
         return pos,events
 
-    def advance(self,dt):self.time+=min(.05,max(0.,dt))
+    def advance(self,dt):self.time=min(self.duration,self.time+min(.05,max(0.,dt)))
 
     def finished(self,engine):
         if self.kind!='special':return self.time>=self.duration
