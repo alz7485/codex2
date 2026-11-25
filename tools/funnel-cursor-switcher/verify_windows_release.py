@@ -156,8 +156,18 @@ def verify_packaged_apply(bundle, source):
                                 print("Registry matches selection:",system.currently_using(path),flush=True)
                                 raise
                             assert system.currently_using(path), path
-                            post(window,0x10,0,0)
-                            assert app.wait(timeout=15) == 0
+                            if reopening and name == "Hi-νガンダムHWS":
+                                owner_file = system.store/"cursor-guard-owner"
+                                assert owner_file.read_text(encoding="ascii") == str(app.pid)
+                                app.kill()
+                                app.wait(timeout=15)
+                                until = time.monotonic()+30
+                                while owner_file.exists() and time.monotonic()<until:
+                                    time.sleep(.1)
+                                assert not owner_file.exists(), "Cursor guard did not restore after forced termination"
+                            else:
+                                post(window,0x10,0,0)
+                                assert app.wait(timeout=15) == 0
                         finally:
                             if app.poll() is None:
                                 app.terminate()

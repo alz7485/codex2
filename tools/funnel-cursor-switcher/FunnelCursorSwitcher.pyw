@@ -1,3 +1,10 @@
+import sys
+
+if __name__ == "__main__" and len(sys.argv) == 3 and sys.argv[1] == "--cursor-guard":
+    from cursor_guard import watch
+    watch(int(sys.argv[2]))
+    raise SystemExit(0)
+
 import ctypes
 import hashlib
 import json
@@ -208,7 +215,7 @@ def main():
         logging.getLogger("funnel.display").error("UI callback", exc_info=(exc, value, tb))
         editor.status.set(f"表示処理でエラーが発生しました。{value}")
     root.report_callback_exception = report_callback
-    if editor.path and editor.key == editor.store.active and editor.path.stem in ("キュベレイ", "サザビー", "フィンファンネル"):
+    if editor.path and editor.key == editor.store.active and editor.path.stem in ("キュベレイ", "サザビー", "フィンファンネル", "Hi-νガンダム", "Hi-νガンダムHWS"):
         if system_cursor.currently_using(editor.path):
             editor.start_effects(editor.path)
     root.mainloop()

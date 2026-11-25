@@ -2,6 +2,8 @@
 
 from pathlib import Path
 import math
+import os
+import sys
 import numpy as np
 import trimesh
 from types import SimpleNamespace
@@ -17,6 +19,12 @@ from vtkmodules.vtkRenderingCore import (
     vtkLight,
     vtkPolyDataMapper,
 )
+_mesa_directory = (Path(__file__).parent if getattr(sys, "frozen", False) else Path(__file__).parents[1]) / "mesa"
+_mesa_handles = []
+if sys.platform == "win32" and _mesa_directory.is_dir():
+    os.environ["PATH"] = str(_mesa_directory) + os.pathsep + os.environ.get("PATH", "")
+    _mesa_handles.append(os.add_dll_directory(str(_mesa_directory)))
+
 import vtkmodules.vtkRenderingOpenGL2
 
 vtk = SimpleNamespace(

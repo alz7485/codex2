@@ -409,6 +409,8 @@ class LayeredOverlay:
 
 class FunnelEffect:
     def __init__(self, root, on_error, cache_dir=None):
+        from cursor_guard import start
+        start()
         self.root = root
         self.on_error = on_error
         self.overlay = self.timer = self.animation = None

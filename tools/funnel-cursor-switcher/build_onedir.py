@@ -58,6 +58,7 @@ def main():
     with ZipFile(ROOT / "hinu122/model-assets.zip") as models:
         models.extractall(bundle / "_internal")
     shutil.copy2(ROOT / "hinu122/routes114.json", bundle / "_internal/routes114.json")
+    shutil.copytree(ROOT / "mesa", bundle / "_internal/mesa", dirs_exist_ok=True)
     copy_runtime_assets(bundle)
     for name in ("VERSION", "README.md"):
         shutil.copy2(ROOT / name, bundle / name)
