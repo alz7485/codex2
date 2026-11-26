@@ -62,6 +62,14 @@ class HiNu218Host(TestCase):
         self.assertEqual(c.root_tracks[0].items['shot'],(.2,(17,15),.3,(37,35),.4))
         d.close()
 
+    def test_baked_idle_sheet_matches_native_cursor_registration(self):
+        for name in ('Hi-νガンダム','Hi-νガンダムHWS'):
+            with Image.open(ROOT/'カーソル/ファンネル'/(name+'.png')) as im:native=im.convert('RGBA')
+            with Image.open(ROOT/'飛行アニメ/ファンネル'/(name+'.待機回転.png')) as im:pose=im.crop((0,0,144,144)).resize((48,48),Image.Resampling.LANCZOS)
+            rest=Image.new('RGBA',(48,48));rest.paste(native,(8,8))
+            def core(im):return im.getchannel('A').point(lambda x:255 if x>=144 else 0).getbbox()
+            self.assertLessEqual(max(abs(a-b) for a,b in zip(core(rest),core(pose))),1)
+
     def test_settings_preserve_unknown_fields_and_reset_known_overrides(self):
         with TemporaryDirectory() as tmp:
             p=Path(tmp)/'effects.json';key='ファンネル/Hi-νガンダム.cur'
