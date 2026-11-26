@@ -10,9 +10,11 @@ import tkinter as tk
 from PIL import ImageGrab
 
 root_path = Path(__file__).parent
-data = b"".join(base64.b64decode(p.read_text()) for p in sorted((root_path/"assets190").glob("*.b64")))
-with ZipFile(BytesIO(data)) as z:
-    z.extractall(root_path)
+for folder in ("assets190","assets193","assets195","assets197"):
+    parts=sorted((root_path/folder).glob("*.b64"))
+    if parts:
+        data=b"".join(base64.b64decode(p.read_text()) for p in parts)
+        with ZipFile(BytesIO(data)) as z:z.extractall(root_path)
 with ZipFile(root_path/"hinu122/model-assets.zip") as z:
     z.extractall(root_path/"hinu122")
 app = run_path(str(root_path/"FunnelCursorSwitcher.pyw"))

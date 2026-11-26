@@ -124,7 +124,7 @@ class Preview:
             button.state(["!disabled"] if supported else ["disabled"])
             button.configure(style="ActivePreview.TButton" if self.sequence and self.sequence.kind==kind else "Preview.TButton")
         labels={"フィンファンネル":"バリア","キュベレイ":"螺旋放出","サザビー":"包囲射撃",
-                "アカツキ（シラヌイ）":"バリア"}
+                "アカツキ（シラヌイ）":"バリア","Hi-νガンダム":"V字射撃","Hi-νガンダムHWS":"連続襲撃"}
         self.test_button.configure(text=labels.get(self.path.stem,"一斉射撃") if supported else "特殊")
 
     def finish_sequence(self):
@@ -285,7 +285,7 @@ class Editor:
         header=ttk.Frame(container)
         header.grid(row=0,columnspan=2,sticky="ew",pady=(0,12))
         ttk.Label(header,text="FUNNEL / CONTROL",style="Title.TLabel").pack(side="left")
-        ttk.Label(header,text="CURSOR SYSTEM  //  1.9.6",style="Muted.TLabel").pack(side="right")
+        ttk.Label(header,text="CURSOR SYSTEM  //  1.9.7",style="Muted.TLabel").pack(side="right")
         ttk.Label(left,text="01  /  EQUIPMENT",style="Section.TLabel").pack(anchor="w",pady=(0,8))
         # Keep selection models for settings compatibility; equipment is selected only by cards.
         self.category = ttk.Combobox(left,state="readonly",values=[*entries,self.restore])
@@ -530,7 +530,7 @@ class Editor:
         if group:
             config = self.values()[0][group]
             self.special_title.configure(text=f"特殊演出　{config['modifiers']}＋{config['button']}")
-            self.row_checks[group].configure(text="シラヌイ八面体バリア" if self.path.stem=="アカツキ（シラヌイ）" else NAMES[group])
+            self.row_checks[group].configure(text={"アカツキ（シラヌイ）":"シラヌイ八面体バリア","Hi-νガンダム":"再進入・V字編隊射撃","Hi-νガンダムHWS":"高速連続襲撃（8射）"}.get(self.path.stem,NAMES[group]))
             self.special_title.grid()
         else:
             self.special_title.grid_remove()
@@ -635,7 +635,7 @@ class Editor:
     def details(self, g):
         if not self.path:
             return
-        win = self.subwindow("シラヌイ八面体バリア" if g=="dragoon" and self.path.stem=="アカツキ（シラヌイ）" else NAMES[g])
+        win = self.subwindow({("dragoon","アカツキ（シラヌイ）"):"シラヌイ八面体バリア",("volley","Hi-νガンダム"):"再進入・V字編隊射撃",("volley","Hi-νガンダムHWS"):"高速連続襲撃（8射）"}.get((g,self.path.stem),NAMES[g]))
         scroll = tk.Canvas(
             win, width=490, height=min(390, self.root.winfo_screenheight() - 145), bg=theme.BG, highlightthickness=0
         )

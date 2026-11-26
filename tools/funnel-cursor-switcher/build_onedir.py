@@ -39,7 +39,7 @@ def main():
         with ZipFile(ROOT / "hinu122/model-assets.zip") as models:
             models.extractall(ROOT / "hinu122")
 
-    for folder in ("assets193","assets195"):
+    for folder in ("assets193","assets195","assets197"):
         if not (ROOT/folder).is_dir():continue
         data=b"".join(base64.b64decode(part.read_text()) for part in sorted((ROOT/folder).glob("*.b64")))
         with ZipFile(BytesIO(data)) as assets:assets.extractall(ROOT)
@@ -61,12 +61,13 @@ def main():
         runtime.extractall(bundle / "_internal" / "trial58")
     with ZipFile(ROOT / "runtime77.zip") as runtime:
         runtime.extractall(bundle / "_internal/fin77")
-    with ZipFile(ROOT / "hinu122/model-assets.zip") as models:
-        models.extractall(bundle / "_internal")
     shutil.copy2(ROOT / "hinu122/routes114.json", bundle / "_internal/routes114.json")
     shutil.copytree(ROOT / "mesa", bundle / "_internal/mesa", dirs_exist_ok=True)
     shutil.copy2(ROOT / "dragoon146/StrikeFreedom_Dragoon_Trial133.glb", bundle / "_internal/StrikeFreedom_Dragoon_Trial133.glb")
     shutil.copy2(ROOT / "akatsuki160/Akatsuki_Shiranui_Trial149_stowed.glb", bundle / "_internal/Akatsuki_Shiranui_Trial149_stowed.glb")
+    (bundle / "_internal/hinu218").mkdir(parents=True,exist_ok=True)
+    for name in ("HiNu_Trial188.glb","HiNu_HWS_Trial188.glb","routes114.json"):
+        shutil.copy2(ROOT / "hinu218" / name,bundle / "_internal/hinu218" / name)
     copy_runtime_assets(bundle)
     for name in ("VERSION", "README.md"):
         shutil.copy2(ROOT / name, bundle / name)

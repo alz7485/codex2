@@ -287,7 +287,7 @@ def patch(data, strict=False):
 def resolve(category, preset, overrides, cursor_key=None):
     values = {g: {k: f.default for k, f in fields.items()} for g, fields in FIELDS.items()}
     origins = {g: dict.fromkeys(fields, "共通") for g, fields in FIELDS.items()}
-    if cursor_key in ("ドラグーン/ストライクフリーダム.cur","ドラグーン/アカツキ（シラヌイ）.cur"):
+    if cursor_key in ("ドラグーン/ストライクフリーダム.cur","ドラグーン/アカツキ（シラヌイ）.cur","ファンネル/Hi-νガンダム.cur","ファンネル/Hi-νガンダムHWS.cur"):
         values["idle"].update(enabled=True,motion="横回転",delay=.9,turn_period=3.8)
         origins["idle"].update(dict.fromkeys(("enabled","motion","delay","turn_period"),"機体"))
     if cursor_key == "ファンネル/フィンファンネル.cur":
@@ -372,9 +372,27 @@ class Settings:
         return deepcopy(self.cursors[cursor]) if cursor in self.cursors else default_binding(cursor)
 
     def write(self):
-        data = encode(
-            dict(schema_version=1, active_cursor=self.active, presets=self.presets, cursors=self.cursors)
-        )
+        # Preserve future/other-equipment fields, while allowing known overrides to be reset.
+        previous = json.loads(self.original.decode("utf-8-sig")) if self.original and not self.warning else {}
+        def keep_unknown(old, current):
+            old=old if isinstance(old,dict) else {}
+            result={g:deepcopy(v) for g,v in old.items() if g not in FIELDS}
+            for g,v in old.items():
+                if g in FIELDS and isinstance(v,dict):
+                    extras={k:deepcopy(x) for k,x in v.items() if k not in FIELDS[g]}
+                    if extras:result[g]=extras
+            for g,v in current.items():result[g]={**result.get(g,{}),**deepcopy(v)}
+            return result
+        old_presets=previous.get("presets",{})
+        presets={n:keep_unknown(old_presets.get(n,{}),v) for n,v in self.presets.items()}
+        old_cursors=previous.get("cursors",{})
+        cursors={k:deepcopy(v) for k,v in old_cursors.items() if not isinstance(v,dict)}
+        for k,binding in self.cursors.items():
+            old=old_cursors.get(k,{})
+            old=old if isinstance(old,dict) else {}
+            cursors[k]={**old,**binding,"overrides":keep_unknown(old.get("overrides",{}),binding["overrides"])}
+        payload={**previous,"schema_version":1,"active_cursor":self.active,"presets":presets,"cursors":cursors}
+        data=encode(payload)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         # Serialize compare-and-replace across instances. Windows releases this lock on process exit.
         with self.path.with_suffix(".lock").open("a+b") as guard:

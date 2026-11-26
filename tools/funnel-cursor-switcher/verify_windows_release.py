@@ -444,6 +444,10 @@ def main(archive, check_restore=False):
         bundle = root / "FunnelCursorSwitcher"
         assert (bundle / "_internal" / "_tk_data" / "tk.tcl").is_file()
         cursors = bundle / "カーソル"
+        for name in ("HiNu_Trial188.glb","HiNu_HWS_Trial188.glb"):
+            assert (bundle/"_internal/hinu218"/name).read_bytes()==(Path(__file__).parent/"hinu218"/name).read_bytes()
+        assert not (bundle/"_internal/HiNu_Trial119.glb").exists()
+        assert not (bundle/"_internal/HiNu_HWS_Trial119.glb").exists()
         for stem in ("フィンファンネル", "サザビー", "キュベレイ"):
             verify_base_frame(cursors / "ファンネル" / f"{stem}.cur")
 
