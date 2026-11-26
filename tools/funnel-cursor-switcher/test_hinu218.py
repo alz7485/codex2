@@ -75,8 +75,8 @@ class HiNu218Host(TestCase):
             p=Path(tmp)/'effects.json';key='ファンネル/Hi-νガンダム.cur'
             data={'schema_version':1,'future_top':{'x':7},'presets':{},'cursors':{key:{'preset':'標準','future_binding':9,
                   'overrides':{'followers':{'count':3,'future_field':123},'future_group':{'value':True}}}}}
-            p.write_text(json.dumps(data));s=Settings(p);s.cursors[key]['overrides']={};s.write()
-            new=json.loads(p.read_text())
+            p.write_text(json.dumps(data),encoding="utf-8");s=Settings(p);s.cursors[key]['overrides']={};s.write()
+            new=json.loads(p.read_text(encoding="utf-8"))
             self.assertEqual(new['future_top'],{'x':7})
             self.assertEqual(new['cursors'][key]['future_binding'],9)
             self.assertEqual(new['cursors'][key]['overrides'],{'followers':{'future_field':123},'future_group':{'value':True}})
